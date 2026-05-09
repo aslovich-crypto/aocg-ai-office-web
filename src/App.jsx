@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { Html5Qrcode } from "html5-qrcode";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -38,6 +39,14 @@ const ROLES = [
 const fmt = n => Number(n).toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₽";
 const fmtDate = s => new Date(s).toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric"});
 const monthLabel = s => new Date(s).toLocaleDateString("ru-RU",{month:"long",year:"numeric"}).replace(/^./,c=>c.toUpperCase());
+
+function parseQRString(qr) {
+  const p={};
+  qr.split("&").forEach(part=>{const [k,...v]=part.split("=");p[k]=v.join("=");});
+  const t=p.t||"";
+  const date=t.length>=8?`${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)}`:"";
+  return {date,amount:p.s?String(parseFloat(p.s)):"",fn:p.fn||"",fd:p.i||"",fpd:p.fp||"",type:p.n||""};
+}
 
 function groupByMonth(items) {
   const g={};
@@ -125,6 +134,74 @@ function Modal({title,onClose,children,footer}) {
         </div>
         <div style={{overflow:"auto",flex:1,padding:"4px 16px 8px"}}>{children}</div>
         {footer&&<div style={{padding:"10px 16px",borderTop:`1px solid ${C.silver}`,background:C.lightGray,flexShrink:0}}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ScanReceiptModal({onClose,onScanned,onManual}) {
+  const [error,setError]=useState("");
+  const scannerRef=useRef(null);
+  const cameraOn=useRef(false);
+  const fileRef=useRef(null);
+  const captureRef=useRef(null);
+
+  useEffect(()=>{
+    const s=new Html5Qrcode("qr-reader");
+    scannerRef.current=s;
+    s.start(
+      {facingMode:"environment"},
+      {fps:10,qrbox:{width:250,height:250}},
+      (text)=>{
+        if(!cameraOn.current)return;
+        cameraOn.current=false;
+        s.stop().catch(()=>{}).finally(()=>onScanned(text));
+      },
+      ()=>{}
+    ).then(()=>{cameraOn.current=true;}).catch(()=>setError("Нет доступа к камере"));
+    return ()=>{
+      if(cameraOn.current){cameraOn.current=false;s.stop().catch(()=>{});}
+    };
+  },[]);
+
+  async function handleFile(file) {
+    if(!file)return;
+    setError("");
+    try{
+      const s=scannerRef.current;
+      if(cameraOn.current){await s.stop().catch(()=>{});cameraOn.current=false;}
+      const result=await s.scanFile(file,false);
+      onScanned(result);
+    }catch{setError("QR-код не найден в изображении");}
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",background:"rgba(0,0,0,0.55)",flexShrink:0}}>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.white,fontSize:22,cursor:"pointer",padding:0,lineHeight:1}}>←</button>
+        <span style={{fontSize:15,fontFamily:FONT,color:C.white,fontWeight:600}}>Новый чек</span>
+      </div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+        <span style={{fontSize:14,color:C.white,fontFamily:FONT,marginBottom:20,opacity:0.85}}>Отсканируйте QR с чека</span>
+        <div id="qr-reader" style={{width:250,height:250,borderRadius:12,overflow:"hidden"}}/>
+        {error&&<div style={{marginTop:16,padding:"8px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8}}>
+          <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error}</span>
+        </div>}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
+      <input ref={captureRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
+      <div style={{padding:"16px 16px 32px",background:"rgba(0,0,0,0.55)",flexShrink:0}}>
+        <div style={{display:"flex",gap:10,marginBottom:14}}>
+          <button onClick={()=>fileRef.current.click()} style={{flex:1,padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
+            <span style={{fontSize:20}}>🖼</span>Загрузить
+          </button>
+          <button onClick={()=>captureRef.current.click()} style={{flex:1,padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
+            <span style={{fontSize:20}}>📷</span>Сделать фото
+          </button>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <button onClick={onManual} style={{background:"none",border:"none",color:C.grayL,fontFamily:FONT,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>Ввести вручную</button>
+        </div>
       </div>
     </div>
   );
@@ -243,8 +320,17 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd}) {
   const [search,setSearch]=useState("");
   const [showFns,setShowFns]=useState(false);
   const [fnsSelected,setFnsSelected]=useState([]);
+  const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({org:"",amount:"",category:"Питание",payment:"Не указано",date:new Date().toISOString().split("T")[0]});
+
+  function handleScanned(qrText) {
+    const parsed=parseQRString(qrText);
+    setShowScan(false);
+    setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||""}));
+    setShowAdd(true);
+  }
+  function handleManual() {setShowScan(false);setShowAdd(true);}
   const filtered=receipts.filter(r=>!search||r.org.toLowerCase().includes(search.toLowerCase()));
   const groups=groupByMonth(filtered);
 
@@ -305,7 +391,8 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd}) {
         ))}
         {groups.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
       </div>
-      <button onClick={()=>setShowAdd(true)} style={{position:"fixed",bottom:80,right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
+      <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:80,right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
+      {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onScanned={handleScanned} onManual={handleManual}/>}
       {showFns&&(
         <Modal title="Операции из ФНС" onClose={()=>{setShowFns(false);setFnsSelected([]);}}
           footer={<div style={{display:"flex",gap:6}}><button onClick={()=>setFnsSelected(FNS_RECEIPTS.map(f=>f.id))} style={{flex:1,background:C.lightGray,border:`1px solid ${C.silver}`,padding:"8px",fontFamily:FONT,fontSize:10,textTransform:"uppercase",cursor:"pointer",color:C.mid,letterSpacing:"0.06em"}}>Все</button><button onClick={()=>setFnsSelected([])} style={{flex:1,background:C.lightGray,border:`1px solid ${C.silver}`,padding:"8px",fontFamily:FONT,fontSize:10,textTransform:"uppercase",cursor:"pointer",color:C.mid,letterSpacing:"0.06em"}}>Сброс</button><Btn onClick={loadFns} disabled={!fnsSelected.length}>Загрузить</Btn></div>}>
