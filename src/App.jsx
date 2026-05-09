@@ -1,22 +1,31 @@
+/* Inter font */
 import { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 const C = {
   cherry:    "#A4161A",
-  cherryD:   "#7a1014",
-  cherryL:   "#F2E0E0",
-  cherryM:   "#D4888A",
-  dark:      "#161A1D",
-  mid:       "#404040",
-  gray:      "#6B7280",
-  grayL:     "#9CA3AF",
-  silver:    "#E8E4E0",
-  lightGray: "#F0EDEA",
-  light:     "#f5f3f0",
+  cherryD:   "#7C1013",
+  cherryL:   "#FDF2F2",
+  cherryM:   "#C94F52",
+  cherryS:   "#E8A4A6",
+  dark:      "#111318",
+  mid:       "#2D3240",
+  gray:      "#636B7D",
+  grayL:     "#B8BDC8",
+  silver:    "#D6D9E0",
+  lightGray: "#EEF0F4",
+  light:     "#F6F7F9",
   white:     "#ffffff",
+  // Semantic
+  greenBg:   "#F0FDF4",
+  green:     "#15803D",
+  amberBg:   "#FFFBEB",
+  amber:     "#B45309",
+  blueBg:    "#EFF6FF",
+  blue:      "#1D4ED8",
 };
 
-const FONT = "'Georgia', 'Times New Roman', serif";
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 const PAYMENT_METHODS = ["Корпоративная карта", "Наличные", "Личная карта", "Не указано"];
 const CATEGORIES = ["Питание", "Транспорт", "Топливо", "Продукты", "Гостиница", "Канцелярия", "Прочее"];
 
