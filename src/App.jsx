@@ -450,7 +450,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
             <span style={{flexShrink:0}}>·</span>
             <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{payment}{card4?` •••${card4}`:""}</span>
             <span style={{flex:1}}/>
-            <span style={{color:"#9CA3AF",fontSize:10,flexShrink:0,lineHeight:1}}>›</span>
+            <span style={{color:"#9CA3AF",fontSize:14,fontWeight:600,flexShrink:0,lineHeight:1}}>›</span>
           </div>
         </div>
       </div>
