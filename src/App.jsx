@@ -646,12 +646,12 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
   const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [detail,setDetail]=useState(null);
-  const [form,setForm]=useState({org:"",amount:"",category:"Питание",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+  const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
 
   async function handleScanned(qrText) {
     const parsed=parseQRString(qrText);
     setShowScan(false);
-    setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||"",org:"",fn:parsed.fn||"",raw_data:null}));
+    setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||"",org:"",category:"Не указано",fn:parsed.fn||"",raw_data:null}));
     setShowAdd(true);
     try {
       const res=await fetch(`${API}/api/fns/check`,{
@@ -661,12 +661,21 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
       });
       if(res.ok){
         const d=await res.json();
-        setForm(p=>({
-          ...p,
-          org:d.org||p.org,
-          amount:d.total?String(d.total):p.amount,
-          raw_data:d.raw||d,
-        }));
+        setForm(p=>{
+          const raw=d.raw||{};
+          const cash=Number(raw.cashTotalSum)||0;
+          const card=Number(raw.ecashTotalSum)||0;
+          let payment=p.payment;
+          if(card>0&&cash===0) payment="Личная карта";
+          else if(cash>0&&card===0) payment="Наличные";
+          return {
+            ...p,
+            org:d.org||p.org,
+            amount:d.total?String(d.total):p.amount,
+            raw_data:d.raw||d,
+            payment,
+          };
+        });
       }
     } catch {}
   }
@@ -705,7 +714,7 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
     if(res.status===409) {
       alert("Этот чек уже добавлен ранее");
       setShowAdd(false);
-      setForm({org:"",amount:"",category:"Питание",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+      setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
       return;
     }
     if(!res.ok) {
@@ -715,7 +724,7 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
     const created=await res.json();
     handleAdd(created);
     setShowAdd(false);
-    setForm({org:"",amount:"",category:"Питание",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+    setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
   }
 
   return (
