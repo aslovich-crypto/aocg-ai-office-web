@@ -324,11 +324,26 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd}) {
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({org:"",amount:"",category:"Питание",payment:"Не указано",date:new Date().toISOString().split("T")[0]});
 
-  function handleScanned(qrText) {
+  async function handleScanned(qrText) {
     const parsed=parseQRString(qrText);
     setShowScan(false);
-    setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||""}));
+    setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||"",org:""}));
     setShowAdd(true);
+    try {
+      const res=await fetch(`${API}/api/fns/check`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({qr_raw:qrText})
+      });
+      if(res.ok){
+        const d=await res.json();
+        setForm(p=>({
+          ...p,
+          org:d.org||p.org,
+          amount:d.total?String(d.total):p.amount,
+        }));
+      }
+    } catch {}
   }
   function handleManual() {setShowScan(false);setShowAdd(true);}
   const filtered=receipts.filter(r=>!search||r.org.toLowerCase().includes(search.toLowerCase()));
