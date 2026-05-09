@@ -125,8 +125,8 @@ function RuleInput({label,value,onChange,type="text",placeholder}) {
 
 function Toggle({value,onChange}) {
   return (
-    <div onClick={()=>onChange(!value)} style={{width:34,height:18,background:value?C.cherry:C.silver,position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0}}>
-      <div style={{position:"absolute",top:2,left:value?16:2,width:12,height:12,background:C.white,boxShadow:"0 1px 3px rgba(0,0,0,0.15)",transition:"left 0.2s"}}/>
+    <div onClick={()=>onChange(!value)} style={{width:34,height:18,background:value?C.cherry:C.silver,position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0,borderRadius:6}}>
+      <div style={{position:"absolute",top:2,left:value?16:2,width:12,height:12,background:C.white,boxShadow:"0 1px 3px rgba(0,0,0,0.15)",transition:"left 0.2s",borderRadius:4}}/>
     </div>
   );
 }
@@ -636,6 +636,7 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
   const [tab,setTab]=useState("Чеки");
   const [search,setSearch]=useState("");
   const [recent,setRecent]=useState(false);
+  const [month,setMonth]=useState(false);
   const [showFilters,setShowFilters]=useState(false);
   const defaultFrom=daysAgoISO(365), defaultTo=todayISO();
   const [dateFrom,setDateFrom]=useState(defaultFrom);
@@ -673,6 +674,7 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
 
   const inDate=r=>{
     if(recent) return r.date>=daysAgoISO(7);
+    if(month) return r.date.slice(0,7)===todayISO().slice(0,7);
     return r.date>=dateFrom && r.date<=dateTo;
   };
   const filtered=receipts.filter(r=>(!search||r.org.toLowerCase().includes(search.toLowerCase()))&&inDate(r));
@@ -724,10 +726,14 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.grayL} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..." style={{border:"none",outline:"none",flex:1,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
         </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Toggle value={recent} onChange={setRecent}/>
+            <Toggle value={recent} onChange={v=>{setRecent(v);if(v)setMonth(false);}}/>
             <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Показывать недавние</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <Toggle value={month} onChange={v=>{setMonth(v);if(v)setRecent(false);}}/>
+            <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Показывать месяц</span>
           </div>
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
             <button onClick={()=>setShowFns(true)} style={{border:`1px solid ${C.cherryM}`,background:C.cherryL,padding:"6px 10px",color:C.cherry,fontFamily:FONT,fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase",cursor:"pointer",borderRadius:8}}>Импорт ФНС</button>
