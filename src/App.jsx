@@ -347,6 +347,30 @@ function SvodkaPage({receipts}) {
   );
 }
 
+function getCardLast4(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const candidates = [
+    raw?.paymentType?.cardNumber,
+    raw?.cardNumber,
+    raw?.data?.json?.paymentType?.cardNumber,
+    raw?.data?.json?.cardNumber,
+    raw?.json?.paymentType?.cardNumber,
+    raw?.json?.cardNumber,
+  ];
+  for (const v of candidates) {
+    if (v == null) continue;
+    const s = String(v).replace(/\D/g, "");
+    if (s.length >= 4) return s.slice(-4);
+  }
+  return null;
+}
+
+function shortPayment(p) {
+  if (!p) return "Не указано";
+  if (p === "Корпоративная карта") return "Корп.карта";
+  return p;
+}
+
 function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   const [tx,setTx]=useState(0);
   const startX=useRef(0);
@@ -358,6 +382,8 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   const r=receipt;
   const col=catColor(r.category);
   const REVEAL=72;
+  const card4=getCardLast4(r.raw_data);
+  const payment=shortPayment(r.payment);
 
   function onPointerDown(e) {
     dragging.current=true;
@@ -407,18 +433,25 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
         onPointerCancel={onPointerUp}
         onClick={handleTap}
         style={{
-          background:C.white,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,
+          background:C.white,padding:"8px 16px",display:"flex",alignItems:"center",gap:12,
           transform:`translateX(${tx}px)`,transition:dragging.current?"none":"transform 0.2s ease",
           cursor:"pointer",userSelect:"none",touchAction:"pan-y"
         }}>
         <div style={{width:40,height:40,borderRadius:"50%",background:col.bg,color:col.fg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:16,fontWeight:700,flexShrink:0}}>{orgInitial(r.org)}</div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.org}</div>
-          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginTop:2}}>{fmtDate(r.date)}</div>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,gap:2}}>
-          <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:700}}>{fmt(r.amount)}</span>
-          <span style={{fontSize:14,color:C.grayL,fontFamily:FONT,lineHeight:1}}>›</span>
+        <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center",gap:4}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{flex:1,minWidth:0,fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.org}</span>
+            <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:700,flexShrink:0}}>{fmt(r.amount)}</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#636B7D",fontFamily:FONT,minWidth:0}}>
+            <span style={{display:"inline-block",padding:"2px 6px",borderRadius:4,background:col.bg,color:col.fg,fontSize:10,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{r.category||"Не указано"}</span>
+            <span style={{flexShrink:0}}>·</span>
+            <span style={{whiteSpace:"nowrap",flexShrink:0}}>{fmtDate(r.date)}</span>
+            <span style={{flexShrink:0}}>·</span>
+            <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{payment}{card4?` •••${card4}`:""}</span>
+            <span style={{flex:1}}/>
+            <span style={{color:"#9CA3AF",fontSize:10,flexShrink:0,lineHeight:1}}>›</span>
+          </div>
         </div>
       </div>
     </div>
