@@ -726,14 +726,16 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.grayL} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..." style={{border:"none",outline:"none",flex:1,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
         </div>
-        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Toggle value={recent} onChange={v=>{setRecent(v);if(v)setMonth(false);}}/>
-            <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Показывать недавние</span>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Toggle value={month} onChange={v=>{setMonth(v);if(v)setRecent(false);}}/>
-            <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Показывать месяц</span>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <Toggle value={recent} onChange={v=>{setRecent(v);if(v)setMonth(false);}}/>
+              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Недавние</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <Toggle value={month} onChange={v=>{setMonth(v);if(v)setRecent(false);}}/>
+              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>За месяц</span>
+            </div>
           </div>
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
             <button onClick={()=>setShowFns(true)} style={{border:`1px solid ${C.cherryM}`,background:C.cherryL,padding:"6px 10px",color:C.cherry,fontFamily:FONT,fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase",cursor:"pointer",borderRadius:8}}>Импорт ФНС</button>
