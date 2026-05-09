@@ -168,11 +168,11 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
     if(!file)return;
     setError("");
     try{
-      const s=scannerRef.current;
-      if(cameraOn.current){await s.stop().catch(()=>{});cameraOn.current=false;}
-      const result=await s.scanFile(file,false);
+      if(cameraOn.current){await scannerRef.current.stop().catch(()=>{});cameraOn.current=false;}
+      const fileScanner=new Html5Qrcode("qr-file-reader");
+      const result=await fileScanner.scanFile(file,false);
       onScanned(result);
-    }catch{setError("QR-код не найден в изображении");}
+    }catch{setError("QR-код не найден в изображении. Попробуйте сделать фото QR крупнее.");}
   }
 
   return (
@@ -184,6 +184,7 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
       <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
         <span style={{fontSize:14,color:C.white,fontFamily:FONT,marginBottom:20,opacity:0.85}}>Отсканируйте QR с чека</span>
         <div id="qr-reader" style={{width:250,height:250,borderRadius:12,overflow:"hidden"}}/>
+        <div id="qr-file-reader" style={{display:"none"}}/>
         {error&&<div style={{marginTop:16,padding:"8px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8}}>
           <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error}</span>
         </div>}
