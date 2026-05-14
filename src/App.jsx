@@ -848,11 +848,11 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <Toggle value={recent} onChange={v=>{setRecent(v);if(v){setMonth(false);setDateFrom(defaultFrom);setDateTo(defaultTo);}}}/>
-              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Недавние</span>
+              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Неделя</span>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <Toggle value={month} onChange={v=>{setMonth(v);if(v){setRecent(false);setDateFrom(defaultFrom);setDateTo(defaultTo);}}}/>
-              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>За месяц</span>
+              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Месяц</span>
             </div>
           </div>
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
