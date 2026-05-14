@@ -84,6 +84,7 @@ function parseQRString(qr) {
 const toLocalISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const todayISO = () => toLocalISO(new Date());
 const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return toLocalISO(x); };
+const monthStartISO = () => { const x=new Date(); x.setDate(1); return toLocalISO(x); };
 const fmtDateTime = ts => {
   if (!ts) return "";
   const d = new Date(ts);
@@ -692,11 +693,11 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div>
               <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
-              <input ref={fromRef} type="date" defaultValue={from} style={inputStyle}/>
+              <input ref={fromRef} type="date" defaultValue={from||monthStartISO()} style={inputStyle}/>
             </div>
             <div>
               <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>До</div>
-              <input ref={toRef} type="date" defaultValue={to} style={inputStyle}/>
+              <input ref={toRef} type="date" defaultValue={to||todayISO()} style={inputStyle}/>
             </div>
           </div>
         </div>
