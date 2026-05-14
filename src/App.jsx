@@ -61,6 +61,23 @@ function orgInitial(org) {
   return (s[0] || org[0] || "?").toUpperCase();
 }
 
+const ORG_FULL_FORMS = [
+  [/публичное\s+акционерное\s+общество/i, "ПАО"],
+  [/закрытое\s+акционерное\s+общество/i, "ЗАО"],
+  [/открытое\s+акционерное\s+общество/i, "ОАО"],
+  [/общество\s+с\s+ограниченной\s+ответственностью/i, "ООО"],
+  [/акционерное\s+общество/i, "АО"],
+  [/индивидуальный\s+предприниматель/i, "ИП"],
+];
+function shortOrg(org) {
+  if (!org) return org;
+  let s = String(org);
+  for (const [re, abbr] of ORG_FULL_FORMS) {
+    if (re.test(s)) { s = s.replace(re, abbr); break; }
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
+
 function parseQRString(qr) {
   const p={};
   qr.split("&").forEach(part=>{const [k,...v]=part.split("=");p[k]=v.join("=");});
@@ -308,21 +325,21 @@ function Donut({title,data,num}) {
         <div style={{position:"relative",height:160}}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={48} outerRadius={70} paddingAngle={2} startAngle={90} endAngle={-270}>
+              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={54} outerRadius={75} paddingAngle={2} startAngle={90} endAngle={-270}>
                 {data.map((_,i)=><Cell key={i} fill={pal[i%pal.length]}/>)}
               </Pie>
               <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:11}}/>
             </PieChart>
           </ResponsiveContainer>
           <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-            <span style={{fontSize:12,color:"#636B7D",fontFamily:FONT}}>Итого</span>
-            <span style={{fontSize:16,fontWeight:600,color:C.dark,fontFamily:FONT,fontVariantNumeric:"tabular-nums"}}>{fmt(sectionTotal)}</span>
+            <span style={{fontSize:11,color:"#636B7D",fontFamily:FONT}}>Итого</span>
+            <span style={{fontSize:13,fontWeight:600,color:C.dark,fontFamily:FONT,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}}>{fmt(sectionTotal)}</span>
           </div>
         </div>
       )}
       <div style={{display:"flex",flexWrap:"wrap",gap:"6px 14px",padding:"8px 0 2px"}}>
         {data.map((d,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
             <div style={{width:8,height:8,borderRadius:"50%",background:pal[i%pal.length],flexShrink:0}}/>
             <span style={{fontSize:11,color:C.dark,fontFamily:FONT}}>{d.name}</span>
             <span style={{fontSize:12,fontWeight:500,color:C.gray,fontFamily:FONT,fontVariantNumeric:"tabular-nums"}}>{fmt(d.value)}</span>
@@ -407,7 +424,7 @@ function SvodkaPage({receipts}) {
           ))}
           {empData.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Нет данных за период</div>}
         </SectionCard>
-        <Donut title="Организации" data={Object.entries(orgMap).map(([name,d])=>({name,...d}))} num="02"/>
+        <Donut title="Организации" data={Object.entries(orgMap).map(([name,d])=>({name:shortOrg(name),...d}))} num="02"/>
         <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))} num="03"/>
         <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))} num="04"/>
       </div>
