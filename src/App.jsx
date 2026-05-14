@@ -704,7 +704,7 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
           <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </button>
-          <button onClick={()=>apply(fromRef.current.value||from,toRef.current.value||to)} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
+          <button onClick={()=>apply(fromRef.current.value,toRef.current.value)} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
         </div>
       </div>
     </div>
@@ -731,7 +731,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
   const [recent,setRecent]=useState(false);
   const [month,setMonth]=useState(false);
   const [showFilters,setShowFilters]=useState(false);
-  const defaultFrom="2000-01-01", defaultTo=todayISO();
+  const defaultFrom="", defaultTo="";
   const [dateFrom,setDateFrom]=useState(defaultFrom);
   const [dateTo,setDateTo]=useState(defaultTo);
   const [limit,setLimit]=useState(30);
@@ -786,7 +786,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
   const inDate=r=>{
     if(recent) return r.date>=daysAgoISO(7);
     if(month) return r.date.slice(0,7)===todayISO().slice(0,7);
-    return r.date>=dateFrom && r.date<=dateTo;
+    return (!dateFrom||r.date>=dateFrom) && (!dateTo||r.date<=dateTo);
   };
   const filtered=receipts.filter(r=>(!search||r.org.toLowerCase().includes(search.toLowerCase()))&&inDate(r));
   const groups=groupByMonth(filtered.slice(0,limit));
