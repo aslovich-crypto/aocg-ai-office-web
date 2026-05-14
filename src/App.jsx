@@ -857,7 +857,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
         ))}
         {groups.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
       </div>
-      <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:80,right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
+      <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
       {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onScanned={handleScanned} onManual={handleManual}/>}
       {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal receipt={detail} onClose={()=>setDetail(null)} onDelete={()=>{handleDelete(detail.id);setDetail(null);}} onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}/>}
