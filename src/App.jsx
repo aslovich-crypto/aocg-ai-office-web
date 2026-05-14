@@ -20,7 +20,6 @@ const C = {
 };
 
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-const PAYMENT_METHODS = ["Корпоративная карта", "Наличные", "Личная карта", "Не указано"];
 const CATEGORIES = ["Питание", "Транспорт", "Топливо", "Продукты", "Гостиница", "Канцелярия", "Прочее"];
 
 const FNS_RECEIPTS = [
@@ -632,7 +631,8 @@ function FilterIcon({active,onClick}) {
   );
 }
 
-function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleUpdate}) {
+function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleBulkAdd, handleUpdate}) {
+  const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [tab,setTab]=useState("Чеки");
   const [search,setSearch]=useState("");
   const [recent,setRecent]=useState(false);
@@ -661,21 +661,31 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
       });
       if(res.ok){
         const d=await res.json();
-        setForm(p=>{
-          const raw=d.raw||{};
-          const cash=Number(raw.cashTotalSum)||0;
-          const card=Number(raw.ecashTotalSum)||0;
-          let payment=p.payment;
-          if(card>0&&cash===0) payment="Личная карта";
-          else if(cash>0&&card===0) payment="Наличные";
-          return {
-            ...p,
-            org:d.org||p.org,
-            amount:d.total?String(d.total):p.amount,
-            raw_data:d.raw||d,
-            payment,
-          };
-        });
+        const raw=d.raw||{};
+        const cash=Number(raw.cashTotalSum)||0;
+        const card=Number(raw.ecashTotalSum)||0;
+        let suggested=null;
+        if(d.org){
+          try{
+            const sres=await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(d.org)}`);
+            if(sres.ok){const sd=await sres.json();suggested=sd.payment||null;}
+          }catch{}
+        }
+        let payment="Не указано";
+        if(cash>0&&card===0){
+          payment="Наличные";
+        }else if(card>0&&cash===0){
+          payment=(suggested&&suggested!=="Наличные")?suggested:"Личная карта";
+        }else if(suggested){
+          payment=suggested;
+        }
+        setForm(p=>({
+          ...p,
+          org:d.org||p.org,
+          amount:d.total?String(d.total):p.amount,
+          raw_data:d.raw||d,
+          payment,
+        }));
       }
     } catch {}
   }
@@ -790,7 +800,7 @@ function OperaciiPage({receipts, handleAdd, handleDelete, handleBulkAdd, handleU
             <RuleInput label="Сумма (₽)" value={form.amount} onChange={v=>setForm(p=>({...p,amount:v}))} type="number" placeholder="0.00"/>
             <RuleInput label="Дата" value={form.date} onChange={v=>setForm(p=>({...p,date:v}))} type="date"/>
             <div style={{marginBottom:12}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Категория</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{CATEGORIES.map(c=><button key={c} onClick={()=>setForm(p=>({...p,category:c}))} style={{padding:"4px 10px",border:`1px solid ${form.category===c?C.cherry:C.silver}`,background:form.category===c?C.cherry:C.white,color:form.category===c?C.white:C.mid,fontFamily:FONT,fontSize:11,cursor:"pointer",borderRadius:6}}>{c}</button>)}</div></div>
-            <div style={{marginBottom:8}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Метод оплаты</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{PAYMENT_METHODS.map(m=><button key={m} onClick={()=>setForm(p=>({...p,payment:m}))} style={{padding:"4px 10px",border:`1px solid ${form.payment===m?C.cherry:C.silver}`,background:form.payment===m?C.cherryL:C.white,color:form.payment===m?C.cherry:C.mid,fontFamily:FONT,fontSize:11,cursor:"pointer",borderRadius:6}}>{m}</button>)}</div></div>
+            <div style={{marginBottom:8}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Метод оплаты</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{paymentOptions.map(m=><button key={m} onClick={()=>setForm(p=>({...p,payment:m}))} style={{padding:"4px 10px",border:`1px solid ${form.payment===m?C.cherry:C.silver}`,background:form.payment===m?C.cherryL:C.white,color:form.payment===m?C.cherry:C.mid,fontFamily:FONT,fontSize:11,cursor:"pointer",borderRadius:6}}>{m}</button>)}</div></div>
           </div>
         </Modal>
       )}
@@ -892,9 +902,10 @@ function OtchetyPage({receipts}) {
   );
 }
 
-function NastroykiPage() {
+function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard}) {
   const [tab,setTab]=useState("Аккаунт");
   const [roles,setRoles]=useState({admin:true,employee:true,manager:true,accountant:true});
+  const [newCard,setNewCard]=useState("");
   return (
     <div>
       <TabBar tabs={["Аккаунт","Лицензии","Пользователи","Сервисы","Общие"]} active={tab} onSelect={setTab}/>
@@ -939,10 +950,26 @@ function NastroykiPage() {
         </div>
       )}
       {tab==="Общие"&&(
-        <div style={{padding:"12px 16px"}}>
+        <div style={{padding:"12px 16px 80px"}}>
           <SectionHead num="01" title="Категории расходов"/>
           {CATEGORIES.map((c,i)=><div key={c} style={{background:i%2===0?C.white:C.lightGray,padding:"9px 14px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:FONT,fontSize:13,color:C.dark}}>{c}</span><span style={{color:C.cherryM,fontSize:11,cursor:"pointer"}}>✎</span></div>)}
           <div style={{marginTop:12}}><Btn>+ Добавить категорию</Btn></div>
+          <SectionHead num="02" title="Мои карты"/>
+          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,lineHeight:1.5}}>Карты подставляются автоматически при сканировании чека — по истории трат в той же организации.</div>
+          {cards.map((c,i)=>(
+            <div key={c.id} style={{background:i%2===0?C.white:C.lightGray,padding:"5px 14px",borderBottom:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
+              <input defaultValue={c.name} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==c.name)onUpdateCard(c.id,v);else e.target.value=c.name;}}
+                style={{flex:1,border:"none",background:"transparent",fontSize:13,fontFamily:FONT,color:C.dark,outline:"none",padding:"4px 0"}}/>
+              <span onClick={()=>onDeleteCard(c.id)} style={{color:C.cherryM,fontSize:14,cursor:"pointer",flexShrink:0}}>✕</span>
+            </div>
+          ))}
+          {cards.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"8px 0"}}>Пока нет карт</div>}
+          <div style={{display:"flex",gap:6,marginTop:12}}>
+            <input value={newCard} onChange={e=>setNewCard(e.target.value)} placeholder="Например: Личная Сбер"
+              onKeyDown={e=>{if(e.key==="Enter"&&newCard.trim()){onAddCard(newCard.trim());setNewCard("");}}}
+              style={{flex:1,border:`1px solid ${C.silver}`,borderRadius:6,outline:"none",padding:"7px 10px",fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"}}/>
+            <Btn small onClick={()=>{if(newCard.trim()){onAddCard(newCard.trim());setNewCard("");}}}>+ Добавить</Btn>
+          </div>
         </div>
       )}
     </div>
@@ -952,13 +979,39 @@ function NastroykiPage() {
 export default function App() {
   const [page,setPage]=useState("svodka");
   const [receipts,setReceipts]=useState([]);
+  const [cards,setCards]=useState([]);
 
   useEffect(()=>{
     fetch(`${API}/api/receipts/`)
       .then(r=>r.json())
       .then(data=>setReceipts(Array.isArray(data)?data.map(r=>({...r,amount:Number(r.amount)})):[]))
       .catch(()=>{});
+    fetch(`${API}/api/cards/`)
+      .then(r=>r.json())
+      .then(data=>setCards(Array.isArray(data)?data:[]))
+      .catch(()=>{});
   },[]);
+
+  async function addCard(name) {
+    const res=await fetch(`${API}/api/cards/`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name})
+    });
+    if(res.ok){const c=await res.json();setCards(prev=>[...prev,c]);}
+  }
+
+  async function updateCard(id,name) {
+    const res=await fetch(`${API}/api/cards/${id}`,{
+      method:"PATCH",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name})
+    });
+    if(res.ok){const c=await res.json();setCards(prev=>prev.map(x=>x.id===id?c:x));}
+  }
+
+  async function deleteCard(id) {
+    await fetch(`${API}/api/cards/${id}`,{method:"DELETE"});
+    setCards(prev=>prev.filter(x=>x.id!==id));
+  }
 
   function handleAdd(created) {
     setReceipts(prev=>[{...created,amount:Number(created.amount)},...prev]);
@@ -1026,9 +1079,9 @@ export default function App() {
       </div>
       <div style={{flex:1,overflow:"auto"}}>
         {page==="svodka"&&<SvodkaPage receipts={receipts}/>}
-        {page==="operacii"&&<OperaciiPage receipts={receipts} handleAdd={handleAdd} handleDelete={handleDelete} handleBulkAdd={handleBulkAdd} handleUpdate={handleUpdate}/>}
+        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleBulkAdd={handleBulkAdd} handleUpdate={handleUpdate}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
-        {page==="nastroyki"&&<NastroykiPage/>}
+        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard}/>}
       </div>
       <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0}}>
         {NAV.map(n=>(
