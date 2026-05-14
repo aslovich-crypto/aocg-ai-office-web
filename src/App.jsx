@@ -169,6 +169,67 @@ function Modal({title,onClose,children,footer}) {
   );
 }
 
+function Tappable({children,onClick,style}) {
+  const [pressed,setPressed]=useState(false);
+  return (
+    <div onClick={onClick}
+      onPointerDown={()=>setPressed(true)}
+      onPointerUp={()=>setPressed(false)}
+      onPointerCancel={()=>setPressed(false)}
+      onPointerLeave={()=>setPressed(false)}
+      style={{...style,opacity:pressed?0.75:1,transition:"opacity 100ms"}}>
+      {children}
+    </div>
+  );
+}
+
+function SegmentedControl({segments,active,onChange}) {
+  return (
+    <div style={{display:"flex",background:"#EEF0F4",borderRadius:10,padding:2,gap:2}}>
+      {segments.map(s=>{
+        const on=s===active;
+        return (
+          <div key={s} onClick={()=>onChange(s)}
+            style={{
+              flex:1,textAlign:"center",padding:"6px 2px",borderRadius:8,cursor:"pointer",userSelect:"none",
+              background:on?C.white:"transparent",
+              color:on?"#A4161A":"#636B7D",
+              boxShadow:on?"0 1px 3px rgba(0,0,0,0.12)":"none",
+              fontSize:11,fontFamily:FONT,fontWeight:on?600:500,
+              transition:"background 180ms ease, color 180ms ease, box-shadow 180ms ease"
+            }}>{s}</div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BottomSheet({title,onClose,children}) {
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:120}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",overflow:"hidden",paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px"}}>
+          <div style={{width:36,height:4,background:C.silver,borderRadius:2}}/>
+        </div>
+        {title&&<div style={{textAlign:"center",fontSize:13,fontWeight:600,fontFamily:FONT,color:C.dark,padding:"4px 0 8px"}}>{title}</div>}
+        <div style={{maxHeight:"60vh",overflow:"auto"}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({title,num,children}) {
+  return (
+    <div style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:8,borderRadius:8,overflow:"hidden"}}>
+      <div style={{height:32,background:"#F6F7F9",borderBottom:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8,padding:"0 14px"}}>
+        <span style={{fontSize:9,fontFamily:"'Courier New', Courier, monospace",color:"#9CA3AF"}}>{num}</span>
+        <span style={{fontSize:11,fontWeight:600,letterSpacing:"0.12em",color:"#636B7D",fontFamily:FONT,textTransform:"uppercase"}}>{title}</span>
+      </div>
+      <div style={{padding:"4px 14px 8px"}}>{children}</div>
+    </div>
+  );
+}
+
 function ScanReceiptModal({onClose,onScanned,onManual}) {
   const [error,setError]=useState("");
   const scannerRef=useRef(null);
@@ -240,107 +301,129 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
 
 function Donut({title,data,num}) {
   const pal=[C.cherry,C.cherryM,"#C45558","#E8A0A2","#D4888A"];
+  const sectionTotal=data.reduce((s,d)=>s+d.value,0);
   return (
-    <div style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:8,borderRadius:8,overflow:"hidden"}}>
-      <div style={{background:C.lightGray,borderBottom:`1px solid ${C.silver}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:8,borderRadius:0}}>
-        <div style={{width:16,height:16,background:C.lightGray,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:C.gray,fontFamily:FONT}}>{num}</div>
-        <span style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.mid,fontFamily:FONT}}>{title}</span>
-      </div>
-      <div style={{padding:"10px 14px"}}>
-        {data.length>1&&(
-          <ResponsiveContainer width="100%" height={140}>
+    <SectionCard title={title} num={num}>
+      {data.length>1&&(
+        <div style={{position:"relative",height:160}}>
+          <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={32} outerRadius={60} paddingAngle={2} startAngle={90} endAngle={-270}>
+              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={48} outerRadius={70} paddingAngle={2} startAngle={90} endAngle={-270}>
                 {data.map((_,i)=><Cell key={i} fill={pal[i%pal.length]}/>)}
               </Pie>
               <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:11}}/>
             </PieChart>
           </ResponsiveContainer>
-        )}
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+            <span style={{fontSize:12,color:"#636B7D",fontFamily:FONT}}>Итого</span>
+            <span style={{fontSize:16,fontWeight:600,color:C.dark,fontFamily:FONT,fontVariantNumeric:"tabular-nums"}}>{fmt(sectionTotal)}</span>
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",flexWrap:"wrap",gap:"6px 14px",padding:"8px 0 2px"}}>
         {data.map((d,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`0.5px solid ${C.silver}`}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:8,height:8,background:pal[i%pal.length],flexShrink:0}}/>
-              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>{d.name}</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:10,color:C.gray,fontFamily:FONT}}>{d.count} оп.</span>
-              <span style={{fontSize:13,color:C.cherry,fontFamily:FONT,fontWeight:700}}>{fmt(d.value)}</span>
-            </div>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:pal[i%pal.length],flexShrink:0}}/>
+            <span style={{fontSize:11,color:C.dark,fontFamily:FONT}}>{d.name}</span>
+            <span style={{fontSize:12,fontWeight:500,color:C.gray,fontFamily:FONT,fontVariantNumeric:"tabular-nums"}}>{fmt(d.value)}</span>
           </div>
         ))}
       </div>
-    </div>
+      {data.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"6px 0"}}>Нет данных за период</div>}
+    </SectionCard>
   );
 }
 
 // ─── PAGES ────────────────────────────────────────────────
 
 function SvodkaPage({receipts}) {
-  const [period,setPeriod]=useState("За месяц");
-  const [showP,setShowP]=useState(false);
-  const PERIODS=["За месяц","За квартал","За год","За всё время","Заданный период"];
-  const total=receipts.reduce((s,r)=>s+Number(r.amount),0);
-  const orgMap={},payMap={},catMap={};
-  receipts.forEach(r=>{
+  const [period,setPeriod]=useState("Месяц");
+  const [empFilter,setEmpFilter]=useState("Все");
+  const [showEmp,setShowEmp]=useState(false);
+  const [from,setFrom]=useState(daysAgoISO(30));
+  const [to,setTo]=useState(todayISO());
+
+  const allEmployees=[...new Set(receipts.map(r=>r.employee||"Алексей Шукалович"))];
+
+  const periodFiltered=receipts.filter(r=>{
+    if(period==="Неделя") return r.date>=daysAgoISO(7);
+    if(period==="Месяц") return r.date.slice(0,7)===todayISO().slice(0,7);
+    if(period==="Квартал") return r.date>=daysAgoISO(90);
+    if(period==="Год") return r.date.slice(0,4)===todayISO().slice(0,4);
+    if(period==="Свой") return r.date>=from&&r.date<=to;
+    return true;
+  });
+  const filtered=empFilter==="Все"?periodFiltered:periodFiltered.filter(r=>(r.employee||"Алексей Шукалович")===empFilter);
+
+  const total=filtered.reduce((s,r)=>s+Number(r.amount),0);
+  const orgMap={},payMap={},catMap={},empMap={};
+  filtered.forEach(r=>{
     if(!orgMap[r.org])orgMap[r.org]={value:0,count:0}; orgMap[r.org].value+=Number(r.amount); orgMap[r.org].count++;
     if(!payMap[r.payment])payMap[r.payment]={value:0,count:0}; payMap[r.payment].value+=Number(r.amount); payMap[r.payment].count++;
     if(!catMap[r.category])catMap[r.category]={value:0,count:0}; catMap[r.category].value+=Number(r.amount); catMap[r.category].count++;
+    const e=r.employee||"Алексей Шукалович";
+    if(!empMap[e])empMap[e]={value:0,count:0}; empMap[e].value+=Number(r.amount); empMap[e].count++;
   });
+  const catSorted=Object.entries(catMap).sort((a,b)=>b[1].value-a[1].value);
+  const topCat=catSorted[0];
+  const subLine=topCat&&total>0?`${Math.round(topCat[1].value/total*100)}% · ${topCat[0]}`:"Нет данных за период";
+  const empData=Object.entries(empMap).map(([name,d])=>({name,...d}));
+  const pal=[C.cherry,C.cherryM,"#C45558","#E8A0A2","#D4888A"];
+
   return (
-    <div style={{paddingBottom:80}}>
+    <div style={{paddingBottom:"calc(env(safe-area-inset-bottom) + 80px)"}}>
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px"}}>
-        <div style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,marginBottom:4,fontFamily:FONT}}>Сотрудник</div>
-        <div style={{border:`1px solid ${C.silver}`,padding:"8px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",background:C.lightGray,cursor:"pointer",borderRadius:6}}>
-          <span style={{fontSize:13,fontFamily:FONT,color:C.dark}}>Все сотрудники</span>
-          <span style={{color:C.gray}}>▾</span>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <SegmentedControl segments={["Неделя","Месяц","Квартал","Год","Свой"]} active={period} onChange={setPeriod}/>
+          </div>
+          <Tappable onClick={()=>setShowEmp(true)} style={{flexShrink:0,padding:"6px 10px",background:"#EEF0F4",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+            <span style={{fontSize:12,fontFamily:FONT,color:"#636B7D",maxWidth:90,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{empFilter==="Все"?"Все":empFilter}</span>
+            <span style={{fontSize:9,color:"#636B7D"}}>▾</span>
+          </Tappable>
         </div>
-        <div style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,marginBottom:4,fontFamily:FONT}}>Период</div>
-        <div onClick={()=>setShowP(true)} style={{border:`1px solid ${C.silver}`,padding:"8px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",cursor:"pointer",background:C.lightGray,borderRadius:6}}>
-          <span style={{fontSize:13,fontFamily:FONT,color:C.dark}}>{period}</span>
-          <span style={{color:C.dark}}>▾</span>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[["Дата от","08.04.2026"],["Дата до","08.05.2026"]].map(([l,v])=>(
-            <div key={l}>
-              <div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:4,fontFamily:FONT}}>{l}</div>
-              <div style={{border:`1px solid ${C.silver}`,padding:"8px 12px",display:"flex",justifyContent:"space-between",background:C.white,borderRadius:6}}>
-                <span style={{fontSize:12,fontFamily:FONT,color:C.dark}}>{v}</span>
-                <span style={{color:C.grayL,fontSize:11}}>▦</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {period==="Свой"&&(
+          <div style={{display:"flex",gap:8,marginTop:8}}>
+            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} style={{flex:1,height:36,border:`1px solid ${C.silver}`,borderRadius:8,padding:"0 10px",fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box",outline:"none"}}/>
+            <input type="date" value={to} onChange={e=>setTo(e.target.value)} style={{flex:1,height:36,border:`1px solid ${C.silver}`,borderRadius:8,padding:"0 10px",fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box",outline:"none"}}/>
+          </div>
+        )}
       </div>
       <div style={{padding:"12px 16px"}}>
-        <div style={{background:C.white,border:`1px solid ${C.silver}`,padding:"14px 16px",marginBottom:10,borderLeft:`3px solid ${C.cherry}`,borderRadius:6}}>
-          <div style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Итого за период</div>
-          <div style={{fontSize:22,fontWeight:700,color:C.dark,fontFamily:FONT,marginBottom:8}}>{fmt(total)}</div>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <div style={{width:8,height:8,background:C.cherry}}/>
-            <span style={{fontSize:11,color:C.gray,fontFamily:FONT}}>100% · Не указано</span>
-          </div>
+        <div style={{background:C.white,border:`1px solid ${C.silver}`,padding:"12px 16px",marginBottom:10,borderLeft:"3px solid #A4161A",borderRadius:6}}>
+          <div style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",color:"#636B7D",marginBottom:6,fontFamily:FONT}}>Итого за период</div>
+          <div style={{fontSize:30,fontWeight:700,color:"#111318",fontFamily:FONT,fontVariantNumeric:"tabular-nums",lineHeight:1.1,marginBottom:4}}>{fmt(total)}</div>
+          <div style={{fontSize:12,color:"#636B7D",fontFamily:FONT}}>{subLine}</div>
         </div>
-        <Donut title="Сотрудники" data={[{name:"Алексей Шукалович",value:total,count:receipts.length}]} num="01"/>
+        <SectionCard title="Сотрудники" num="01">
+          {empData.map((d,i)=>(
+            <Tappable key={i} onClick={()=>setEmpFilter(d.name===empFilter?"Все":d.name)}
+              style={{height:44,display:"flex",alignItems:"center",gap:10,borderBottom:i<empData.length-1?`0.5px solid ${C.silver}`:"none",cursor:"pointer"}}>
+              <div style={{width:8,height:8,background:pal[i%pal.length],flexShrink:0}}/>
+              <span style={{flex:1,minWidth:0,fontSize:14,fontWeight:500,color:C.dark,fontFamily:FONT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.name}</span>
+              <span style={{fontSize:12,color:"#636B7D",fontFamily:FONT,flexShrink:0}}>{d.count}</span>
+              <span style={{fontSize:14,fontWeight:600,color:"#A4161A",fontFamily:FONT,fontVariantNumeric:"tabular-nums",flexShrink:0}}>{fmt(d.value)}</span>
+            </Tappable>
+          ))}
+          {empData.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Нет данных за период</div>}
+        </SectionCard>
         <Donut title="Организации" data={Object.entries(orgMap).map(([name,d])=>({name,...d}))} num="02"/>
         <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))} num="03"/>
         <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))} num="04"/>
       </div>
-      {showP&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100}} onClick={()=>setShowP(false)}>
-          <div style={{background:C.white,width:"100%",maxWidth:480,borderTop:`3px solid ${C.cherry}`,borderRadius:"12px 12px 0 0",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
-            <div style={{background:C.lightGray,borderBottom:`1px solid ${C.silver}`,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:3,height:14,background:C.cherry}}/><span style={{fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:C.dark,fontFamily:FONT}}>Период</span></div>
-              <button onClick={()=>setShowP(false)} style={{border:"none",background:"none",color:C.gray,cursor:"pointer",fontSize:16}}>✕</button>
-            </div>
-            {PERIODS.map(p=>(
-              <div key={p} onClick={()=>{setPeriod(p);setShowP(false);}}
-                style={{padding:"13px 16px",borderBottom:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,
-                  color:period===p?C.cherry:C.dark,background:period===p?C.cherryL:C.white,
-                  cursor:"pointer",borderLeft:period===p?`3px solid ${C.cherry}`:"3px solid transparent"}}>{p}</div>
-            ))}
-          </div>
-        </div>
+      {showEmp&&(
+        <BottomSheet title="Сотрудник" onClose={()=>setShowEmp(false)}>
+          {["Все",...allEmployees].map(e=>{
+            const on=empFilter===e;
+            return (
+              <Tappable key={e} onClick={()=>{setEmpFilter(e);setShowEmp(false);}}
+                style={{height:44,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",borderBottom:`1px solid ${C.silver}`,cursor:"pointer",background:on?C.cherryL:C.white}}>
+                <span style={{fontSize:14,fontFamily:FONT,color:on?C.cherry:C.dark}}>{e==="Все"?"Все сотрудники":e}</span>
+                {on&&<span style={{color:C.cherry,fontSize:14}}>✓</span>}
+              </Tappable>
+            );
+          })}
+        </BottomSheet>
       )}
     </div>
   );
@@ -1083,7 +1166,7 @@ export default function App() {
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard}/>}
       </div>
-      <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0}}>
+      <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {NAV.map(n=>(
           <button key={n.id} onClick={()=>setPage(n.id)} style={{flex:1,padding:"9px 0",border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",transition:"all 0.15s",borderRight:`1px solid ${C.silver}`}}>
             <span style={{fontSize:15,color:page===n.id?C.cherry:C.grayL}}>{n.icon}</span>
