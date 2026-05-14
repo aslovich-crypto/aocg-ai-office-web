@@ -84,7 +84,6 @@ function parseQRString(qr) {
 const toLocalISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const todayISO = () => toLocalISO(new Date());
 const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return toLocalISO(x); };
-const monthStartISO = off => { const x=new Date(); x.setDate(1); x.setMonth(x.getMonth()+off); return toLocalISO(x); };
 const fmtDateTime = ts => {
   if (!ts) return "";
   const d = new Date(ts);
@@ -732,9 +731,10 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
   const [recent,setRecent]=useState(false);
   const [month,setMonth]=useState(false);
   const [showFilters,setShowFilters]=useState(false);
-  const defaultFrom=monthStartISO(0), defaultTo=todayISO();
+  const defaultFrom="2000-01-01", defaultTo=todayISO();
   const [dateFrom,setDateFrom]=useState(defaultFrom);
   const [dateTo,setDateTo]=useState(defaultTo);
+  const [limit,setLimit]=useState(30);
   const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [detail,setDetail]=useState(null);
@@ -789,7 +789,8 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
     return r.date>=dateFrom && r.date<=dateTo;
   };
   const filtered=receipts.filter(r=>(!search||r.org.toLowerCase().includes(search.toLowerCase()))&&inDate(r));
-  const groups=groupByMonth(filtered);
+  const groups=groupByMonth(filtered.slice(0,limit));
+  const hiddenCount=filtered.length-limit;
   const filtersActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
 
   async function addR() {
@@ -870,6 +871,13 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
           </div>
         ))}
         {groups.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
+        {hiddenCount>0&&(
+          <div style={{padding:"14px 16px",textAlign:"center"}}>
+            <button onClick={()=>setLimit(l=>l+30)} style={{padding:"10px 20px",border:`1px solid ${C.silver}`,background:C.white,color:C.cherry,fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer",borderRadius:10,letterSpacing:"0.03em"}}>
+              Показать ещё {Math.min(30,hiddenCount)} · осталось {hiddenCount}
+            </button>
+          </div>
+        )}
       </div>
       <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
       {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onScanned={handleScanned} onManual={handleManual}/>}
