@@ -674,11 +674,9 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
 }
 
 function FiltersModal({from,to,onApply,onReset,onClose}) {
-  const [f,setF]=useState(from);
-  const [t,setT]=useState(to);
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:120}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",overflow:"hidden"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",overflow:"hidden",paddingBottom:"env(safe-area-inset-bottom)"}}>
         <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Фильтры</span>
           <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
@@ -688,19 +686,19 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div>
               <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
-              <input type="date" value={f} onChange={e=>setF(e.target.value)} style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"}}/>
+              <input type="date" value={from} max={to} onChange={e=>{if(e.target.value)onApply(e.target.value,to);}} style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"}}/>
             </div>
             <div>
               <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>До</div>
-              <input type="date" value={t} onChange={e=>setT(e.target.value)} style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"}}/>
+              <input type="date" value={to} min={from} onChange={e=>{if(e.target.value)onApply(from,e.target.value);}} style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"}}/>
             </div>
           </div>
         </div>
         <div style={{padding:"0 16px 16px",display:"flex",gap:8}}>
-          <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <button onClick={onReset} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </button>
-          <button onClick={()=>{onApply(f,t);onClose();}} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
+          <button onClick={onClose} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Готово</button>
         </div>
       </div>
     </div>
