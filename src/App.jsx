@@ -80,8 +80,9 @@ function parseQRString(qr) {
   return {date,amount:p.s?String(parseFloat(p.s)):"",fn:p.fn||"",fd:p.i||"",fpd:p.fp||"",type:p.n||""};
 }
 
-const todayISO = () => new Date().toISOString().split("T")[0];
-const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return x.toISOString().split("T")[0]; };
+const toLocalISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const todayISO = () => toLocalISO(new Date());
+const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return toLocalISO(x); };
 const fmtDateTime = ts => {
   if (!ts) return "";
   const d = new Date(ts);
@@ -675,8 +676,8 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
 
 function FiltersModal({from,to,onApply,onReset,onClose}) {
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:120}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",overflow:"hidden",paddingBottom:"env(safe-area-inset-bottom)"}}>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Фильтры</span>
           <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
