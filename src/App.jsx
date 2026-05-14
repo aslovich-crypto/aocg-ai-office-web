@@ -1118,8 +1118,9 @@ export default function App() {
   }
 
   async function handleDelete(id) {
-    await fetch(`${API}/api/receipts/${id}`,{method:"DELETE"});
-    setReceipts(prev=>prev.filter(x=>x.id!==id));
+    const res=await fetch(`${API}/api/receipts/${id}`,{method:"DELETE"});
+    if(res.ok) setReceipts(prev=>prev.filter(x=>x.id!==id));
+    else alert("Не удалось удалить чек");
   }
 
   async function handleUpdate(id, patch) {
