@@ -246,7 +246,6 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
   const scannerRef=useRef(null);
   const cameraOn=useRef(false);
   const fileRef=useRef(null);
-  const captureRef=useRef(null);
 
   useEffect(()=>{
     const s=new Html5Qrcode("qr-reader");
@@ -292,14 +291,10 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
         </div>}
       </div>
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
-      <input ref={captureRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
       <div style={{padding:"16px 16px 32px",background:"rgba(0,0,0,0.55)",flexShrink:0}}>
-        <div style={{display:"flex",gap:10,marginBottom:14}}>
-          <button onClick={()=>fileRef.current.click()} style={{flex:1,padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
-            <span style={{fontSize:20}}>🖼</span>Загрузить
-          </button>
-          <button onClick={()=>captureRef.current.click()} style={{flex:1,padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
-            <span style={{fontSize:20}}>📷</span>Сделать фото
+        <div style={{marginBottom:14}}>
+          <button onClick={()=>fileRef.current.click()} style={{width:"100%",padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
+            <span style={{fontSize:20}}>🖼</span>Загрузить фото
           </button>
         </div>
         <div style={{textAlign:"center"}}>
@@ -805,9 +800,23 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
       body:JSON.stringify(payload)
     });
     if(res.status===409) {
-      alert("Этот чек уже добавлен ранее");
+      const body=await res.json().catch(()=>null);
+      const existingId=body?.detail?.existing_id;
       setShowAdd(false);
       setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+      if(existingId) {
+        try {
+          const er=await fetch(`${API}/api/receipts/${existingId}`);
+          if(er.ok) {
+            const ex=await er.json();
+            handleAdd(ex);
+            alert("Этот чек уже добавлен ранее — открываю существующий");
+            setDetail({...ex,amount:Number(ex.amount)});
+            return;
+          }
+        } catch {}
+      }
+      alert("Этот чек уже добавлен ранее");
       return;
     }
     if(!res.ok) {
@@ -1082,7 +1091,10 @@ export default function App() {
   }
 
   function handleAdd(created) {
-    setReceipts(prev=>[{...created,amount:Number(created.amount)},...prev]);
+    const norm={...created,amount:Number(created.amount)};
+    setReceipts(prev=>prev.some(x=>x.id===norm.id)
+      ? prev.map(x=>x.id===norm.id?norm:x)
+      : [norm,...prev]);
   }
 
   async function handleDelete(id) {
