@@ -174,7 +174,7 @@ function Modal({title,onClose,children,footer}) {
           <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,cursor:"pointer",fontSize:16}}>✕</button>
         </div>
         <div style={{overflow:"auto",flex:1,padding:"4px 16px 8px"}}>{children}</div>
-        {footer&&<div style={{padding:"10px 16px",borderTop:`1px solid ${C.silver}`,background:C.lightGray,flexShrink:0}}>{footer}</div>}
+        {footer&&<div style={{padding:"10px 16px calc(10px + env(safe-area-inset-bottom))",borderTop:`1px solid ${C.silver}`,background:C.lightGray,flexShrink:0}}>{footer}</div>}
       </div>
     </div>
   );
@@ -580,7 +580,7 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:150}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,maxHeight:"92vh",display:"flex",flexDirection:"column",borderRadius:"16px 16px 0 0",overflow:"hidden"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,maxHeight:"calc(100dvh - env(safe-area-inset-top) - 8px)",display:"flex",flexDirection:"column",borderRadius:"16px 16px 0 0",overflow:"hidden"}}>
         <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.silver}`,background:C.white,flexShrink:0}}>
           <button onClick={onClose} style={{border:"none",background:"none",color:C.dark,cursor:"pointer",fontSize:20,padding:4}}>‹</button>
           <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Детали документа</span>
@@ -635,7 +635,7 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
             {row("ФПД:", fpd)}
           </div>
 
-          <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{padding:"12px 14px calc(14px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:8}}>
             <button onClick={()=>setShowCat(true)} style={{padding:"12px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить категорию</button>
             {!confirm?(
               <button onClick={()=>setConfirm(true)} style={{padding:"12px",background:"#FEF2F2",border:`1px solid #FECACA`,fontFamily:FONT,fontSize:13,color:"#B91C1C",cursor:"pointer",borderRadius:10,fontWeight:600}}>Удалить чек</button>
