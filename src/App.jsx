@@ -22,12 +22,6 @@ const C = {
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 const CATEGORIES = ["Питание", "Транспорт", "Топливо", "Продукты", "Гостиница", "Канцелярия", "Прочее"];
 
-const FNS_RECEIPTS = [
-  { id:101, date:"2026-05-08", org:"Лукойл",   amount:5985.97 },
-  { id:102, date:"2026-05-07", org:"Брискли",  amount:1200    },
-  { id:103, date:"2026-04-30", org:"ВкусВилл", amount:2340    },
-];
-
 const ROLES = [
   { id:"admin",      label:"Администратор", desc:"Заводит кабинет компании, регистрирует сотрудников, управляет лицензией." },
   { id:"employee",   label:"Сотрудник",     desc:"Добавляет первичные документы, создаёт отчёты и отправляет на проверку." },
@@ -731,7 +725,7 @@ function FilterIcon({active,onClick}) {
   );
 }
 
-function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleBulkAdd, handleUpdate}) {
+function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [tab,setTab]=useState("Чеки");
   const [search,setSearch]=useState("");
@@ -741,8 +735,6 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleBulkAdd, 
   const defaultFrom=daysAgoISO(365), defaultTo=todayISO();
   const [dateFrom,setDateFrom]=useState(defaultFrom);
   const [dateTo,setDateTo]=useState(defaultTo);
-  const [showFns,setShowFns]=useState(false);
-  const [fnsSelected,setFnsSelected]=useState([]);
   const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [detail,setDetail]=useState(null);
@@ -800,15 +792,6 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleBulkAdd, 
   const groups=groupByMonth(filtered);
   const filtersActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
 
-  async function loadFns() {
-    const items=FNS_RECEIPTS.filter(f=>fnsSelected.includes(f.id)).map(f=>({
-      date:f.date, org:f.org, category:"Прочее", payment:"Не указано", amount:f.amount
-    }));
-    await handleBulkAdd(items);
-    setShowFns(false);
-    setFnsSelected([]);
-  }
-
   async function addR() {
     const payload={
       date:form.date, org:form.org, category:form.category,
@@ -857,7 +840,6 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleBulkAdd, 
             </div>
           </div>
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
-            <button onClick={()=>setShowFns(true)} style={{border:`1px solid ${C.cherryM}`,background:C.cherryL,padding:"6px 10px",color:C.cherry,fontFamily:FONT,fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase",cursor:"pointer",borderRadius:8}}>Импорт ФНС</button>
             <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)}/>
           </div>
         </div>
@@ -879,20 +861,6 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleBulkAdd, 
       {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onScanned={handleScanned} onManual={handleManual}/>}
       {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal receipt={detail} onClose={()=>setDetail(null)} onDelete={()=>{handleDelete(detail.id);setDetail(null);}} onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}/>}
-      {showFns&&(
-        <Modal title="Операции из ФНС" onClose={()=>{setShowFns(false);setFnsSelected([]);}}
-          footer={<div style={{display:"flex",gap:6}}><button onClick={()=>setFnsSelected(FNS_RECEIPTS.map(f=>f.id))} style={{flex:1,background:C.lightGray,border:`1px solid ${C.silver}`,padding:"8px",fontFamily:FONT,fontSize:10,textTransform:"uppercase",cursor:"pointer",color:C.mid,letterSpacing:"0.06em"}}>Все</button><button onClick={()=>setFnsSelected([])} style={{flex:1,background:C.lightGray,border:`1px solid ${C.silver}`,padding:"8px",fontFamily:FONT,fontSize:10,textTransform:"uppercase",cursor:"pointer",color:C.mid,letterSpacing:"0.06em"}}>Сброс</button><Btn onClick={loadFns} disabled={!fnsSelected.length}>Загрузить</Btn></div>}>
-          <div style={{padding:"10px 0 4px",fontSize:11,color:C.gray,fontFamily:FONT}}>Выберите операции для отчётов</div>
-          {FNS_RECEIPTS.map(f=>{const sel=fnsSelected.includes(f.id);return(
-            <div key={f.id} onClick={()=>setFnsSelected(prev=>sel?prev.filter(x=>x!==f.id):[...prev,f.id])} style={{padding:"10px 0",borderBottom:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:10,cursor:"pointer",background:sel?C.cherryL:C.white}}>
-              <div style={{width:14,height:14,border:`1.5px solid ${sel?C.cherry:C.silver}`,background:sel?C.cherry:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:C.white,fontSize:10,flexShrink:0,borderRadius:3}}>{sel&&"✓"}</div>
-              <div style={{width:30,height:30,background:C.lightGray,border:`1px solid ${C.silver}`,color:C.cherry,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:12,fontWeight:700,borderRadius:6}}>{f.org[0]}</div>
-              <div style={{flex:1}}><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>{f.org}</div><div style={{fontFamily:FONT,fontSize:11,color:C.gray}}>{fmtDate(f.date)}</div></div>
-              <span style={{fontFamily:FONT,fontSize:13,color:C.cherry,fontWeight:700}}>{fmt(f.amount)}</span>
-            </div>
-          );})}
-        </Modal>
-      )}
       {showAdd&&(
         <Modal title="Добавить чек" onClose={()=>setShowAdd(false)} footer={<Btn full onClick={addR} disabled={!form.org||!form.amount}>Добавить чек</Btn>}>
           <div style={{paddingTop:12}}>
@@ -1138,17 +1106,6 @@ export default function App() {
     } catch { return null; }
   }
 
-  async function handleBulkAdd(items) {
-    const created=await Promise.all(items.map(item=>
-      fetch(`${API}/api/receipts/`,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(item)
-      }).then(r=>r.json())
-    ));
-    setReceipts(prev=>[...created.map(r=>({...r,amount:Number(r.amount)})),...prev]);
-  }
-
   const NAV=[{id:"svodka",icon:"▦",label:"Сводка"},{id:"operacii",icon:"≡",label:"Операции"},{id:"otchety",icon:"▤",label:"Отчёты"},{id:"nastroyki",icon:"⚙",label:"Настройки"}];
   const PT={svodka:"Сводка",operacii:"Операции",otchety:"Отчёты",nastroyki:"Настройки"};
   return (
@@ -1180,7 +1137,7 @@ export default function App() {
       </div>
       <div style={{flex:1,overflow:"auto"}}>
         {page==="svodka"&&<SvodkaPage receipts={receipts}/>}
-        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleBulkAdd={handleBulkAdd} handleUpdate={handleUpdate}/>}
+        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard}/>}
       </div>
