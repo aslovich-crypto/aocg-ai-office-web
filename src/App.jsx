@@ -84,6 +84,9 @@ function parseQRString(qr) {
 const toLocalISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const todayISO = () => toLocalISO(new Date());
 const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return toLocalISO(x); };
+const monthStartISO = off => { const x=new Date(); x.setDate(1); x.setMonth(x.getMonth()+off); return toLocalISO(x); };
+const monthEndISO = off => { const x=new Date(); x.setDate(1); x.setMonth(x.getMonth()+off+1); x.setDate(0); return toLocalISO(x); };
+const yearStartISO = () => toLocalISO(new Date(new Date().getFullYear(), 0, 1));
 const fmtDateTime = ts => {
   if (!ts) return "";
   const d = new Date(ts);
@@ -679,6 +682,13 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
   const fromRef=useRef(null);
   const toRef=useRef(null);
   const inputStyle={width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"};
+  const apply=(f,t)=>{onApply(f,t);onClose();};
+  const presets=[
+    ["Текущий месяц", monthStartISO(0), todayISO()],
+    ["Прошлый месяц", monthStartISO(-1), monthEndISO(-1)],
+    ["3 месяца", daysAgoISO(90), todayISO()],
+    ["Этот год", yearStartISO(), todayISO()],
+  ];
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden"}}>
@@ -687,7 +697,13 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
           <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
         </div>
         <div style={{padding:"16px"}}>
-          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:6,letterSpacing:"0.05em"}}>Период</div>
+          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,letterSpacing:"0.05em"}}>Быстрый выбор</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+            {presets.map(([label,f,t])=>(
+              <button key={label} onClick={()=>apply(f,t)} style={{padding:"7px 12px",border:`1px solid ${C.silver}`,background:C.white,color:C.dark,fontFamily:FONT,fontSize:12,cursor:"pointer",borderRadius:8}}>{label}</button>
+            ))}
+          </div>
+          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:6,letterSpacing:"0.05em"}}>Свой период</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div>
               <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
@@ -703,7 +719,7 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
           <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </button>
-          <button onClick={()=>{onApply(fromRef.current.value||from,toRef.current.value||to);onClose();}} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
+          <button onClick={()=>apply(fromRef.current.value||from,toRef.current.value||to)} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
         </div>
       </div>
     </div>
