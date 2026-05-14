@@ -1,3 +1,4 @@
+/* global __BUILD_TIME__ */
 import { useState, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode } from "html5-qrcode";
@@ -1045,6 +1046,9 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard}) {
               onKeyDown={e=>{if(e.key==="Enter"&&newCard.trim()){onAddCard(newCard.trim());setNewCard("");}}}
               style={{flex:1,border:`1px solid ${C.silver}`,borderRadius:6,outline:"none",padding:"7px 10px",fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"}}/>
             <Btn small onClick={()=>{if(newCard.trim()){onAddCard(newCard.trim());setNewCard("");}}}>+ Добавить</Btn>
+          </div>
+          <div style={{marginTop:28,paddingTop:14,borderTop:`1px solid ${C.silver}`,fontSize:10,color:C.grayL,fontFamily:FONT,textAlign:"center",letterSpacing:"0.04em"}}>
+            Сборка от {__BUILD_TIME__}
           </div>
         </div>
       )}
