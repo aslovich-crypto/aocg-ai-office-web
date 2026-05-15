@@ -750,7 +750,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [showAdd,setShowAdd]=useState(false);
   const [detail,setDetail]=useState(null);
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
-  const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | {error:string}
+  const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | "partial"
 
   async function handleScanned(qrText) {
     const parsed=parseQRString(qrText);
@@ -758,51 +758,45 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||"",org:"",category:"Не указано",fn:parsed.fn||"",raw_data:null}));
     setShowAdd(true);
     setFnsStatus("loading");
+    let d=null;
     try {
       const res=await fetch(`${API}/api/fns/check`,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({qr_raw:qrText})
       });
-      if(res.ok){
-        const d=await res.json();
-        const raw=d.raw||{};
-        const cash=Number(raw.cashTotalSum)||0;
-        const card=Number(raw.ecashTotalSum)||0;
-        let suggested=null;
-        if(d.org){
-          try{
-            const sres=await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(d.org)}`);
-            if(sres.ok){const sd=await sres.json();suggested=sd.payment||null;}
-          }catch{}
-        }
-        let payment="Не указано";
-        if(cash>0&&card===0){
-          payment="Наличные";
-        }else if(card>0&&cash===0){
-          payment=(suggested&&suggested!=="Наличные")?suggested:"Личная карта";
-        }else if(suggested){
-          payment=suggested;
-        }
-        setForm(p=>({
-          ...p,
-          org:d.org||p.org,
-          amount:d.total?String(d.total):p.amount,
-          raw_data:d.raw||d,
-          payment,
-        }));
-        setFnsStatus("ok");
-      } else {
-        let msg="Не удалось получить данные из ФНС";
-        if(res.status===404) msg="Чек не найден в ФНС — заполните поля вручную";
-        else if(res.status===503) msg="Сервис ФНС временно недоступен";
-        else if(res.status===502) msg="Ошибка связи с ФНС";
-        try{const e=await res.json();if(e.detail&&typeof e.detail==="string"&&res.status!==404)msg=e.detail.slice(0,200);}catch{}
-        setFnsStatus({error:msg});
-      }
-    } catch (e) {
-      setFnsStatus({error:`Нет связи с сервером: ${e.message||"проверьте интернет"}`});
+      if(res.ok) d=await res.json().catch(()=>null);
+    } catch { /* network failure — treat as partial */ }
+
+    // Backend always returns 200 with either {status:"ok", ...} or {status:"partial", ...}.
+    // Defensive: missing/legacy responses without org are also partial.
+    if(!d||d.status==="partial"||!d.org){
+      setFnsStatus("partial");
+      return;
     }
+
+    const raw=d.raw||{};
+    const cash=Number(raw.cashTotalSum)||0;
+    const card=Number(raw.ecashTotalSum)||0;
+    let suggested=null;
+    try{
+      const sres=await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(d.org)}`);
+      if(sres.ok){const sd=await sres.json();suggested=sd.payment||null;}
+    }catch{/* ignored */}
+    let payment="Не указано";
+    if(cash>0&&card===0)        payment="Наличные";
+    else if(card>0&&cash===0)   payment=(suggested&&suggested!=="Наличные")?suggested:"Личная карта";
+    else if(suggested)          payment=suggested;
+    setForm(p=>({
+      ...p,
+      org:d.org||p.org,
+      amount:d.total?String(d.total):p.amount,
+      raw_data:d.raw||d,
+      payment,
+    }));
+    setFnsStatus("ok");
+    // Auto-clear the green badge after 1.5s — form stays open for the user.
+    setTimeout(()=>setFnsStatus(s=>s==="ok"?null:s),1500);
   }
   function handleManual() {setShowScan(false);setShowAdd(true);setFnsStatus(null);}
 
@@ -912,18 +906,24 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         <Modal title="Добавить чек" onClose={()=>{setShowAdd(false);setFnsStatus(null);}} footer={<Btn full onClick={addR} disabled={!form.org||!form.amount}>Добавить чек</Btn>}>
           <div style={{paddingTop:12}}>
             {fnsStatus==="loading"&&(
-              <div style={{marginBottom:12,padding:"8px 12px",background:"#EEF0F4",border:`1px solid ${C.silver}`,borderRadius:6,fontFamily:FONT,fontSize:11,color:C.mid}}>
+              <div style={{marginBottom:12,padding:"8px 12px",background:"#EEF0F4",border:`1px solid ${C.silver}`,borderRadius:6,fontFamily:FONT,fontSize:11,color:C.mid,display:"flex",alignItems:"center",gap:8}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{flexShrink:0}}>
+                  <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
+                  <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+                  </path>
+                </svg>
                 Загружаем данные из ФНС…
               </div>
             )}
             {fnsStatus==="ok"&&(
               <div style={{marginBottom:12,padding:"8px 12px",background:"#ECFDF5",border:"1px solid #A7F3D0",borderRadius:6,fontFamily:FONT,fontSize:11,color:"#047857"}}>
-                ✓ Данные ФНС получены
+                Электронный чек загружен ✓
               </div>
             )}
-            {fnsStatus&&typeof fnsStatus==="object"&&fnsStatus.error&&(
-              <div style={{marginBottom:12,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,fontFamily:FONT,fontSize:11,color:"#B91C1C"}}>
-                {fnsStatus.error}
+            {fnsStatus==="partial"&&(
+              <div style={{marginBottom:12,padding:"8px 12px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,fontFamily:FONT,fontSize:11,color:"#B45309"}}>
+                Данные ФНС не загрузились. Заполните организацию вручную.
               </div>
             )}
             <RuleInput label="Организация" value={form.org} onChange={v=>setForm(p=>({...p,org:v}))} placeholder="Яндекс.Такси"/>
