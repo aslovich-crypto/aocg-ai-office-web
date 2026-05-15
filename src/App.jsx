@@ -85,6 +85,27 @@ const toLocalISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,
 const todayISO = () => toLocalISO(new Date());
 const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return toLocalISO(x); };
 const monthStartISO = () => { const x=new Date(); x.setDate(1); return toLocalISO(x); };
+const quarterStartISO = () => { const d=new Date(); return toLocalISO(new Date(d.getFullYear(), Math.floor(d.getMonth()/3)*3, 1)); };
+
+// ─── GLOBAL PERIOD ────────────────────────────────────────
+const PERIOD_OPTIONS = [
+  {key:"week",    label:"Неделя"},
+  {key:"month",   label:"Месяц"},
+  {key:"quarter", label:"Квартал"},
+  {key:"year",    label:"Год"},
+  {key:"all",     label:"Все"},
+];
+const periodLabel = k => (PERIOD_OPTIONS.find(o=>o.key===k)||PERIOD_OPTIONS[1]).label;
+const periodKey   = l => (PERIOD_OPTIONS.find(o=>o.label===l)||PERIOD_OPTIONS[1]).key;
+function inPeriod(date, period) {
+  if (!date) return false;
+  if (period==="all")     return true;
+  if (period==="week")    return date>=daysAgoISO(7);
+  if (period==="month")   return date.slice(0,7)===todayISO().slice(0,7);
+  if (period==="quarter") return date>=quarterStartISO();
+  if (period==="year")    return date.slice(0,4)===todayISO().slice(0,4);
+  return true;
+}
 const fmtDateTime = ts => {
   if (!ts) return "";
   const d = new Date(ts);
@@ -345,23 +366,13 @@ function Donut({title,data,num}) {
 
 // ─── PAGES ────────────────────────────────────────────────
 
-function SvodkaPage({receipts}) {
-  const [period,setPeriod]=useState("Месяц");
+function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
   const [empFilter,setEmpFilter]=useState("Все");
   const [showEmp,setShowEmp]=useState(false);
-  const [from,setFrom]=useState(daysAgoISO(30));
-  const [to,setTo]=useState(todayISO());
 
   const allEmployees=[...new Set(receipts.map(r=>r.employee||"Алексей Шукалович"))];
 
-  const periodFiltered=receipts.filter(r=>{
-    if(period==="Неделя") return r.date>=daysAgoISO(7);
-    if(period==="Месяц") return r.date.slice(0,7)===todayISO().slice(0,7);
-    if(period==="Квартал") return r.date>=daysAgoISO(90);
-    if(period==="Год") return r.date.slice(0,4)===todayISO().slice(0,4);
-    if(period==="Свой") return r.date>=from&&r.date<=to;
-    return true;
-  });
+  const periodFiltered=receipts.filter(r=>inPeriod(r.date, activePeriod));
   const filtered=empFilter==="Все"?periodFiltered:periodFiltered.filter(r=>(r.employee||"Алексей Шукалович")===empFilter);
 
   const total=filtered.reduce((s,r)=>s+Number(r.amount),0);
@@ -384,19 +395,16 @@ function SvodkaPage({receipts}) {
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{flex:1,minWidth:0}}>
-            <SegmentedControl segments={["Неделя","Месяц","Квартал","Год","Свой"]} active={period} onChange={setPeriod}/>
+            <SegmentedControl
+              segments={PERIOD_OPTIONS.map(o=>o.label)}
+              active={periodLabel(activePeriod)}
+              onChange={l=>setActivePeriod(periodKey(l))}/>
           </div>
           <Tappable onClick={()=>setShowEmp(true)} style={{flexShrink:0,padding:"6px 10px",background:"#EEF0F4",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
             <span style={{fontSize:12,fontFamily:FONT,color:"#636B7D",maxWidth:90,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{empFilter==="Все"?"Все":empFilter}</span>
             <span style={{fontSize:9,color:"#636B7D"}}>▾</span>
           </Tappable>
         </div>
-        {period==="Свой"&&(
-          <div style={{display:"flex",gap:8,marginTop:8}}>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} style={{flex:1,height:36,border:`1px solid ${C.silver}`,borderRadius:8,padding:"0 10px",fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box",outline:"none"}}/>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} style={{flex:1,height:36,border:`1px solid ${C.silver}`,borderRadius:8,padding:"0 10px",fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box",outline:"none"}}/>
-          </div>
-        )}
       </div>
       <div style={{padding:"12px 16px"}}>
         <div style={{background:C.white,border:`1px solid ${C.silver}`,padding:"12px 16px",marginBottom:10,borderLeft:"3px solid #A4161A",borderRadius:6}}>
@@ -531,7 +539,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
         <div style={{width:40,height:40,borderRadius:"50%",background:col.bg,color:col.fg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:16,fontWeight:700,flexShrink:0}}>{orgInitial(r.org)}</div>
         <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center",gap:4}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{flex:1,minWidth:0,fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.org}</span>
+            <span style={{flex:1,minWidth:0,fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{shortOrg(r.org)}</span>
             <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:700,flexShrink:0}}>{fmt(r.amount)}</span>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#636B7D",fontFamily:FONT,minWidth:0}}>
@@ -593,7 +601,7 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
         <div style={{flex:1,overflow:"auto",background:"#FAF9F6"}}>
           <div style={{margin:"14px 14px 8px",background:"#FFFEFB",border:`1px solid ${C.silver}`,padding:"18px 16px",fontFamily:"'Courier New', Courier, monospace",color:C.dark,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",borderRadius:8}}>
             <div style={{textAlign:"center",fontSize:13,fontWeight:700,letterSpacing:"0.15em",marginBottom:8}}>КАССОВЫЙ ЧЕК</div>
-            {r.org&&<div style={{textAlign:"center",fontSize:13,fontWeight:700,marginBottom:6}}>{r.org}</div>}
+            {r.org&&<div style={{textAlign:"center",fontSize:13,fontWeight:700,marginBottom:6}}>{shortOrg(r.org)}</div>}
             {address&&<div style={{textAlign:"center",fontSize:11,color:C.mid,marginBottom:2}}>{address}</div>}
             {place&&place!==address&&<div style={{textAlign:"center",fontSize:11,color:C.mid,marginBottom:2}}>{place}</div>}
             {inn&&<div style={{textAlign:"center",fontSize:11,color:C.mid,marginBottom:6}}>ИНН {inn}</div>}
@@ -725,12 +733,10 @@ function FilterIcon({active,onClick}) {
   );
 }
 
-function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) {
+function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, activePeriod, setActivePeriod}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [tab,setTab]=useState("Чеки");
   const [search,setSearch]=useState("");
-  const [recent,setRecent]=useState(false);
-  const [month,setMonth]=useState(false);
   const [showFilters,setShowFilters]=useState(false);
   const defaultFrom="", defaultTo="";
   const [dateFrom,setDateFrom]=useState(defaultFrom);
@@ -740,12 +746,14 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
   const [showAdd,setShowAdd]=useState(false);
   const [detail,setDetail]=useState(null);
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+  const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | {error:string}
 
   async function handleScanned(qrText) {
     const parsed=parseQRString(qrText);
     setShowScan(false);
     setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||"",org:"",category:"Не указано",fn:parsed.fn||"",raw_data:null}));
     setShowAdd(true);
+    setFnsStatus("loading");
     try {
       const res=await fetch(`${API}/api/fns/check`,{
         method:"POST",
@@ -779,20 +787,34 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
           raw_data:d.raw||d,
           payment,
         }));
+        setFnsStatus("ok");
+      } else {
+        let msg="Не удалось получить данные из ФНС";
+        if(res.status===404) msg="Чек не найден в ФНС — заполните поля вручную";
+        else if(res.status===503) msg="Сервис ФНС временно недоступен";
+        else if(res.status===502) msg="Ошибка связи с ФНС";
+        try{const e=await res.json();if(e.detail&&typeof e.detail==="string"&&res.status!==404)msg=e.detail.slice(0,200);}catch{}
+        setFnsStatus({error:msg});
       }
-    } catch {}
+    } catch (e) {
+      setFnsStatus({error:`Нет связи с сервером: ${e.message||"проверьте интернет"}`});
+    }
   }
-  function handleManual() {setShowScan(false);setShowAdd(true);}
+  function handleManual() {setShowScan(false);setShowAdd(true);setFnsStatus(null);}
 
+  const customFilterActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
   const inDate=r=>{
-    if(recent) return r.date>=daysAgoISO(7);
-    if(month) return r.date.slice(0,7)===todayISO().slice(0,7);
-    return (!dateFrom||r.date>=dateFrom) && (!dateTo||r.date<=dateTo);
+    if(customFilterActive) return (!dateFrom||r.date>=dateFrom) && (!dateTo||r.date<=dateTo);
+    return inPeriod(r.date, activePeriod);
   };
-  const filtered=receipts.filter(r=>(!search||r.org.toLowerCase().includes(search.toLowerCase()))&&inDate(r));
+  const filtered=receipts.filter(r=>{
+    if(!search) return inDate(r);
+    const q=search.toLowerCase();
+    return (r.org.toLowerCase().includes(q)||shortOrg(r.org).toLowerCase().includes(q))&&inDate(r);
+  });
   const groups=groupByMonth(filtered.slice(0,limit));
   const hiddenCount=filtered.length-limit;
-  const filtersActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
+  const filtersActive=customFilterActive;
 
   async function addR() {
     const payload={
@@ -811,6 +833,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
       const existingId=body?.detail?.existing_id;
       setShowAdd(false);
       setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+      setFnsStatus(null);
       if(existingId) {
         try {
           const er=await fetch(`${API}/api/receipts/${existingId}`);
@@ -834,6 +857,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
     handleAdd(created);
     setShowAdd(false);
     setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+    setFnsStatus(null);
   }
 
   return (
@@ -845,17 +869,13 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..." style={{border:"none",outline:"none",flex:1,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <Toggle value={recent} onChange={v=>{setRecent(v);if(v){setMonth(false);setDateFrom(defaultFrom);setDateTo(defaultTo);}}}/>
-              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Неделя</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <Toggle value={month} onChange={v=>{setMonth(v);if(v){setRecent(false);setDateFrom(defaultFrom);setDateTo(defaultTo);}}}/>
-              <span style={{fontSize:12,color:C.dark,fontFamily:FONT}}>Месяц</span>
-            </div>
+          <div style={{flex:1,minWidth:0}}>
+            <SegmentedControl
+              segments={PERIOD_OPTIONS.map(o=>o.label)}
+              active={customFilterActive?null:periodLabel(activePeriod)}
+              onChange={l=>{setActivePeriod(periodKey(l));setDateFrom(defaultFrom);setDateTo(defaultTo);}}/>
           </div>
-          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+          <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
             <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)}/>
           </div>
         </div>
@@ -882,11 +902,26 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate}) 
       </div>
       <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
       {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onScanned={handleScanned} onManual={handleManual}/>}
-      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);setRecent(false);setMonth(false);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
+      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal receipt={detail} onClose={()=>setDetail(null)} onDelete={()=>{handleDelete(detail.id);setDetail(null);}} onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}/>}
       {showAdd&&(
-        <Modal title="Добавить чек" onClose={()=>setShowAdd(false)} footer={<Btn full onClick={addR} disabled={!form.org||!form.amount}>Добавить чек</Btn>}>
+        <Modal title="Добавить чек" onClose={()=>{setShowAdd(false);setFnsStatus(null);}} footer={<Btn full onClick={addR} disabled={!form.org||!form.amount}>Добавить чек</Btn>}>
           <div style={{paddingTop:12}}>
+            {fnsStatus==="loading"&&(
+              <div style={{marginBottom:12,padding:"8px 12px",background:"#EEF0F4",border:`1px solid ${C.silver}`,borderRadius:6,fontFamily:FONT,fontSize:11,color:C.mid}}>
+                Загружаем данные из ФНС…
+              </div>
+            )}
+            {fnsStatus==="ok"&&(
+              <div style={{marginBottom:12,padding:"8px 12px",background:"#ECFDF5",border:"1px solid #A7F3D0",borderRadius:6,fontFamily:FONT,fontSize:11,color:"#047857"}}>
+                ✓ Данные ФНС получены
+              </div>
+            )}
+            {fnsStatus&&typeof fnsStatus==="object"&&fnsStatus.error&&(
+              <div style={{marginBottom:12,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,fontFamily:FONT,fontSize:11,color:"#B91C1C"}}>
+                {fnsStatus.error}
+              </div>
+            )}
             <RuleInput label="Организация" value={form.org} onChange={v=>setForm(p=>({...p,org:v}))} placeholder="Яндекс.Такси"/>
             <RuleInput label="Сумма (₽)" value={form.amount} onChange={v=>setForm(p=>({...p,amount:v}))} type="number" placeholder="0.00"/>
             <RuleInput label="Дата" value={form.date} onChange={v=>setForm(p=>({...p,date:v}))} type="date"/>
@@ -981,7 +1016,7 @@ function OtchetyPage({receipts}) {
             {free.map(r=>{const sel=selected.includes(r.id);return(
               <div key={r.id} onClick={()=>setSelected(prev=>sel?prev.filter(x=>x!==r.id):[...prev,r.id])} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",marginBottom:4,border:`1px solid ${sel?C.cherry:C.silver}`,background:sel?C.cherryL:C.white,cursor:"pointer"}}>
                 <div style={{width:12,height:12,border:`1.5px solid ${sel?C.cherry:C.silver}`,background:sel?C.cherry:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:C.white,fontSize:10,flexShrink:0,borderRadius:3}}>{sel&&"✓"}</div>
-                <div style={{flex:1}}><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>{r.org}</div><div style={{fontFamily:FONT,fontSize:10,color:C.gray}}>{fmtDate(r.date)} · {r.category}</div></div>
+                <div style={{flex:1}}><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>{shortOrg(r.org)}</div><div style={{fontFamily:FONT,fontSize:10,color:C.gray}}>{fmtDate(r.date)} · {r.category}</div></div>
                 <span style={{fontFamily:FONT,fontSize:13,color:C.cherry,fontWeight:700}}>{fmt(r.amount)}</span>
               </div>
             );})}
@@ -1074,6 +1109,7 @@ export default function App() {
   const [page,setPage]=useState("svodka");
   const [receipts,setReceipts]=useState([]);
   const [cards,setCards]=useState([]);
+  const [activePeriod,setActivePeriod]=useState("month");
 
   useEffect(()=>{
     fetch(`${API}/api/receipts/`)
@@ -1165,8 +1201,8 @@ export default function App() {
         </div>
       </div>
       <div style={{flex:1,overflow:"auto"}}>
-        {page==="svodka"&&<SvodkaPage receipts={receipts}/>}
-        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate}/>}
+        {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
+        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard}/>}
       </div>
