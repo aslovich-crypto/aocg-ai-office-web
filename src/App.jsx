@@ -204,20 +204,6 @@ function Modal({title,onClose,children,footer}) {
   );
 }
 
-function Tappable({children,onClick,style}) {
-  const [pressed,setPressed]=useState(false);
-  return (
-    <div onClick={onClick}
-      onPointerDown={()=>setPressed(true)}
-      onPointerUp={()=>setPressed(false)}
-      onPointerCancel={()=>setPressed(false)}
-      onPointerLeave={()=>setPressed(false)}
-      style={{...style,opacity:pressed?0.75:1,transition:"opacity 100ms"}}>
-      {children}
-    </div>
-  );
-}
-
 function SegmentedControl({segments,active,onChange}) {
   return (
     <div style={{display:"flex",background:"#EEF0F4",borderRadius:10,padding:2,gap:2}}>
@@ -239,20 +225,6 @@ function SegmentedControl({segments,active,onChange}) {
   );
 }
 
-function BottomSheet({title,onClose,children}) {
-  return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:120}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",overflow:"hidden",paddingBottom:"env(safe-area-inset-bottom)"}}>
-        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px"}}>
-          <div style={{width:36,height:4,background:C.silver,borderRadius:2}}/>
-        </div>
-        {title&&<div style={{textAlign:"center",fontSize:13,fontWeight:600,fontFamily:FONT,color:C.dark,padding:"4px 0 8px"}}>{title}</div>}
-        <div style={{maxHeight:"60vh",overflow:"auto"}}>{children}</div>
-      </div>
-    </div>
-  );
-}
-
 function SectionCard({title,num,children}) {
   return (
     <div style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:8,borderRadius:8,overflow:"hidden"}}>
@@ -267,6 +239,8 @@ function SectionCard({title,num,children}) {
 
 function ScanReceiptModal({onClose,onScanned,onManual}) {
   const [error,setError]=useState("");
+  const [torchOn,setTorchOn]=useState(false);
+  const [torchSupported,setTorchSupported]=useState(false);
   const scannerRef=useRef(null);
   const cameraOn=useRef(false);
   const fileRef=useRef(null);
@@ -274,20 +248,48 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
   useEffect(()=>{
     const s=new Html5Qrcode("qr-reader");
     scannerRef.current=s;
+    const config={
+      fps:15,
+      qrbox:{width:280,height:280},
+      aspectRatio:1.0,
+      disableFlip:false,
+      experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+    };
     s.start(
       {facingMode:"environment"},
-      {fps:10,qrbox:{width:250,height:250}},
+      config,
       (text)=>{
         if(!cameraOn.current)return;
         cameraOn.current=false;
+        try{if(navigator.vibrate)navigator.vibrate(200);}catch{/* ignored */}
         s.stop().catch(()=>{}).finally(()=>onScanned(text));
       },
       ()=>{}
-    ).then(()=>{cameraOn.current=true;}).catch(()=>setError("Нет доступа к камере"));
+    ).then(()=>{
+      cameraOn.current=true;
+      try{
+        const caps=s.getRunningTrackCapabilities?.()||{};
+        if(caps.torch)setTorchSupported(true);
+        if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous")){
+          s.applyVideoConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+        }
+      }catch{/* capabilities unavailable */}
+    }).catch(()=>setError("Нет доступа к камере"));
     return ()=>{
       if(cameraOn.current){cameraOn.current=false;s.stop().catch(()=>{});}
     };
   },[]);
+
+  async function toggleTorch() {
+    if(!scannerRef.current||!cameraOn.current)return;
+    const next=!torchOn;
+    try{
+      await scannerRef.current.applyVideoConstraints({advanced:[{torch:next}]});
+      setTorchOn(next);
+    }catch{
+      setTorchSupported(false);
+    }
+  }
 
   async function handleFile(file) {
     if(!file)return;
@@ -296,6 +298,7 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
       if(cameraOn.current){await scannerRef.current.stop().catch(()=>{});cameraOn.current=false;}
       const fileScanner=new Html5Qrcode("qr-file-reader");
       const result=await fileScanner.scanFile(file,false);
+      try{if(navigator.vibrate)navigator.vibrate(200);}catch{/* ignored */}
       onScanned(result);
     }catch{setError("QR-код не найден в изображении. Попробуйте сделать фото QR крупнее.");}
   }
@@ -308,8 +311,20 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
       </div>
       <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
         <span style={{fontSize:14,color:C.white,fontFamily:FONT,marginBottom:20,opacity:0.85}}>Отсканируйте QR с чека</span>
-        <div id="qr-reader" style={{width:250,height:250,borderRadius:12,overflow:"hidden"}}/>
+        <div style={{position:"relative",width:280,height:280}}>
+          <div id="qr-reader" style={{width:280,height:280,borderRadius:12,overflow:"hidden"}}/>
+          {torchSupported&&(
+            <button onClick={toggleTorch} aria-label="Фонарик" aria-pressed={torchOn}
+              style={{position:"absolute",top:10,right:10,width:40,height:40,borderRadius:"50%",border:"none",
+                background:torchOn?"rgba(255,221,87,0.95)":"rgba(0,0,0,0.55)",
+                color:torchOn?"#161A1D":C.white,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:"0 2px 8px rgba(0,0,0,0.4)",transition:"background 150ms"}}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+            </button>
+          )}
+        </div>
         <div id="qr-file-reader" style={{display:"none"}}/>
+        <div style={{marginTop:12,fontSize:12,color:"#9CA3AF",fontFamily:FONT}}>Наведите на QR-код чека</div>
         {error&&<div style={{marginTop:16,padding:"8px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8}}>
           <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error}</span>
         </div>}
