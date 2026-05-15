@@ -367,13 +367,16 @@ function Donut({title,data,num}) {
 // ─── PAGES ────────────────────────────────────────────────
 
 function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
-  const [empFilter,setEmpFilter]=useState("Все");
-  const [showEmp,setShowEmp]=useState(false);
+  const defaultFrom="", defaultTo="";
+  const [dateFrom,setDateFrom]=useState(defaultFrom);
+  const [dateTo,setDateTo]=useState(defaultTo);
+  const [showFilters,setShowFilters]=useState(false);
+  const customFilterActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
 
-  const allEmployees=[...new Set(receipts.map(r=>r.employee||"Алексей Шукалович"))];
-
-  const periodFiltered=receipts.filter(r=>inPeriod(r.date, activePeriod));
-  const filtered=empFilter==="Все"?periodFiltered:periodFiltered.filter(r=>(r.employee||"Алексей Шукалович")===empFilter);
+  const filtered=receipts.filter(r=>{
+    if(customFilterActive) return (!dateFrom||r.date>=dateFrom) && (!dateTo||r.date<=dateTo);
+    return inPeriod(r.date, activePeriod);
+  });
 
   const total=filtered.reduce((s,r)=>s+Number(r.amount),0);
   const orgMap={},payMap={},catMap={},empMap={};
@@ -393,17 +396,16 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
   return (
     <div style={{paddingBottom:"calc(env(safe-area-inset-bottom) + 80px)"}}>
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{flex:1,minWidth:0}}>
             <SegmentedControl
               segments={PERIOD_OPTIONS.map(o=>o.label)}
-              active={periodLabel(activePeriod)}
-              onChange={l=>setActivePeriod(periodKey(l))}/>
+              active={customFilterActive?null:periodLabel(activePeriod)}
+              onChange={l=>{setActivePeriod(periodKey(l));setDateFrom(defaultFrom);setDateTo(defaultTo);}}/>
           </div>
-          <Tappable onClick={()=>setShowEmp(true)} style={{flexShrink:0,padding:"6px 10px",background:"#EEF0F4",borderRadius:8,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-            <span style={{fontSize:12,fontFamily:FONT,color:"#636B7D",maxWidth:90,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{empFilter==="Все"?"Все":empFilter}</span>
-            <span style={{fontSize:9,color:"#636B7D"}}>▾</span>
-          </Tappable>
+          <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
+            <FilterIcon active={customFilterActive} onClick={()=>setShowFilters(true)}/>
+          </div>
         </div>
       </div>
       <div style={{padding:"12px 16px"}}>
@@ -414,13 +416,13 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
         </div>
         <SectionCard title="Сотрудники" num="01">
           {empData.map((d,i)=>(
-            <Tappable key={i} onClick={()=>setEmpFilter(d.name===empFilter?"Все":d.name)}
-              style={{height:44,display:"flex",alignItems:"center",gap:10,borderBottom:i<empData.length-1?`0.5px solid ${C.silver}`:"none",cursor:"pointer"}}>
+            <div key={i}
+              style={{height:44,display:"flex",alignItems:"center",gap:10,borderBottom:i<empData.length-1?`0.5px solid ${C.silver}`:"none"}}>
               <div style={{width:8,height:8,background:pal[i%pal.length],flexShrink:0}}/>
               <span style={{flex:1,minWidth:0,fontSize:14,fontWeight:500,color:C.dark,fontFamily:FONT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.name}</span>
               <span style={{fontSize:12,color:"#636B7D",fontFamily:FONT,flexShrink:0}}>{d.count}</span>
               <span style={{fontSize:14,fontWeight:600,color:"#A4161A",fontFamily:FONT,fontVariantNumeric:"tabular-nums",flexShrink:0}}>{fmt(d.value)}</span>
-            </Tappable>
+            </div>
           ))}
           {empData.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Нет данных за период</div>}
         </SectionCard>
@@ -428,20 +430,7 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
         <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))} num="03"/>
         <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))} num="04"/>
       </div>
-      {showEmp&&(
-        <BottomSheet title="Сотрудник" onClose={()=>setShowEmp(false)}>
-          {["Все",...allEmployees].map(e=>{
-            const on=empFilter===e;
-            return (
-              <Tappable key={e} onClick={()=>{setEmpFilter(e);setShowEmp(false);}}
-                style={{height:44,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",borderBottom:`1px solid ${C.silver}`,cursor:"pointer",background:on?C.cherryL:C.white}}>
-                <span style={{fontSize:14,fontFamily:FONT,color:on?C.cherry:C.dark}}>{e==="Все"?"Все сотрудники":e}</span>
-                {on&&<span style={{color:C.cherry,fontSize:14}}>✓</span>}
-              </Tappable>
-            );
-          })}
-        </BottomSheet>
-      )}
+      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
     </div>
   );
 }
