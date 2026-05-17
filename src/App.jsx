@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
+import jsQR from "jsqr";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -244,52 +245,111 @@ function SectionCard({title,num,children}) {
   );
 }
 
-// Two-phase scanner:
-//   1. `scanning`  — camera live, looking for a QR.
-//      On hit → freeze frame (pause(true)) → vibrate(100) → 'captured'.
-//   2. `captured`  — show local QR parse (org/amount/date) + [Загрузить чек] [Сканировать снова].
-//   3. `loading`   — full-screen spinner while parent awaits FNS.
-//   4. `fnsError`  — parent's onCapture returned 'partial' → offer manual entry / rescan.
-//   5. `cameraError` — could not start camera at all → manual entry only.
-// `onCapture(qrText) => Promise<'ok'|'partial'>` is the only network-touching prop;
-// the modal owns its own UI transitions but never decides what counts as success.
+// L-shaped corner markers for the cutout. Four absolutely-positioned divs,
+// each drawing the two relevant borders. Color animates between white (idle)
+// and #10B981 (just captured) via a 300ms transition on border-color.
+function CutoutCorners({size, color, len=20, thick=3}) {
+  const off = `calc(50% - ${size/2}px)`;
+  const transition = "border-color 300ms ease";
+  const tl = {position:"absolute",width:len,height:len,top:off,left:off,
+              borderTop:`${thick}px solid ${color}`,borderLeft:`${thick}px solid ${color}`,
+              transition,pointerEvents:"none"};
+  const tr = {position:"absolute",width:len,height:len,top:off,right:off,
+              borderTop:`${thick}px solid ${color}`,borderRight:`${thick}px solid ${color}`,
+              transition,pointerEvents:"none"};
+  const bl = {position:"absolute",width:len,height:len,bottom:off,left:off,
+              borderBottom:`${thick}px solid ${color}`,borderLeft:`${thick}px solid ${color}`,
+              transition,pointerEvents:"none"};
+  const br = {position:"absolute",width:len,height:len,bottom:off,right:off,
+              borderBottom:`${thick}px solid ${color}`,borderRight:`${thick}px solid ${color}`,
+              transition,pointerEvents:"none"};
+  return <><div style={tl}/><div style={tr}/><div style={bl}/><div style={br}/></>;
+}
+
+// Decode a QR from a file via jsQR, with a contrast-boost retry. Returns the
+// decoded text or null. We use this instead of html5-qrcode's scanFile() —
+// jsQR has noticeably better detection on low-contrast thermal receipts.
+async function decodeQrFromFile(file, {maxDim=1600}={}) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("image load failed"));
+      i.src = url;
+    });
+    const tryDecode = (enhance) => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d", {willReadFrequently: true});
+      if (enhance) ctx.filter = "contrast(1.5) brightness(1.1)";
+      ctx.drawImage(img, 0, 0, w, h);
+      let data;
+      try { data = ctx.getImageData(0, 0, w, h); }
+      catch { return null; }
+      const result = jsQR(data.data, data.width, data.height, {inversionAttempts: "attemptBoth"});
+      return result?.data || null;
+    };
+    return tryDecode(false) || tryDecode(true);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Two-phase scanner, full-screen native-style layout:
+//   1. `scanning`  — camera fills the screen; dark overlay with a 260px
+//      cutout in the center; white L-corner markers at the cutout corners.
+//   2. `captured`  — pause(true) freezes the frame; corners go green; bottom
+//      pill swaps to confirm/rescan.
+//   3. `loading`   — full dim + centered spinner.
+//   4. `fnsError`  — full dim + centered text + bottom pill offers OCR fallback.
+//   5. `cameraError` — full dim; bottom pill offers manual entry.
+//
+// `onCapture(qrText) => Promise<'ok'|'partial'>` is the only network-touching
+// prop; the modal owns its own UI transitions but never decides what counts
+// as success.
 function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual}) {
   const [phase, setPhase] = useState("scanning"); // scanning | captured | loading | fnsError | cameraError
   const [loadingMsg, setLoadingMsg] = useState("Загружаем данные из ФНС…");
-  const [error, setError] = useState("");
+  const [notice, setNotice] = useState(""); // subtle gray bottom notification (replaces red banner)
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [qrText, setQrText] = useState("");
   const [qrParsed, setQrParsed] = useState(null);
+  const [flashGreen, setFlashGreen] = useState(false); // 0.5s green pulse on capture
   const scannerRef = useRef(null);
   const cameraOn = useRef(false);
   const fileRef = useRef(null);
   const ocrFileRef = useRef(null);
   const mountedRef = useRef(true);
 
+  const CUTOUT = 260; // visual cutout size in px; matches design spec
+  const cornerColor = (phase === "captured" || flashGreen) ? "#10B981" : "#FFFFFF";
+
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   const capture = useCallback((text) => {
     try { if (navigator.vibrate) navigator.vibrate(100); } catch { /* ignored */ }
+    setFlashGreen(true);
     setQrText(text);
     setQrParsed(parseQRString(text));
     setPhase("captured");
-    // Kick off the FNS lookup in the background — the result is usually back
-    // by the time the user taps "Загрузить чек", so the confirm tap feels
-    // instant instead of staring at a spinner.
     if (onPrefetch) { try { onPrefetch(text); } catch { /* ignored */ } }
+    setTimeout(() => { if (mountedRef.current) setFlashGreen(false); }, 500);
   }, [onPrefetch]);
 
   const startCamera = useCallback(() => {
-    // Callers (mount, rescan, handleFile-fallback) reset `error` themselves
-    // before invoking — avoid setError("") here so this stays callable from
-    // useEffect without tripping the "synchronous setState in effect" rule.
     if (!scannerRef.current) scannerRef.current = new Html5Qrcode("qr-reader");
     const s = scannerRef.current;
+    // No `qrbox` config: that would make html5-qrcode draw its own dark
+    // shaded overlay, which would stack with our cutout overlay and look
+    // broken. Without qrbox the lib scans the full frame and renders only
+    // a bare <video>, leaving the visual layer entirely to us.
     const config = {
       fps: 15,
-      qrbox: { width: 280, height: 280 },
-      aspectRatio: 1.0,
       disableFlip: false,
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     };
@@ -299,7 +359,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       (text) => {
         if (!cameraOn.current) return;
         cameraOn.current = false;
-        // Freeze the video frame; resume() later if user picks "Сканировать снова".
         try { s.pause(true); } catch { /* not in scanning state */ }
         capture(text);
       },
@@ -314,7 +373,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
         }
       } catch { /* capabilities unavailable */ }
     }).catch(() => {
-      setError("Нет доступа к камере");
+      setNotice("Нет доступа к камере");
       setPhase("cameraError");
     });
   }, [capture]);
@@ -325,7 +384,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       const s = scannerRef.current;
       if (!s) return;
       cameraOn.current = false;
-      // stop() works from SCANNING and PAUSED — pause-only doesn't release the camera.
       s.stop().catch(() => {});
     };
   }, [startCamera]);
@@ -342,11 +400,10 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   }
 
   async function rescan() {
-    setError("");
-    setQrText(""); setQrParsed(null);
+    setNotice("");
+    setQrText(""); setQrParsed(null); setFlashGreen(false);
     setPhase("scanning");
     const s = scannerRef.current;
-    // Fast path: if we paused (camera still alive), just resume.
     try {
       if (s && s.getState && s.getState() === Html5QrcodeScannerState.PAUSED) {
         s.resume();
@@ -354,7 +411,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
         return;
       }
     } catch { /* ignored */ }
-    // Cold path: file-scan or full stop happened; reinitialize.
     if (s) { try { await s.stop().catch(() => {}); } catch { /* ignored */ } }
     scannerRef.current = null;
     cameraOn.current = false;
@@ -385,166 +441,164 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     else setPhase("fnsError");
   }
 
+  // QR from gallery — jsQR pipeline (replaces html5-qrcode.scanFile). One
+  // contrast-boost retry; on total miss show a soft gray notice instead of
+  // a red banner. Camera stays running so the user can immediately try
+  // another shot.
   async function handleFile(file) {
     if (!file) return;
-    setError("");
-    try {
-      if (cameraOn.current) { await scannerRef.current.stop().catch(() => {}); cameraOn.current = false; }
-      const fileScanner = new Html5Qrcode("qr-file-reader");
-      const result = await fileScanner.scanFile(file, false);
-      capture(result);
-    } catch {
-      setError("QR-код не найден в изображении. Попробуйте сделать фото QR крупнее.");
-      // Camera was stopped to scan the file — bring it back so the user can try again.
-      scannerRef.current = null;
-      startCamera();
-    }
+    setNotice("");
+    let text = null;
+    try { text = await decodeQrFromFile(file); }
+    catch { /* fall through to notice */ }
+    if (text) { capture(text); return; }
+    setNotice("QR не найден. Попробуйте сфотографировать QR крупнее или ввести вручную");
   }
 
-  // ─── UI helpers ─────────────────────────────────────────────
-  const showCameraView = phase === "scanning" || phase === "captured";
-
-  const localChip = qrParsed && (
-    <div style={{
-      display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",
-      padding:"10px 14px",background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.45)",
-      borderRadius:8,fontFamily:FONT,fontSize:13,color:C.white,marginTop:14,maxWidth:320,
-    }}>
-      <span style={{fontWeight:600}}>Чек</span>
-      {qrParsed.amount && <><span style={{opacity:0.6}}>·</span><span>{Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</span></>}
-      {qrParsed.date && <><span style={{opacity:0.6}}>·</span><span>{fmtDate(qrParsed.date)}</span></>}
-    </div>
-  );
+  // ─── UI ────────────────────────────────────────────────────────
+  const dimmed = phase === "loading" || phase === "fnsError" || phase === "cameraError";
 
   return (
-    <div style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column"}}>
-      {/* Keyframes for the captured-frame pulse — scoped via a unique name, no global CSS file. */}
-      <style>{`@keyframes scanCapturedPulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.55)}50%{box-shadow:0 0 0 14px rgba(16,185,129,0)}}`}</style>
+    <div style={{position:"fixed",inset:0,zIndex:200,background:"#000",overflow:"hidden",width:"100vw",height:"100dvh"}}>
+      {/* Force html5-qrcode's nested <video> to cover the whole viewport. */}
+      <style>{`#qr-reader,#qr-reader>div,#qr-reader video{width:100%!important;height:100%!important;object-fit:cover!important;border:none!important}`}</style>
 
-      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",background:"rgba(0,0,0,0.55)",flexShrink:0}}>
-        <button onClick={onClose} style={{background:"none",border:"none",color:C.white,fontSize:22,cursor:"pointer",padding:0,lineHeight:1}}>←</button>
-        <span style={{fontSize:15,fontFamily:FONT,color:C.white,fontWeight:600}}>Новый чек</span>
+      {/* Camera fills the screen */}
+      <div id="qr-reader" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
+
+      {/* Dark overlay with cutout — 4 picture-frame rectangles around a
+          transparent 260×260 square in the center. Hidden during loading /
+          error phases (where we use a uniform full-screen dim instead). */}
+      {!dimmed && <>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
+        <div style={{position:"absolute",bottom:0,left:0,right:0,height:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
+        <div style={{position:"absolute",top:`calc(50% - ${CUTOUT/2}px)`,bottom:`calc(50% - ${CUTOUT/2}px)`,left:0,width:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
+        <div style={{position:"absolute",top:`calc(50% - ${CUTOUT/2}px)`,bottom:`calc(50% - ${CUTOUT/2}px)`,right:0,width:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
+        <CutoutCorners size={CUTOUT} color={cornerColor}/>
+      </>}
+
+      {/* Full-screen dim for loading / FNS error / camera error */}
+      {dimmed && <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.7)"}}/>}
+
+      {/* Top bar — back + flashlight (both white, circular, blurred backdrop) */}
+      <div style={{position:"absolute",top:0,left:0,right:0,padding:"calc(env(safe-area-inset-top) + 12px) 16px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:5,pointerEvents:"none"}}>
+        <button onClick={onClose} aria-label="Назад"
+          style={{pointerEvents:"auto",width:40,height:40,borderRadius:"50%",border:"none",background:"rgba(0,0,0,0.4)",color:"#fff",fontSize:24,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(8px)"}}>‹</button>
+        {torchSupported && (phase === "scanning" || phase === "captured") && (
+          <button onClick={toggleTorch} aria-label="Фонарик" aria-pressed={torchOn}
+            style={{pointerEvents:"auto",width:40,height:40,borderRadius:"50%",border:"none",
+              background: torchOn ? "rgba(255,221,87,0.95)" : "rgba(0,0,0,0.4)",
+              color: torchOn ? "#161A1D" : "#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+              backdropFilter:"blur(8px)"}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+          </button>
+        )}
       </div>
 
-      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 16px"}}>
-        <span style={{fontSize:14,color:C.white,fontFamily:FONT,marginBottom:20,opacity:0.85,minHeight:18}}>
-          {phase==="captured" ? "QR распознан" : phase==="scanning" ? "Отсканируйте QR с чека" : ""}
-        </span>
-
-        {/* Camera viewport — always mounted (so #qr-reader exists) but visually hidden during loading/error overlays. */}
-        <div style={{position:"relative",width:280,height:280,visibility:showCameraView?"visible":"hidden",
-                     ...(showCameraView?{}:{position:"absolute",pointerEvents:"none"})}}>
-          <div id="qr-reader" style={{width:280,height:280,borderRadius:12,overflow:"hidden"}}/>
-          {/* Green animated frame on top of the frozen frame */}
-          {phase==="captured" && (
-            <div aria-hidden style={{
-              position:"absolute",inset:0,borderRadius:12,pointerEvents:"none",
-              border:"3px solid #10B981",animation:"scanCapturedPulse 1.5s ease-out infinite",
-            }}/>
-          )}
-          {torchSupported && phase==="scanning" && (
-            <button onClick={toggleTorch} aria-label="Фонарик" aria-pressed={torchOn}
-              style={{position:"absolute",top:10,right:10,width:40,height:40,borderRadius:"50%",border:"none",
-                background:torchOn?"rgba(255,221,87,0.95)":"rgba(0,0,0,0.55)",
-                color:torchOn?"#161A1D":C.white,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-                boxShadow:"0 2px 8px rgba(0,0,0,0.4)",transition:"background 150ms"}}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
-            </button>
-          )}
+      {/* Captured-QR chip — sits just under the cutout so it doesn't cover the QR */}
+      {phase === "captured" && qrParsed && (
+        <div style={{position:"absolute",left:"50%",top:`calc(50% + ${CUTOUT/2}px + 14px)`,transform:"translateX(-50%)",padding:"10px 14px",background:"rgba(16,185,129,0.95)",borderRadius:10,fontFamily:FONT,fontSize:13,color:"#fff",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"center",maxWidth:"calc(100vw - 32px)",zIndex:5,boxShadow:"0 4px 16px rgba(0,0,0,0.3)"}}>
+          <span style={{fontWeight:600}}>Чек</span>
+          {qrParsed.amount && <><span style={{opacity:0.6}}>·</span><span>{Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</span></>}
+          {qrParsed.date && <><span style={{opacity:0.6}}>·</span><span>{fmtDate(qrParsed.date)}</span></>}
         </div>
-        <div id="qr-file-reader" style={{display:"none"}}/>
+      )}
 
-        {phase==="scanning" && (
-          <div style={{marginTop:12,fontSize:12,color:"#9CA3AF",fontFamily:FONT}}>Наведите на QR-код чека</div>
-        )}
-        {phase==="captured" && localChip}
+      {/* Loading spinner — centered above the bottom pill */}
+      {phase === "loading" && (
+        <div style={{position:"absolute",top:"45%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#fff",fontFamily:FONT,fontSize:14,textAlign:"center",padding:"0 16px"}}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
+            <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
+              <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+            </path>
+          </svg>
+          {loadingMsg}
+        </div>
+      )}
 
-        {phase==="loading" && (
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:C.white,fontFamily:FONT,fontSize:14}}>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
-              <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
-                <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
-              </path>
-            </svg>
-            {loadingMsg}
+      {/* FNS error message — centered */}
+      {phase === "fnsError" && (
+        <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:"#fff",fontFamily:FONT,textAlign:"center",maxWidth:340,padding:"0 16px"}}>
+          <span style={{fontSize:16,fontWeight:600}}>Данные ФНС не загрузились</span>
+          <span style={{fontSize:13,opacity:0.7}}>Распознать чек по фото, заполнить вручную или попробовать ещё раз</span>
+        </div>
+      )}
+
+      {/* Camera error */}
+      {phase === "cameraError" && (
+        <div style={{position:"absolute",top:"42%",left:"50%",transform:"translate(-50%,-50%)",padding:"12px 18px",background:"rgba(255,255,255,0.12)",borderRadius:10,maxWidth:340,textAlign:"center"}}>
+          <span style={{fontSize:13,color:"#fff",fontFamily:FONT}}>{notice || "Нет доступа к камере"}</span>
+        </div>
+      )}
+
+      {/* Soft gray notice — replaces the old red banner. Sits above the cutout. */}
+      {notice && phase === "scanning" && (
+        <div style={{position:"absolute",bottom:`calc(50% + ${CUTOUT/2}px + 18px)`,left:"50%",transform:"translateX(-50%)",padding:"10px 14px",background:"rgba(0,0,0,0.65)",color:"#fff",fontFamily:FONT,fontSize:12,borderRadius:10,maxWidth:"calc(100vw - 32px)",textAlign:"center",backdropFilter:"blur(6px)",zIndex:5}}>
+          {notice}
+        </div>
+      )}
+
+      {/* Hidden file inputs */}
+      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e => handleFile(e.target.files[0])}/>
+      <input ref={ocrFileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e => handleOcrPick(e.target.files[0])}/>
+
+      {/* Bottom pill — white, rounded top, contents swap per phase */}
+      <div style={{position:"absolute",bottom:0,left:0,right:0,background:"#fff",borderRadius:"20px 20px 0 0",padding:"18px 16px calc(20px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:12,zIndex:6,boxShadow:"0 -4px 20px rgba(0,0,0,0.15)"}}>
+        {phase === "scanning" && <>
+          <div style={{textAlign:"center",color:C.gray,fontFamily:FONT,fontSize:13}}>
+            Наведите QR-код в рамку
           </div>
-        )}
-
-        {phase==="fnsError" && (
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:C.white,fontFamily:FONT,textAlign:"center",maxWidth:320}}>
-            <span style={{fontSize:15,fontWeight:600}}>Данные ФНС не загрузились</span>
-            <span style={{fontSize:12,opacity:0.7}}>Распознать чек по фото, заполнить вручную или попробовать ещё раз</span>
-          </div>
-        )}
-
-        {phase==="cameraError" && (
-          <div style={{marginTop:16,padding:"10px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8,maxWidth:320,textAlign:"center"}}>
-            <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error || "Нет доступа к камере"}</span>
-          </div>
-        )}
-        {phase==="scanning" && error && (
-          <div style={{marginTop:16,padding:"8px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8}}>
-            <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error}</span>
-          </div>
-        )}
-      </div>
-
-      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
-      <input ref={ocrFileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleOcrPick(e.target.files[0])}/>
-
-      <div style={{padding:"16px 16px 32px",background:"rgba(0,0,0,0.55)",flexShrink:0,display:"flex",flexDirection:"column",gap:10}}>
-        {phase==="scanning" && (<>
-          <button onClick={()=>fileRef.current.click()}
-            style={{width:"100%",padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
-            <span style={{fontSize:20}}>🖼</span>Загрузить фото
+          <button onClick={() => fileRef.current.click()}
+            style={{padding:"12px",border:`1px solid ${C.silver}`,background:C.white,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <span style={{fontSize:16}}>📷</span> Загрузить фото
           </button>
           <div style={{textAlign:"center"}}>
-            <button onClick={()=>onManual()}
-              style={{background:"none",border:"none",color:C.grayL,fontFamily:FONT,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>
+            <button onClick={() => onManual()}
+              style={{background:"none",border:"none",color:C.gray,fontFamily:FONT,fontSize:13,cursor:"pointer",padding:"4px"}}>
               Ввести вручную
             </button>
           </div>
-        </>)}
+        </>}
 
-        {phase==="captured" && (<>
+        {phase === "captured" && <>
           <button onClick={confirm}
-            style={{width:"100%",padding:"13px 8px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.05em"}}>
+            style={{padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.03em"}}>
             Загрузить чек
           </button>
           <button onClick={rescan}
-            style={{width:"100%",padding:"12px 8px",background:"transparent",border:`1px solid rgba(255,255,255,0.45)`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer"}}>
+            style={{padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer"}}>
             Сканировать снова
           </button>
-        </>)}
+        </>}
 
-        {phase==="loading" && (
+        {phase === "loading" && (
           <button disabled
-            style={{width:"100%",padding:"13px 8px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:"rgba(255,255,255,0.6)",cursor:"default"}}>
+            style={{padding:"14px",background:C.lightGray,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.grayL,cursor:"default"}}>
             Загружаем…
           </button>
         )}
 
-        {phase==="fnsError" && (<>
+        {phase === "fnsError" && <>
           {onOcrFile && (
-            <button onClick={()=>ocrFileRef.current?.click()}
-              style={{width:"100%",padding:"13px 8px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.05em",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              <span style={{fontSize:16}}>📷</span>Распознать фото чека
+            <button onClick={() => ocrFileRef.current?.click()}
+              style={{padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span style={{fontSize:16}}>📷</span> Распознать фото чека
             </button>
           )}
-          <button onClick={()=>onManual(qrText)}
-            style={{width:"100%",padding:"12px 8px",background:"transparent",border:`1px solid rgba(255,255,255,0.45)`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer"}}>
+          <button onClick={() => onManual(qrText)}
+            style={{padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer"}}>
             Заполнить вручную
           </button>
           <button onClick={rescan}
-            style={{width:"100%",padding:"10px 8px",background:"transparent",border:"none",fontFamily:FONT,fontSize:12,color:C.grayL,cursor:"pointer",textDecoration:"underline"}}>
+            style={{padding:"6px",background:"none",border:"none",fontFamily:FONT,fontSize:12,color:C.gray,cursor:"pointer"}}>
             Сканировать снова
           </button>
-        </>)}
+        </>}
 
-        {phase==="cameraError" && (
-          <button onClick={()=>onManual()}
-            style={{width:"100%",padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer"}}>
+        {phase === "cameraError" && (
+          <button onClick={() => onManual()}
+            style={{padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer"}}>
             Ввести вручную
           </button>
         )}
