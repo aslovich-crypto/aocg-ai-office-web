@@ -46,7 +46,10 @@ const CATEGORY_COLORS = {
 };
 const catColor = c => CATEGORY_COLORS[c] || CATEGORY_COLORS["Не указано"];
 
-const ORG_PREFIX_RE = /^\s*(ООО|ОАО|АО|ИП|ЗАО|ПАО|ПК|ИНДИВИДУАЛЬНЫЙ\s+ПРЕДПРИНИМАТЕЛЬ)\s+/i;
+// Prefix forms we strip when picking the avatar initial. The `И\s*\.?\s*П\s*\.?`
+// alternative handles separated variants ("И П Иванов", "И. П. Иванов", "И.П.
+// Иванов") in addition to the joined "ИП Иванов".
+const ORG_PREFIX_RE = /^\s*(ООО|ОАО|АО|ИП|ЗАО|ПАО|ПК|И\s*\.?\s*П\s*\.?|ИНДИВИДУАЛЬНЫЙ\s+ПРЕДПРИНИМАТЕЛЬ)\s+/i;
 const QUOTE_RE = /^["«»'«»“”„]+/;
 function orgInitial(org) {
   if (!org) return "?";
@@ -63,6 +66,10 @@ const ORG_FULL_FORMS = [
   [/общество\s+с\s+ограниченной\s+ответственностью/i, "ООО"],
   [/акционерное\s+общество/i, "АО"],
   [/индивидуальный\s+предприниматель/i, "ИП"],
+  // Anchored: "И П Иванов" / "И. П. Иванов" / "И.П. Иванов" at the very start
+  // collapse to "ИП". The trailing-space lookahead prevents matching inside
+  // an org name that happens to contain those letters.
+  [/^(\s*)И\s*\.?\s*П\s*\.?(?=\s)/i, "$1ИП"],
 ];
 function shortOrg(org) {
   if (!org) return org;
@@ -246,8 +253,9 @@ function SectionCard({title,num,children}) {
 //   5. `cameraError` — could not start camera at all → manual entry only.
 // `onCapture(qrText) => Promise<'ok'|'partial'>` is the only network-touching prop;
 // the modal owns its own UI transitions but never decides what counts as success.
-function ScanReceiptModal({onClose, onCapture, onManual}) {
+function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual}) {
   const [phase, setPhase] = useState("scanning"); // scanning | captured | loading | fnsError | cameraError
+  const [loadingMsg, setLoadingMsg] = useState("Загружаем данные из ФНС…");
   const [error, setError] = useState("");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
@@ -256,6 +264,7 @@ function ScanReceiptModal({onClose, onCapture, onManual}) {
   const scannerRef = useRef(null);
   const cameraOn = useRef(false);
   const fileRef = useRef(null);
+  const ocrFileRef = useRef(null);
   const mountedRef = useRef(true);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -265,7 +274,11 @@ function ScanReceiptModal({onClose, onCapture, onManual}) {
     setQrText(text);
     setQrParsed(parseQRString(text));
     setPhase("captured");
-  }, []);
+    // Kick off the FNS lookup in the background — the result is usually back
+    // by the time the user taps "Загрузить чек", so the confirm tap feels
+    // instant instead of staring at a spinner.
+    if (onPrefetch) { try { onPrefetch(text); } catch { /* ignored */ } }
+  }, [onPrefetch]);
 
   const startCamera = useCallback(() => {
     // Callers (mount, rescan, handleFile-fallback) reset `error` themselves
@@ -350,9 +363,22 @@ function ScanReceiptModal({onClose, onCapture, onManual}) {
 
   async function confirm() {
     if (!qrText || !onCapture) return;
+    setLoadingMsg("Загружаем данные из ФНС…");
     setPhase("loading");
     let result;
     try { result = await onCapture(qrText); }
+    catch { result = "partial"; }
+    if (!mountedRef.current) return;
+    if (result === "ok") onClose();
+    else setPhase("fnsError");
+  }
+
+  async function handleOcrPick(file) {
+    if (!file || !onOcrFile) return;
+    setLoadingMsg("Распознаём чек…");
+    setPhase("loading");
+    let result;
+    try { result = await onOcrFile(file); }
     catch { result = "partial"; }
     if (!mountedRef.current) return;
     if (result === "ok") onClose();
@@ -441,14 +467,14 @@ function ScanReceiptModal({onClose, onCapture, onManual}) {
                 <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
               </path>
             </svg>
-            Загружаем данные из ФНС…
+            {loadingMsg}
           </div>
         )}
 
         {phase==="fnsError" && (
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:C.white,fontFamily:FONT,textAlign:"center",maxWidth:320}}>
             <span style={{fontSize:15,fontWeight:600}}>Данные ФНС не загрузились</span>
-            <span style={{fontSize:12,opacity:0.7}}>Можно заполнить вручную или попробовать ещё раз</span>
+            <span style={{fontSize:12,opacity:0.7}}>Распознать чек по фото, заполнить вручную или попробовать ещё раз</span>
           </div>
         )}
 
@@ -465,6 +491,7 @@ function ScanReceiptModal({onClose, onCapture, onManual}) {
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
+      <input ref={ocrFileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleOcrPick(e.target.files[0])}/>
 
       <div style={{padding:"16px 16px 32px",background:"rgba(0,0,0,0.55)",flexShrink:0,display:"flex",flexDirection:"column",gap:10}}>
         {phase==="scanning" && (<>
@@ -499,12 +526,18 @@ function ScanReceiptModal({onClose, onCapture, onManual}) {
         )}
 
         {phase==="fnsError" && (<>
+          {onOcrFile && (
+            <button onClick={()=>ocrFileRef.current?.click()}
+              style={{width:"100%",padding:"13px 8px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.05em",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span style={{fontSize:16}}>📷</span>Распознать фото чека
+            </button>
+          )}
           <button onClick={()=>onManual(qrText)}
-            style={{width:"100%",padding:"13px 8px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.05em"}}>
+            style={{width:"100%",padding:"12px 8px",background:"transparent",border:`1px solid rgba(255,255,255,0.45)`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer"}}>
             Заполнить вручную
           </button>
           <button onClick={rescan}
-            style={{width:"100%",padding:"12px 8px",background:"transparent",border:`1px solid rgba(255,255,255,0.45)`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer"}}>
+            style={{width:"100%",padding:"10px 8px",background:"transparent",border:"none",fontFamily:FONT,fontSize:12,color:C.grayL,cursor:"pointer",textDecoration:"underline"}}>
             Сканировать снова
           </button>
         </>)}
@@ -927,29 +960,61 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [detail,setDetail]=useState(null);
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
   const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | "partial"
+  // In-flight FNS prefetch keyed by qrText, started the instant the modal
+  // captures a QR (before the user taps "Загрузить чек"). By the time the
+  // user confirms, the network round-trip is usually already done.
+  const fnsPrefetchRef = useRef({qrText: null, promise: null});
 
-  // Two-phase contract with ScanReceiptModal:
-  //   1. Modal captures the QR locally and shows a preview.
-  //   2. User confirms → modal calls handleCapture(qrText) → we run the FNS lookup.
-  //      Return 'ok' → modal closes itself, form is already open with full data.
-  //      Return 'partial' → modal switches to its own error screen; user can rescan
-  //      or fall back to handleManual(qrText) which prefills from the local parse.
-  async function handleCapture(qrText) {
-    const parsed = parseQRString(qrText);
-    // Prefill form from local QR parse — these fields are reliable even when FNS fails.
-    setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
-                   org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null}));
-    setFnsStatus("loading");
-
-    let d = null;
+  async function _fetchFns(qrText) {
     try {
       const res = await fetch(`${API}/api/fns/check`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({qr_raw: qrText}),
       });
-      if (res.ok) d = await res.json().catch(() => null);
-    } catch { /* network failure — treat as partial */ }
+      if (res.ok) return await res.json().catch(() => null);
+    } catch { /* network failure — caller treats null as partial */ }
+    return null;
+  }
+
+  // Called by the modal as soon as it captures a QR. Fire-and-forget — the
+  // result is consumed later by handleCapture via the shared ref.
+  function prefetchFns(qrText) {
+    if (!qrText) return;
+    if (fnsPrefetchRef.current.qrText === qrText && fnsPrefetchRef.current.promise) return;
+    fnsPrefetchRef.current = {qrText, promise: _fetchFns(qrText)};
+  }
+
+  async function _suggestPayment(org) {
+    if (!org) return null;
+    try {
+      const sres = await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(org)}`);
+      if (sres.ok) { const sd = await sres.json(); return sd.payment || null; }
+    } catch { /* ignored */ }
+    return null;
+  }
+
+  // Two-phase contract with ScanReceiptModal:
+  //   1. Modal captures the QR locally, calls prefetchFns(), shows preview.
+  //   2. User confirms → modal calls handleCapture(qrText) → we await the
+  //      prefetched FNS promise (or start one fresh as fallback).
+  //      Return 'ok' → modal closes itself, form is already open with full data.
+  //      Return 'partial' → modal switches to its own error screen; user can
+  //      rescan, fall back to OCR (handleOcrFile), or manual (handleManual).
+  async function handleCapture(qrText) {
+    const parsed = parseQRString(qrText);
+    // Prefill form from local QR parse — reliable even when FNS fails.
+    setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
+                   org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null}));
+    setFnsStatus("loading");
+
+    let d;
+    if (fnsPrefetchRef.current.qrText === qrText && fnsPrefetchRef.current.promise) {
+      d = await fnsPrefetchRef.current.promise;
+    } else {
+      d = await _fetchFns(qrText);
+    }
+    fnsPrefetchRef.current = {qrText: null, promise: null};
 
     if (!d || d.status === "partial" || !d.org) {
       setFnsStatus("partial");
@@ -959,11 +1024,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     const raw = d.raw || {};
     const cash = Number(raw.cashTotalSum) || 0;
     const card = Number(raw.ecashTotalSum) || 0;
-    let suggested = null;
-    try {
-      const sres = await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(d.org)}`);
-      if (sres.ok) { const sd = await sres.json(); suggested = sd.payment || null; }
-    } catch { /* ignored */ }
+    const suggested = await _suggestPayment(d.org);
     let payment = "Не указано";
     if (cash > 0 && card === 0)      payment = "Наличные";
     else if (card > 0 && cash === 0) payment = (suggested && suggested !== "Наличные") ? suggested : "Личная карта";
@@ -975,7 +1036,47 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
       raw_data: d.raw || d,
       payment,
     }));
-    setShowAdd(true);  // open the form alongside the modal closing itself.
+    setShowAdd(true);
+    setFnsStatus("ok");
+    setTimeout(() => setFnsStatus(s => s === "ok" ? null : s), 1500);
+    return "ok";
+  }
+
+  // OCR fallback: when FNS comes back partial, the modal offers a "Распознать
+  // фото" button → file picker → this handler. Returns 'ok'/'partial' with the
+  // same contract as handleCapture, so the modal closes itself on success.
+  async function handleOcrFile(file) {
+    if (!file) return "partial";
+    setFnsStatus("loading");
+    const fd = new FormData();
+    fd.append("file", file);
+    let d = null;
+    try {
+      const res = await fetch(`${API}/api/receipts/ocr/`, {method: "POST", body: fd});
+      if (res.ok) d = await res.json().catch(() => null);
+    } catch { /* network */ }
+
+    if (!d || !d.org || d.amount == null) {
+      setFnsStatus("partial");
+      return "partial";
+    }
+
+    const suggested = await _suggestPayment(d.org);
+    let payment = "Не указано";
+    if (d.payment_type === "cash")      payment = "Наличные";
+    else if (d.payment_type === "card") payment = (suggested && suggested !== "Наличные") ? suggested : "Личная карта";
+    else if (suggested)                 payment = suggested;
+
+    setForm(p => ({...p,
+      org: d.org,
+      amount: String(d.amount),
+      date: d.date || p.date,
+      category: d.category || "Не указано",
+      fn: d.fn || p.fn,
+      raw_data: d,
+      payment,
+    }));
+    setShowAdd(true);
     setFnsStatus("ok");
     setTimeout(() => setFnsStatus(s => s === "ok" ? null : s), 1500);
     return "ok";
@@ -1095,7 +1196,12 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         )}
       </div>
       <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
-      {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onCapture={handleCapture} onManual={handleManual}/>}
+      {showScan&&<ScanReceiptModal
+        onClose={()=>setShowScan(false)}
+        onCapture={handleCapture}
+        onPrefetch={prefetchFns}
+        onOcrFile={handleOcrFile}
+        onManual={handleManual}/>}
       {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal receipt={detail} onClose={()=>setDetail(null)} onDelete={()=>{handleDelete(detail.id);setDetail(null);}} onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}/>}
       {showAdd&&(
