@@ -247,7 +247,7 @@ function SectionCard({title,num,children}) {
 
 // L-shaped corner markers for the cutout. Four absolutely-positioned divs,
 // each drawing the two relevant borders. Color animates between white (idle)
-// and #10B981 (just captured) via a 300ms transition on border-color.
+// and #15803D (just captured) via a 300ms transition on border-color.
 function CutoutCorners({size, color, len=20, thick=3}) {
   const off = `calc(50% - ${size/2}px)`;
   const transition = "border-color 300ms ease";
@@ -327,7 +327,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const mountedRef = useRef(true);
 
   const CUTOUT = 270; // visual cutout size in px; matches design spec
-  const cornerColor = (phase === "captured" || flashGreen) ? "#10B981" : "#FFFFFF";
+  const cornerColor = (phase === "captured" || flashGreen) ? "#15803D" : "#FFFFFF";
 
   useEffect(() => () => { mountedRef.current = false; }, []);
 
@@ -483,24 +483,26 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       {/* Top bar — back + flashlight (both white, circular, blurred backdrop) */}
       <div style={{position:"absolute",top:0,left:0,right:0,padding:"calc(env(safe-area-inset-top) + 12px) 16px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:5,pointerEvents:"none"}}>
         <button onClick={onClose} aria-label="Назад"
-          style={{pointerEvents:"auto",width:40,height:40,borderRadius:"50%",border:"none",background:"rgba(0,0,0,0.4)",color:"#fff",fontSize:24,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(8px)"}}>‹</button>
+          style={{pointerEvents:"auto",width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(0,0,0,0.4)",color:"#fff",fontSize:26,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(8px)"}}>‹</button>
         {torchSupported && (phase === "scanning" || phase === "captured") && (
           <button onClick={toggleTorch} aria-label="Фонарик" aria-pressed={torchOn}
-            style={{pointerEvents:"auto",width:40,height:40,borderRadius:"50%",border:"none",
+            style={{pointerEvents:"auto",width:44,height:44,borderRadius:"50%",border:"none",
               background: torchOn ? "rgba(255,221,87,0.95)" : "rgba(0,0,0,0.4)",
-              color: torchOn ? "#161A1D" : "#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+              color: torchOn ? "#161A1D" : "#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
               backdropFilter:"blur(8px)"}}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+            🔦
           </button>
         )}
       </div>
 
-      {/* Captured-QR chip — sits just under the cutout so it doesn't cover the QR */}
+      {/* Captured-QR chip — sits just under the cutout so it doesn't cover the QR.
+          Format: "Сумма: 1 234,56 ₽ · 13.01.2026" per spec. */}
       {phase === "captured" && qrParsed && (
-        <div style={{position:"absolute",left:"50%",top:`calc(50% + ${CUTOUT/2}px + 14px)`,transform:"translateX(-50%)",padding:"10px 14px",background:"rgba(16,185,129,0.95)",borderRadius:10,fontFamily:FONT,fontSize:13,color:"#fff",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"center",maxWidth:"calc(100vw - 32px)",zIndex:5,boxShadow:"0 4px 16px rgba(0,0,0,0.3)"}}>
-          <span style={{fontWeight:600}}>Чек</span>
-          {qrParsed.amount && <><span style={{opacity:0.6}}>·</span><span>{Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</span></>}
-          {qrParsed.date && <><span style={{opacity:0.6}}>·</span><span>{fmtDate(qrParsed.date)}</span></>}
+        <div style={{position:"absolute",left:"50%",top:`calc(50% + ${CUTOUT/2}px + 14px)`,transform:"translateX(-50%)",padding:"10px 14px",background:"rgba(21,128,61,0.95)",borderRadius:10,fontFamily:FONT,fontSize:13,color:"#fff",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",justifyContent:"center",maxWidth:"calc(100vw - 32px)",zIndex:5,boxShadow:"0 4px 16px rgba(0,0,0,0.3)"}}>
+          {qrParsed.amount
+            ? <span><span style={{opacity:0.75}}>Сумма:</span> <span style={{fontWeight:600}}>{Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</span></span>
+            : <span style={{fontWeight:600}}>QR распознан</span>}
+          {qrParsed.date && <><span style={{opacity:0.5}}>·</span><span>{fmtDate(qrParsed.date)}</span></>}
         </div>
       )}
 
