@@ -770,9 +770,10 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   );
 }
 
-function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
+function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onChangePayment, paymentOptions=[]}) {
   const [confirm,setConfirm]=useState(false);
   const [showCat,setShowCat]=useState(false);
+  const [showPay,setShowPay]=useState(false);
   const r=receipt;
   const raw=r.raw_data||{};
 
@@ -851,6 +852,7 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
             {row("НДС 10%:", ndsSum10?ndsSum10.toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2}):"")}
             {row("Наличные:", cashSum!==null?cashSum.toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2}):"")}
             {row("Картой:", cardSum!==null?cardSum.toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2}):"")}
+            {row("Метод оплаты:", r.payment||"Не указано")}
             {(taxKind||kktReg||fnNum||fpd||fdNum)&&<div style={dashed}/>}
             {row("СНО:", taxKind)}
             {row("РН ККТ:", kktReg)}
@@ -860,7 +862,12 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
           </div>
 
           <div style={{padding:"12px 14px calc(14px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:8}}>
-            <button onClick={()=>setShowCat(true)} style={{padding:"12px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить категорию</button>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowCat(true)} style={{flex:1,padding:"12px 8px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить категорию</button>
+              {onChangePayment&&(
+                <button onClick={()=>setShowPay(true)} style={{flex:1,padding:"12px 8px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить карту</button>
+              )}
+            </div>
             {!confirm?(
               <button onClick={()=>setConfirm(true)} style={{padding:"12px",background:"#FEF2F2",border:`1px solid #FECACA`,fontFamily:FONT,fontSize:13,color:"#B91C1C",cursor:"pointer",borderRadius:10,fontWeight:600}}>Удалить чек</button>
             ):(
@@ -888,6 +895,36 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory}) {
                     }}>{c}</button>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPay&&(
+          <div onClick={()=>setShowPay(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:10}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",borderRadius:"14px 14px 0 0",padding:"14px 0 calc(18px + env(safe-area-inset-bottom))",maxHeight:"60vh",display:"flex",flexDirection:"column"}}>
+              <div style={{fontSize:13,fontFamily:FONT,color:C.dark,fontWeight:700,margin:"0 16px 10px"}}>Метод оплаты</div>
+              <div style={{overflow:"auto"}}>
+                {paymentOptions.map(opt=>{
+                  const sel=r.payment===opt;
+                  return (
+                    <button key={opt} onClick={()=>{onChangePayment(opt);setShowPay(false);}} style={{
+                      width:"100%",padding:"13px 16px",border:"none",borderBottom:`0.5px solid ${C.silver}`,
+                      background:sel?C.cherryL:C.white,color:sel?C.cherry:C.dark,
+                      fontFamily:FONT,fontSize:14,cursor:"pointer",textAlign:"left",
+                      display:"flex",alignItems:"center",justifyContent:"space-between",
+                      fontWeight:sel?600:500
+                    }}>
+                      <span>{opt}</span>
+                      {sel&&<span style={{color:C.cherry,fontSize:16}}>✓</span>}
+                    </button>
+                  );
+                })}
+                {paymentOptions.length===0&&(
+                  <div style={{padding:"20px 16px",fontFamily:FONT,fontSize:12,color:C.grayL,textAlign:"center"}}>
+                    Нет доступных карт
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1203,7 +1240,14 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         onOcrFile={handleOcrFile}
         onManual={handleManual}/>}
       {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
-      {detail&&<ReceiptDetailModal receipt={detail} onClose={()=>setDetail(null)} onDelete={()=>{handleDelete(detail.id);setDetail(null);}} onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}/>}
+      {detail&&<ReceiptDetailModal
+        receipt={detail}
+        paymentOptions={paymentOptions}
+        onClose={()=>setDetail(null)}
+        onDelete={()=>{handleDelete(detail.id);setDetail(null);}}
+        onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}
+        onChangePayment={async p=>{const upd=await handleUpdate(detail.id,{payment:p});if(upd) setDetail(upd);}}
+      />}
       {showAdd&&(
         <Modal title="Добавить чек" onClose={()=>{setShowAdd(false);setFnsStatus(null);}} footer={<Btn full onClick={addR} disabled={!form.org||!form.amount}>Добавить чек</Btn>}>
           <div style={{paddingTop:12}}>
