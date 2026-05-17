@@ -326,7 +326,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const ocrFileRef = useRef(null);
   const mountedRef = useRef(true);
 
-  const CUTOUT = 260; // visual cutout size in px; matches design spec
+  const CUTOUT = 270; // visual cutout size in px; matches design spec
   const cornerColor = (phase === "captured" || flashGreen) ? "#10B981" : "#FFFFFF";
 
   useEffect(() => () => { mountedRef.current = false; }, []);
@@ -470,10 +470,10 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
           transparent 260×260 square in the center. Hidden during loading /
           error phases (where we use a uniform full-screen dim instead). */}
       {!dimmed && <>
-        <div style={{position:"absolute",top:0,left:0,right:0,height:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
-        <div style={{position:"absolute",bottom:0,left:0,right:0,height:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
-        <div style={{position:"absolute",top:`calc(50% - ${CUTOUT/2}px)`,bottom:`calc(50% - ${CUTOUT/2}px)`,left:0,width:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
-        <div style={{position:"absolute",top:`calc(50% - ${CUTOUT/2}px)`,bottom:`calc(50% - ${CUTOUT/2}px)`,right:0,width:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.5)"}}/>
+        <div style={{position:"absolute",top:0,left:0,right:0,height:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.55)"}}/>
+        <div style={{position:"absolute",bottom:0,left:0,right:0,height:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.55)"}}/>
+        <div style={{position:"absolute",top:`calc(50% - ${CUTOUT/2}px)`,bottom:`calc(50% - ${CUTOUT/2}px)`,left:0,width:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.55)"}}/>
+        <div style={{position:"absolute",top:`calc(50% - ${CUTOUT/2}px)`,bottom:`calc(50% - ${CUTOUT/2}px)`,right:0,width:`calc(50% - ${CUTOUT/2}px)`,background:"rgba(0,0,0,0.55)"}}/>
         <CutoutCorners size={CUTOUT} color={cornerColor}/>
       </>}
 
@@ -547,7 +547,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       <div style={{position:"absolute",bottom:0,left:0,right:0,background:"#fff",borderRadius:"20px 20px 0 0",padding:"18px 16px calc(20px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:12,zIndex:6,boxShadow:"0 -4px 20px rgba(0,0,0,0.15)"}}>
         {phase === "scanning" && <>
           <div style={{textAlign:"center",color:C.gray,fontFamily:FONT,fontSize:13}}>
-            Наведите QR-код в рамку
+            Наведите QR-код чека в рамку
           </div>
           <button onClick={() => fileRef.current.click()}
             style={{padding:"12px",border:`1px solid ${C.silver}`,background:C.white,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
@@ -1509,13 +1509,200 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard}) {
   );
 }
 
+// ─── CONSENT (152-FZ) ──────────────────────────────────────────────
+//
+// On first launch we present an opt-in screen with two unchecked boxes
+// (privacy policy + personal-data processing). Both must be ticked before
+// "Продолжить" enables. Tapping each link opens a bottom-sheet with the
+// frozen v1.0 text. The texts below are placeholders to be replaced by the
+// final lawyer-reviewed version — both the wording and POLICY_VERSION live
+// alongside the same constants on the backend (app/routers/consent.py).
+const POLICY_VERSION = "1.0";
+
+const POLICY_TEXT = `Политика конфиденциальности
+
+Оператор персональных данных:
+ИП Шукалович Алексей Иванович
+ОГРНИП: 324470400135929
+ИНН: 470705591044
+
+Мы собираем: имена сотрудников, номера телефонов,
+данные финансовых операций.
+Цель: ведение управленческого учёта и обработка
+авансовых отчётов в приложении AOCG AI Офис.
+Срок хранения: 5 лет.
+Вы вправе отозвать согласие в Настройках.
+
+[PLACEHOLDER — заменить на финальный текст юриста]`;
+
+const CONSENT_TEXT = `Согласие на обработку персональных данных
+
+Я даю согласие ИП Шукалович Алексей Иванович
+(ОГРНИП: 324470400135929, ИНН: 470705591044)
+на обработку следующих персональных данных:
+ФИО, номер телефона, данные о финансовых операциях —
+в целях ведения управленческого учёта в приложении
+AOCG AI Офис.
+
+Согласие даётся на срок 5 лет и может быть
+отозвано в Настройках приложения.
+
+Версия: ${POLICY_VERSION} от 17.05.2026
+[PLACEHOLDER — заменить на финальный текст юриста]`;
+
+function ConsentBottomSheet({title, text, onClose}) {
+  return (
+    <div onClick={onClose}
+      style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300}}>
+      <div onClick={e => e.stopPropagation()}
+        style={{background:C.white,width:"100%",maxWidth:480,maxHeight:"80dvh",borderRadius:"16px 16px 0 0",overflow:"hidden",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.silver}`}}>
+          <span style={{fontFamily:FONT,fontSize:14,fontWeight:600,color:C.dark}}>{title}</span>
+          <button onClick={onClose}
+            style={{border:"none",background:"none",color:C.gray,cursor:"pointer",fontSize:20,padding:4,lineHeight:1}}>✕</button>
+        </div>
+        <div style={{overflow:"auto",padding:"16px 18px",fontFamily:FONT,fontSize:13,color:C.dark,lineHeight:1.55,whiteSpace:"pre-wrap"}}>
+          {text}
+        </div>
+        <div style={{padding:"12px 16px",borderTop:`1px solid ${C.silver}`,background:C.lightGray}}>
+          <button onClick={onClose}
+            style={{width:"100%",padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",fontWeight:600}}>
+            Закрыть
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConsentCheckbox({checked, onToggleCheck, onOpenSheet, label}) {
+  // Two distinct hit-targets:
+  //   - the box itself toggles the checkbox
+  //   - the label opens the corresponding bottom-sheet
+  // This matches the spec: "тап на текст открывает bottom-sheet". Checking
+  // the box requires an explicit, separate action.
+  return (
+    <div style={{display:"flex",alignItems:"flex-start",gap:12,padding:"4px 0"}}>
+      <button onClick={onToggleCheck} aria-pressed={checked} aria-label="Отметить"
+        style={{flexShrink:0,width:22,height:22,marginTop:1,borderRadius:5,
+                border:`1.5px solid ${checked?C.cherry:C.silver}`,
+                background:checked?C.cherry:C.white,
+                display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+                transition:"all 120ms ease",padding:0}}>
+        {checked && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        )}
+      </button>
+      <button onClick={onOpenSheet}
+        style={{flex:1,textAlign:"left",background:"none",border:"none",padding:0,cursor:"pointer",
+                fontFamily:FONT,fontSize:13,color:C.dark,lineHeight:1.45}}>
+        {label}
+      </button>
+    </div>
+  );
+}
+
+function ConsentScreen({onAccept}) {
+  const [policyChecked, setPolicyChecked] = useState(false);
+  const [dataChecked, setDataChecked] = useState(false);
+  const [sheet, setSheet] = useState(null);   // null | "policy" | "consent"
+  const [submitting, setSubmitting] = useState(false);
+  const canSubmit = policyChecked && dataChecked && !submitting;
+
+  async function handleAccept() {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    // POST is best-effort: if the server is down we still persist locally so
+    // the user isn't locked out. A future sync job (or settings screen) can
+    // re-post when connectivity returns.
+    try {
+      await fetch(`${API}/api/consent/`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({user_id: "local_user", ip_address: null}),
+      });
+    } catch { /* network failure tolerated */ }
+    try {
+      localStorage.setItem("consent_given", "true");
+      localStorage.setItem("consent_version", POLICY_VERSION);
+      localStorage.setItem("consent_at", new Date().toISOString());
+    } catch { /* private mode / storage disabled */ }
+    onAccept();
+  }
+
+  return (
+    <div style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh",display:"flex",flexDirection:"column",background:C.light,fontFamily:FONT,
+                 padding:"calc(env(safe-area-inset-top) + 48px) 24px calc(env(safe-area-inset-bottom) + 24px)"}}>
+      {/* Logo */}
+      <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
+        <div style={{width:72,height:72,background:"#fff",border:"1px solid #E8E4E0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <svg width="60" height="14" viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M286.511 0C304.22 2.1117e-07 321.53 5.25113 336.254 15.0893C350.978 24.9276 362.454 38.911 369.231 55.2714C376.008 71.6317 377.781 89.6342 374.326 107.002C370.871 124.37 362.344 140.324 349.822 152.846C337.3 165.367 321.347 173.895 303.979 177.349C286.611 180.804 268.608 179.031 252.248 172.254C235.888 165.478 221.904 154.002 212.066 139.278C202.228 124.554 196.977 107.243 196.977 89.5349H230.233C230.233 100.666 233.534 111.546 239.718 120.801C245.902 130.056 254.691 137.269 264.975 141.529C275.258 145.788 286.574 146.903 297.491 144.731C308.408 142.56 318.435 137.2 326.306 129.329C334.177 121.459 339.537 111.431 341.708 100.514C343.88 89.5973 342.765 78.2817 338.506 67.9982C334.246 57.7147 327.033 48.9253 317.778 42.7414C308.523 36.5575 297.642 33.2569 286.511 33.2569V0Z" fill="#161A1D"/>
+            <path d="M483.489 179.07C465.78 179.07 448.47 173.819 433.746 163.98C419.022 154.142 407.546 140.159 400.769 123.798C393.992 107.438 392.219 89.4357 395.674 72.0676C399.129 54.6995 407.656 38.7459 420.178 26.2243C432.7 13.7026 448.653 5.17523 466.021 1.7205C483.389 -1.73421 501.392 0.0388551 517.752 6.81554C534.112 13.5922 548.096 25.0681 557.934 39.7921C567.772 54.516 573.023 71.8266 573.023 89.535L539.767 89.535C539.767 78.4042 536.466 67.5235 530.282 58.2686C524.098 49.0137 515.309 41.8004 505.025 37.5409C494.742 33.2813 483.426 32.1668 472.509 34.3383C461.592 36.5098 451.565 41.8698 443.694 49.7404C435.823 57.611 430.463 67.6388 428.292 78.5557C426.12 89.4725 427.235 100.788 431.494 111.072C435.754 121.355 442.967 130.145 452.222 136.328C461.477 142.512 472.358 145.813 483.489 145.813L483.489 179.07Z" fill="#161A1D"/>
+            <path d="M770 89.5349C770 107.243 764.749 124.554 754.911 139.278C745.072 154.002 731.089 165.478 714.729 172.254C698.368 179.031 680.366 180.804 662.998 177.349C645.63 173.895 629.676 165.367 617.154 152.846C604.633 140.324 596.105 124.37 592.651 107.002C589.196 89.6342 590.969 71.6317 597.746 55.2713C604.522 38.911 615.998 24.9276 630.722 15.0893C645.446 5.25112 662.757 -5.11009e-06 680.465 -3.91369e-06L680.465 33.2569C669.334 33.2569 658.454 36.5575 649.199 42.7414C639.944 48.9253 632.731 57.7147 628.471 67.9982C624.211 78.2817 623.097 89.5973 625.269 100.514C627.44 111.431 632.8 121.459 640.671 129.329C648.541 137.2 658.569 142.56 669.486 144.731C680.403 146.903 691.718 145.788 702.002 141.529C712.285 137.269 721.075 130.056 727.259 120.801C733.442 111.546 736.743 100.666 736.743 89.5349L770 89.5349Z" fill="#161A1D"/>
+            <path d="M71.6279 0L0 179.07H35.814L89.5349 44.7674L143.256 179.07H179.07L107.442 0H71.6279Z" fill="#A4161A"/>
+          </svg>
+        </div>
+      </div>
+
+      <h1 style={{fontFamily:FONT,fontSize:22,fontWeight:700,color:C.dark,textAlign:"center",margin:"0 0 8px",lineHeight:1.25}}>
+        Добро пожаловать в AOCG AI Офис
+      </h1>
+      <p style={{fontFamily:FONT,fontSize:14,color:C.gray,textAlign:"center",margin:"0 0 32px",lineHeight:1.45}}>
+        Перед началом работы ознакомьтесь с документами
+      </p>
+
+      <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:32}}>
+        <ConsentCheckbox
+          checked={policyChecked}
+          onToggleCheck={() => setPolicyChecked(v => !v)}
+          onOpenSheet={() => setSheet("policy")}
+          label={<>Я ознакомился и согласен с <span style={{color:C.cherry,textDecoration:"underline"}}>Политикой конфиденциальности</span></>}
+        />
+        <ConsentCheckbox
+          checked={dataChecked}
+          onToggleCheck={() => setDataChecked(v => !v)}
+          onOpenSheet={() => setSheet("consent")}
+          label={<>Я даю <span style={{color:C.cherry,textDecoration:"underline"}}>согласие на обработку моих персональных данных</span> в соответствии с 152-ФЗ</>}
+        />
+      </div>
+
+      <div style={{marginTop:"auto"}}>
+        <button onClick={handleAccept} disabled={!canSubmit}
+          style={{width:"100%",padding:"14px",border:"none",borderRadius:12,
+                  background: canSubmit ? C.cherry : C.lightGray,
+                  color: canSubmit ? C.white : C.grayL,
+                  fontFamily:FONT,fontSize:14,fontWeight:600,letterSpacing:"0.03em",
+                  cursor: canSubmit ? "pointer" : "default",transition:"background 150ms"}}>
+          {submitting ? "Сохраняем…" : "Продолжить"}
+        </button>
+      </div>
+
+      {sheet === "policy"  && <ConsentBottomSheet title="Политика конфиденциальности" text={POLICY_TEXT}  onClose={() => setSheet(null)}/>}
+      {sheet === "consent" && <ConsentBottomSheet title="Согласие на обработку ПДн" text={CONSENT_TEXT} onClose={() => setSheet(null)}/>}
+    </div>
+  );
+}
+
 export default function App() {
+  // Gate the entire UI behind the consent screen on first launch.
+  // The flag is checked synchronously during the first render via lazy
+  // initial state, so we don't flash the main interface for a frame.
+  const [consentGiven, setConsentGiven] = useState(() => {
+    try { return localStorage.getItem("consent_given") === "true"; }
+    catch { return false; }
+  });
   const [page,setPage]=useState("svodka");
   const [receipts,setReceipts]=useState([]);
   const [cards,setCards]=useState([]);
   const [activePeriod,setActivePeriod]=useState("month");
 
+  // Don't fetch receipts/cards until the user has consented — keeps the
+  // consent screen network-quiet, and re-runs the moment they accept.
   useEffect(()=>{
+    if (!consentGiven) return;
     fetch(`${API}/api/receipts/`)
       .then(r=>r.json())
       .then(data=>setReceipts(Array.isArray(data)?data.map(r=>({...r,amount:Number(r.amount)})):[]))
@@ -1524,7 +1711,7 @@ export default function App() {
       .then(r=>r.json())
       .then(data=>setCards(Array.isArray(data)?data:[]))
       .catch(()=>{});
-  },[]);
+  },[consentGiven]);
 
   async function addCard(name) {
     const res=await fetch(`${API}/api/cards/`,{
@@ -1573,6 +1760,13 @@ export default function App() {
       setReceipts(prev=>prev.map(r=>r.id===id?norm:r));
       return norm;
     } catch { return null; }
+  }
+
+  // First-launch gate — show the consent screen until the user accepts. The
+  // 152-FZ POST + localStorage flip happens inside onAccept; once flipped,
+  // the main UI mounts and the receipts/cards effect re-runs.
+  if (!consentGiven) {
+    return <ConsentScreen onAccept={() => setConsentGiven(true)}/>;
   }
 
   const NAV=[{id:"svodka",icon:"▦",label:"Сводка"},{id:"operacii",icon:"≡",label:"Операции"},{id:"otchety",icon:"▤",label:"Отчёты"},{id:"nastroyki",icon:"⚙",label:"Настройки"}];
