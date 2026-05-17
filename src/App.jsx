@@ -1,7 +1,7 @@
 /* global __BUILD_TIME__ */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -237,83 +237,186 @@ function SectionCard({title,num,children}) {
   );
 }
 
-function ScanReceiptModal({onClose,onScanned,onManual}) {
-  const [error,setError]=useState("");
-  const [torchOn,setTorchOn]=useState(false);
-  const [torchSupported,setTorchSupported]=useState(false);
-  const scannerRef=useRef(null);
-  const cameraOn=useRef(false);
-  const fileRef=useRef(null);
+// Two-phase scanner:
+//   1. `scanning`  — camera live, looking for a QR.
+//      On hit → freeze frame (pause(true)) → vibrate(100) → 'captured'.
+//   2. `captured`  — show local QR parse (org/amount/date) + [Загрузить чек] [Сканировать снова].
+//   3. `loading`   — full-screen spinner while parent awaits FNS.
+//   4. `fnsError`  — parent's onCapture returned 'partial' → offer manual entry / rescan.
+//   5. `cameraError` — could not start camera at all → manual entry only.
+// `onCapture(qrText) => Promise<'ok'|'partial'>` is the only network-touching prop;
+// the modal owns its own UI transitions but never decides what counts as success.
+function ScanReceiptModal({onClose, onCapture, onManual}) {
+  const [phase, setPhase] = useState("scanning"); // scanning | captured | loading | fnsError | cameraError
+  const [error, setError] = useState("");
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [qrText, setQrText] = useState("");
+  const [qrParsed, setQrParsed] = useState(null);
+  const scannerRef = useRef(null);
+  const cameraOn = useRef(false);
+  const fileRef = useRef(null);
+  const mountedRef = useRef(true);
 
-  useEffect(()=>{
-    const s=new Html5Qrcode("qr-reader");
-    scannerRef.current=s;
-    const config={
-      fps:15,
-      qrbox:{width:280,height:280},
-      aspectRatio:1.0,
-      disableFlip:false,
-      experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const capture = useCallback((text) => {
+    try { if (navigator.vibrate) navigator.vibrate(100); } catch { /* ignored */ }
+    setQrText(text);
+    setQrParsed(parseQRString(text));
+    setPhase("captured");
+  }, []);
+
+  const startCamera = useCallback(() => {
+    // Callers (mount, rescan, handleFile-fallback) reset `error` themselves
+    // before invoking — avoid setError("") here so this stays callable from
+    // useEffect without tripping the "synchronous setState in effect" rule.
+    if (!scannerRef.current) scannerRef.current = new Html5Qrcode("qr-reader");
+    const s = scannerRef.current;
+    const config = {
+      fps: 15,
+      qrbox: { width: 280, height: 280 },
+      aspectRatio: 1.0,
+      disableFlip: false,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     };
     s.start(
-      {facingMode:"environment"},
+      { facingMode: "environment" },
       config,
-      (text)=>{
-        if(!cameraOn.current)return;
-        cameraOn.current=false;
-        try{if(navigator.vibrate)navigator.vibrate(200);}catch{/* ignored */}
-        s.stop().catch(()=>{}).finally(()=>onScanned(text));
+      (text) => {
+        if (!cameraOn.current) return;
+        cameraOn.current = false;
+        // Freeze the video frame; resume() later if user picks "Сканировать снова".
+        try { s.pause(true); } catch { /* not in scanning state */ }
+        capture(text);
       },
-      ()=>{}
-    ).then(()=>{
-      cameraOn.current=true;
-      try{
-        const caps=s.getRunningTrackCapabilities?.()||{};
-        if(caps.torch)setTorchSupported(true);
-        if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous")){
-          s.applyVideoConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+      () => { /* per-frame parse failures are noise */ }
+    ).then(() => {
+      cameraOn.current = true;
+      try {
+        const caps = s.getRunningTrackCapabilities?.() || {};
+        if (caps.torch) setTorchSupported(true);
+        if (Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
+          s.applyVideoConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
         }
-      }catch{/* capabilities unavailable */}
-    }).catch(()=>setError("Нет доступа к камере"));
-    return ()=>{
-      if(cameraOn.current){cameraOn.current=false;s.stop().catch(()=>{});}
+      } catch { /* capabilities unavailable */ }
+    }).catch(() => {
+      setError("Нет доступа к камере");
+      setPhase("cameraError");
+    });
+  }, [capture]);
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      const s = scannerRef.current;
+      if (!s) return;
+      cameraOn.current = false;
+      // stop() works from SCANNING and PAUSED — pause-only doesn't release the camera.
+      s.stop().catch(() => {});
     };
-  },[]);
+  }, [startCamera]);
 
   async function toggleTorch() {
-    if(!scannerRef.current||!cameraOn.current)return;
-    const next=!torchOn;
-    try{
-      await scannerRef.current.applyVideoConstraints({advanced:[{torch:next}]});
+    if (!scannerRef.current || !cameraOn.current) return;
+    const next = !torchOn;
+    try {
+      await scannerRef.current.applyVideoConstraints({ advanced: [{ torch: next }] });
       setTorchOn(next);
-    }catch{
+    } catch {
       setTorchSupported(false);
     }
   }
 
-  async function handleFile(file) {
-    if(!file)return;
+  async function rescan() {
     setError("");
-    try{
-      if(cameraOn.current){await scannerRef.current.stop().catch(()=>{});cameraOn.current=false;}
-      const fileScanner=new Html5Qrcode("qr-file-reader");
-      const result=await fileScanner.scanFile(file,false);
-      try{if(navigator.vibrate)navigator.vibrate(200);}catch{/* ignored */}
-      onScanned(result);
-    }catch{setError("QR-код не найден в изображении. Попробуйте сделать фото QR крупнее.");}
+    setQrText(""); setQrParsed(null);
+    setPhase("scanning");
+    const s = scannerRef.current;
+    // Fast path: if we paused (camera still alive), just resume.
+    try {
+      if (s && s.getState && s.getState() === Html5QrcodeScannerState.PAUSED) {
+        s.resume();
+        cameraOn.current = true;
+        return;
+      }
+    } catch { /* ignored */ }
+    // Cold path: file-scan or full stop happened; reinitialize.
+    if (s) { try { await s.stop().catch(() => {}); } catch { /* ignored */ } }
+    scannerRef.current = null;
+    cameraOn.current = false;
+    startCamera();
   }
+
+  async function confirm() {
+    if (!qrText || !onCapture) return;
+    setPhase("loading");
+    let result;
+    try { result = await onCapture(qrText); }
+    catch { result = "partial"; }
+    if (!mountedRef.current) return;
+    if (result === "ok") onClose();
+    else setPhase("fnsError");
+  }
+
+  async function handleFile(file) {
+    if (!file) return;
+    setError("");
+    try {
+      if (cameraOn.current) { await scannerRef.current.stop().catch(() => {}); cameraOn.current = false; }
+      const fileScanner = new Html5Qrcode("qr-file-reader");
+      const result = await fileScanner.scanFile(file, false);
+      capture(result);
+    } catch {
+      setError("QR-код не найден в изображении. Попробуйте сделать фото QR крупнее.");
+      // Camera was stopped to scan the file — bring it back so the user can try again.
+      scannerRef.current = null;
+      startCamera();
+    }
+  }
+
+  // ─── UI helpers ─────────────────────────────────────────────
+  const showCameraView = phase === "scanning" || phase === "captured";
+
+  const localChip = qrParsed && (
+    <div style={{
+      display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",
+      padding:"10px 14px",background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.45)",
+      borderRadius:8,fontFamily:FONT,fontSize:13,color:C.white,marginTop:14,maxWidth:320,
+    }}>
+      <span style={{fontWeight:600}}>Чек</span>
+      {qrParsed.amount && <><span style={{opacity:0.6}}>·</span><span>{Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</span></>}
+      {qrParsed.date && <><span style={{opacity:0.6}}>·</span><span>{fmtDate(qrParsed.date)}</span></>}
+    </div>
+  );
 
   return (
     <div style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column"}}>
+      {/* Keyframes for the captured-frame pulse — scoped via a unique name, no global CSS file. */}
+      <style>{`@keyframes scanCapturedPulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.55)}50%{box-shadow:0 0 0 14px rgba(16,185,129,0)}}`}</style>
+
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",background:"rgba(0,0,0,0.55)",flexShrink:0}}>
         <button onClick={onClose} style={{background:"none",border:"none",color:C.white,fontSize:22,cursor:"pointer",padding:0,lineHeight:1}}>←</button>
         <span style={{fontSize:15,fontFamily:FONT,color:C.white,fontWeight:600}}>Новый чек</span>
       </div>
-      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-        <span style={{fontSize:14,color:C.white,fontFamily:FONT,marginBottom:20,opacity:0.85}}>Отсканируйте QR с чека</span>
-        <div style={{position:"relative",width:280,height:280}}>
+
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 16px"}}>
+        <span style={{fontSize:14,color:C.white,fontFamily:FONT,marginBottom:20,opacity:0.85,minHeight:18}}>
+          {phase==="captured" ? "QR распознан" : phase==="scanning" ? "Отсканируйте QR с чека" : ""}
+        </span>
+
+        {/* Camera viewport — always mounted (so #qr-reader exists) but visually hidden during loading/error overlays. */}
+        <div style={{position:"relative",width:280,height:280,visibility:showCameraView?"visible":"hidden",
+                     ...(showCameraView?{}:{position:"absolute",pointerEvents:"none"})}}>
           <div id="qr-reader" style={{width:280,height:280,borderRadius:12,overflow:"hidden"}}/>
-          {torchSupported&&(
+          {/* Green animated frame on top of the frozen frame */}
+          {phase==="captured" && (
+            <div aria-hidden style={{
+              position:"absolute",inset:0,borderRadius:12,pointerEvents:"none",
+              border:"3px solid #10B981",animation:"scanCapturedPulse 1.5s ease-out infinite",
+            }}/>
+          )}
+          {torchSupported && phase==="scanning" && (
             <button onClick={toggleTorch} aria-label="Фонарик" aria-pressed={torchOn}
               style={{position:"absolute",top:10,right:10,width:40,height:40,borderRadius:"50%",border:"none",
                 background:torchOn?"rgba(255,221,87,0.95)":"rgba(0,0,0,0.55)",
@@ -324,21 +427,94 @@ function ScanReceiptModal({onClose,onScanned,onManual}) {
           )}
         </div>
         <div id="qr-file-reader" style={{display:"none"}}/>
-        <div style={{marginTop:12,fontSize:12,color:"#9CA3AF",fontFamily:FONT}}>Наведите на QR-код чека</div>
-        {error&&<div style={{marginTop:16,padding:"8px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8}}>
-          <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error}</span>
-        </div>}
+
+        {phase==="scanning" && (
+          <div style={{marginTop:12,fontSize:12,color:"#9CA3AF",fontFamily:FONT}}>Наведите на QR-код чека</div>
+        )}
+        {phase==="captured" && localChip}
+
+        {phase==="loading" && (
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:C.white,fontFamily:FONT,fontSize:14}}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
+              <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
+                <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+              </path>
+            </svg>
+            Загружаем данные из ФНС…
+          </div>
+        )}
+
+        {phase==="fnsError" && (
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:C.white,fontFamily:FONT,textAlign:"center",maxWidth:320}}>
+            <span style={{fontSize:15,fontWeight:600}}>Данные ФНС не загрузились</span>
+            <span style={{fontSize:12,opacity:0.7}}>Можно заполнить вручную или попробовать ещё раз</span>
+          </div>
+        )}
+
+        {phase==="cameraError" && (
+          <div style={{marginTop:16,padding:"10px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8,maxWidth:320,textAlign:"center"}}>
+            <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error || "Нет доступа к камере"}</span>
+          </div>
+        )}
+        {phase==="scanning" && error && (
+          <div style={{marginTop:16,padding:"8px 16px",background:"rgba(164,22,26,0.85)",borderRadius:8}}>
+            <span style={{fontSize:12,color:C.white,fontFamily:FONT}}>{error}</span>
+          </div>
+        )}
       </div>
+
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
-      <div style={{padding:"16px 16px 32px",background:"rgba(0,0,0,0.55)",flexShrink:0}}>
-        <div style={{marginBottom:14}}>
-          <button onClick={()=>fileRef.current.click()} style={{width:"100%",padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
+
+      <div style={{padding:"16px 16px 32px",background:"rgba(0,0,0,0.55)",flexShrink:0,display:"flex",flexDirection:"column",gap:10}}>
+        {phase==="scanning" && (<>
+          <button onClick={()=>fileRef.current.click()}
+            style={{width:"100%",padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
             <span style={{fontSize:20}}>🖼</span>Загрузить фото
           </button>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <button onClick={onManual} style={{background:"none",border:"none",color:C.grayL,fontFamily:FONT,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>Ввести вручную</button>
-        </div>
+          <div style={{textAlign:"center"}}>
+            <button onClick={()=>onManual()}
+              style={{background:"none",border:"none",color:C.grayL,fontFamily:FONT,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>
+              Ввести вручную
+            </button>
+          </div>
+        </>)}
+
+        {phase==="captured" && (<>
+          <button onClick={confirm}
+            style={{width:"100%",padding:"13px 8px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.05em"}}>
+            Загрузить чек
+          </button>
+          <button onClick={rescan}
+            style={{width:"100%",padding:"12px 8px",background:"transparent",border:`1px solid rgba(255,255,255,0.45)`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer"}}>
+            Сканировать снова
+          </button>
+        </>)}
+
+        {phase==="loading" && (
+          <button disabled
+            style={{width:"100%",padding:"13px 8px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:"rgba(255,255,255,0.6)",cursor:"default"}}>
+            Загружаем…
+          </button>
+        )}
+
+        {phase==="fnsError" && (<>
+          <button onClick={()=>onManual(qrText)}
+            style={{width:"100%",padding:"13px 8px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.05em"}}>
+            Заполнить вручную
+          </button>
+          <button onClick={rescan}
+            style={{width:"100%",padding:"12px 8px",background:"transparent",border:`1px solid rgba(255,255,255,0.45)`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer"}}>
+            Сканировать снова
+          </button>
+        </>)}
+
+        {phase==="cameraError" && (
+          <button onClick={()=>onManual()}
+            style={{width:"100%",padding:"13px 8px",background:C.white,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer"}}>
+            Ввести вручную
+          </button>
+        )}
       </div>
     </div>
   );
@@ -752,53 +928,73 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
   const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | "partial"
 
-  async function handleScanned(qrText) {
-    const parsed=parseQRString(qrText);
-    setShowScan(false);
-    setForm(p=>({...p,date:parsed.date||p.date,amount:parsed.amount||"",org:"",category:"Не указано",fn:parsed.fn||"",raw_data:null}));
-    setShowAdd(true);
+  // Two-phase contract with ScanReceiptModal:
+  //   1. Modal captures the QR locally and shows a preview.
+  //   2. User confirms → modal calls handleCapture(qrText) → we run the FNS lookup.
+  //      Return 'ok' → modal closes itself, form is already open with full data.
+  //      Return 'partial' → modal switches to its own error screen; user can rescan
+  //      or fall back to handleManual(qrText) which prefills from the local parse.
+  async function handleCapture(qrText) {
+    const parsed = parseQRString(qrText);
+    // Prefill form from local QR parse — these fields are reliable even when FNS fails.
+    setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
+                   org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null}));
     setFnsStatus("loading");
-    let d=null;
+
+    let d = null;
     try {
-      const res=await fetch(`${API}/api/fns/check`,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({qr_raw:qrText})
+      const res = await fetch(`${API}/api/fns/check`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({qr_raw: qrText}),
       });
-      if(res.ok) d=await res.json().catch(()=>null);
+      if (res.ok) d = await res.json().catch(() => null);
     } catch { /* network failure — treat as partial */ }
 
-    // Backend always returns 200 with either {status:"ok", ...} or {status:"partial", ...}.
-    // Defensive: missing/legacy responses without org are also partial.
-    if(!d||d.status==="partial"||!d.org){
+    if (!d || d.status === "partial" || !d.org) {
       setFnsStatus("partial");
-      return;
+      return "partial";
     }
 
-    const raw=d.raw||{};
-    const cash=Number(raw.cashTotalSum)||0;
-    const card=Number(raw.ecashTotalSum)||0;
-    let suggested=null;
-    try{
-      const sres=await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(d.org)}`);
-      if(sres.ok){const sd=await sres.json();suggested=sd.payment||null;}
-    }catch{/* ignored */}
-    let payment="Не указано";
-    if(cash>0&&card===0)        payment="Наличные";
-    else if(card>0&&cash===0)   payment=(suggested&&suggested!=="Наличные")?suggested:"Личная карта";
-    else if(suggested)          payment=suggested;
-    setForm(p=>({
-      ...p,
-      org:d.org||p.org,
-      amount:d.total?String(d.total):p.amount,
-      raw_data:d.raw||d,
+    const raw = d.raw || {};
+    const cash = Number(raw.cashTotalSum) || 0;
+    const card = Number(raw.ecashTotalSum) || 0;
+    let suggested = null;
+    try {
+      const sres = await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(d.org)}`);
+      if (sres.ok) { const sd = await sres.json(); suggested = sd.payment || null; }
+    } catch { /* ignored */ }
+    let payment = "Не указано";
+    if (cash > 0 && card === 0)      payment = "Наличные";
+    else if (card > 0 && cash === 0) payment = (suggested && suggested !== "Наличные") ? suggested : "Личная карта";
+    else if (suggested)              payment = suggested;
+
+    setForm(p => ({...p,
+      org: d.org || p.org,
+      amount: d.total ? String(d.total) : p.amount,
+      raw_data: d.raw || d,
       payment,
     }));
+    setShowAdd(true);  // open the form alongside the modal closing itself.
     setFnsStatus("ok");
-    // Auto-clear the green badge after 1.5s — form stays open for the user.
-    setTimeout(()=>setFnsStatus(s=>s==="ok"?null:s),1500);
+    setTimeout(() => setFnsStatus(s => s === "ok" ? null : s), 1500);
+    return "ok";
   }
-  function handleManual() {setShowScan(false);setShowAdd(true);setFnsStatus(null);}
+
+  // qrText is optional — passed in from the modal's 'fnsError' screen so the user
+  // doesn't have to retype date/amount/fn they already scanned.
+  function handleManual(qrText) {
+    setShowScan(false);
+    if (qrText) {
+      const parsed = parseQRString(qrText);
+      setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
+                     org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null}));
+      setFnsStatus("partial");  // show the yellow banner so the user knows why fields are empty
+    } else {
+      setFnsStatus(null);
+    }
+    setShowAdd(true);
+  }
 
   const customFilterActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
   const inDate=r=>{
@@ -899,7 +1095,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         )}
       </div>
       <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
-      {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onScanned={handleScanned} onManual={handleManual}/>}
+      {showScan&&<ScanReceiptModal onClose={()=>setShowScan(false)} onCapture={handleCapture} onManual={handleManual}/>}
       {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal receipt={detail} onClose={()=>setDetail(null)} onDelete={()=>{handleDelete(detail.id);setDetail(null);}} onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}/>}
       {showAdd&&(
