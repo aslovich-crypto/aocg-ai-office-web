@@ -6,6 +6,17 @@ import jsQR from "jsqr";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
+// fetch with an abort-based ceiling. The receipt scanner awaits several
+// backend calls (FNS check, payment suggestion, OCR) while showing a blocking
+// spinner; any of them stalling would freeze the modal forever, so every one
+// of them goes through here. On timeout the request is aborted and the throw
+// propagates to the caller's catch (which treats it as a partial result).
+function fetchWithTimeout(url, opts = {}, ms = 10000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, {...opts, signal: ctrl.signal}).finally(() => clearTimeout(timer));
+}
+
 const C = {
   cherry:    "#A4161A",
   cherryD:   "#7a1014",
@@ -1059,21 +1070,14 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const fnsPrefetchRef = useRef({qrText: null, promise: null});
 
   async function _fetchFns(qrText) {
-    // 10s ceiling: the FNS proxy occasionally never responds, which would
-    // otherwise leave the modal stuck on its "loading" phase forever. Abort
-    // bounds both the prefetch and the confirm-time fetch.
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
     try {
-      const res = await fetch(`${API}/api/fns/check`, {
+      const res = await fetchWithTimeout(`${API}/api/fns/check`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({qr_raw: qrText}),
-        signal: ctrl.signal,
       });
       if (res.ok) return await res.json().catch(() => null);
     } catch { /* network failure or timeout — caller treats null as partial */ }
-    finally { clearTimeout(timer); }
     return null;
   }
 
@@ -1088,7 +1092,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   async function _suggestPayment(org) {
     if (!org) return null;
     try {
-      const sres = await fetch(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(org)}`);
+      const sres = await fetchWithTimeout(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(org)}`);
       if (sres.ok) { const sd = await sres.json(); return sd.payment || null; }
     } catch { /* ignored */ }
     return null;
@@ -1152,9 +1156,10 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     fd.append("file", file);
     let d = null;
     try {
-      const res = await fetch(`${API}/api/receipts/ocr/`, {method: "POST", body: fd});
+      // Vision OCR is slower than the FNS/payment calls — allow 20s.
+      const res = await fetchWithTimeout(`${API}/api/receipts/ocr/`, {method: "POST", body: fd}, 20000);
       if (res.ok) d = await res.json().catch(() => null);
-    } catch { /* network */ }
+    } catch { /* network or timeout */ }
 
     if (!d || !d.org || d.amount == null) {
       setFnsStatus("partial");
