@@ -1059,14 +1059,21 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const fnsPrefetchRef = useRef({qrText: null, promise: null});
 
   async function _fetchFns(qrText) {
+    // 10s ceiling: the FNS proxy occasionally never responds, which would
+    // otherwise leave the modal stuck on its "loading" phase forever. Abort
+    // bounds both the prefetch and the confirm-time fetch.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
     try {
       const res = await fetch(`${API}/api/fns/check`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({qr_raw: qrText}),
+        signal: ctrl.signal,
       });
       if (res.ok) return await res.json().catch(() => null);
-    } catch { /* network failure — caller treats null as partial */ }
+    } catch { /* network failure or timeout — caller treats null as partial */ }
+    finally { clearTimeout(timer); }
     return null;
   }
 
