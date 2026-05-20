@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
+import { Camera, ImageUp, PenLine } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -531,6 +532,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   // PDFs fall back to a filename placeholder (no inline render).
   function pickFile(file) {
     if (!file) return;
+    cameraOn.current = false; // gate the live scanner while the preview is up
     revokePreviewUrl();
     const url = file.type && file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
     previewUrlRef.current = url;
@@ -655,19 +657,25 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       {phase !== "preview" && (
       <div style={{position:"absolute",bottom:0,left:0,right:0,background:"#fff",borderRadius:"20px 20px 0 0",padding:"18px 16px calc(20px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:12,zIndex:6,boxShadow:"0 -4px 20px rgba(0,0,0,0.15)"}}>
         {phase === "scanning" && <>
-          <div style={{textAlign:"center",color:C.gray,fontFamily:FONT,fontSize:13}}>
-            Наведите QR-код чека в рамку
-          </div>
-          <button type="button" onClick={openSheet}
-            style={{padding:"12px",border:`1px solid ${C.silver}`,background:C.white,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            <span style={{fontSize:16}}>📷</span> Загрузить фото
+          <button type="button"
+            onClick={(e) => { e.preventDefault(); setNotice(""); cameraInputRef.current?.click(); }}
+            onPointerDown={e => { e.currentTarget.style.opacity = "0.7"; }}
+            onPointerUp={e => { e.currentTarget.style.opacity = "1"; }}
+            onPointerLeave={e => { e.currentTarget.style.opacity = "1"; }}
+            style={{width:"100%",height:52,borderRadius:12,background:"#fff",border:"1px solid #EEF0F4",display:"flex",alignItems:"center",justifyContent:"center",gap:10,fontFamily:FONT,fontSize:15,fontWeight:500,color:"#111318",cursor:"pointer",transition:"opacity 100ms"}}>
+            <Camera size={20} color="#111318"/> Сделать фото
           </button>
-          <div style={{textAlign:"center"}}>
-            <button type="button" onClick={(e) => { e.preventDefault(); onManual(); }}
-              style={{background:"none",border:"none",color:C.gray,fontFamily:FONT,fontSize:13,cursor:"pointer",padding:"4px"}}>
-              Ввести вручную
-            </button>
-          </div>
+          <button type="button" onClick={openSheet}
+            onPointerDown={e => { e.currentTarget.style.opacity = "0.7"; }}
+            onPointerUp={e => { e.currentTarget.style.opacity = "1"; }}
+            onPointerLeave={e => { e.currentTarget.style.opacity = "1"; }}
+            style={{width:"100%",height:52,borderRadius:12,background:"#fff",border:"1px solid #EEF0F4",display:"flex",alignItems:"center",justifyContent:"center",gap:10,fontFamily:FONT,fontSize:15,fontWeight:400,color:"#636B7D",cursor:"pointer",transition:"opacity 100ms"}}>
+            <ImageUp size={20} color="#636B7D"/> Загрузить
+          </button>
+          <button type="button" onClick={(e) => { e.preventDefault(); onManual(); }}
+            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"none",border:"none",cursor:"pointer",padding:"4px",fontFamily:FONT,fontSize:13,color:"#9CA3AF"}}>
+            <PenLine size={16} color="#9CA3AF"/> Ввести вручную
+          </button>
         </>}
 
         {phase === "captured" && (
@@ -733,14 +741,14 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       </div>
       )}
 
-      {/* Photo-source bottom sheet — camera / gallery / files / cancel */}
+      {/* Photo-source bottom sheet — gallery / files / cancel ("Сделать фото"
+          is now a dedicated button in the scanning panel). */}
       {sheetOpen && (
         <div onClick={closeSheet} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.5)",zIndex:20,display:"flex",alignItems:"flex-end"}}>
           <div onClick={e => e.stopPropagation()}
             style={{width:"100%",background:C.white,borderRadius:"16px 16px 0 0",padding:"8px 12px calc(12px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column"}}>
             <div style={{alignSelf:"center",width:40,height:4,borderRadius:2,background:C.silver,margin:"6px 0 8px"}}/>
             {[
-              {icon:"📷", label:"Сделать фото чека", ref:cameraInputRef},
               {icon:"🖼", label:"Выбрать из галереи", ref:galleryInputRef},
               {icon:"📄", label:"Выбрать из файлов",  ref:filesInputRef},
             ].map(opt => (
