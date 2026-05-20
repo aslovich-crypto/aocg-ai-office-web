@@ -133,10 +133,10 @@ const fmtDateTime = ts => {
   return d.toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
 };
 
-function groupByMonth(items, asc=false) {
+function groupByMonth(items) {
   const g={};
   items.forEach(r=>{const k=r.date.slice(0,7);if(!g[k])g[k]={label:monthLabel(r.date),items:[]};g[k].items.push(r);});
-  return Object.entries(g).sort((a,b)=>asc?a[0].localeCompare(b[0]):b[0].localeCompare(a[0]));
+  return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0]));
 }
 
 // ─── ATOMS ────────────────────────────────────────────────
@@ -864,16 +864,19 @@ function Donut({title,data,num}) {
 
 // ─── PAGES ────────────────────────────────────────────────
 
-function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
-  const defaultFrom="", defaultTo="";
-  const [dateFrom,setDateFrom]=useState(defaultFrom);
-  const [dateTo,setDateTo]=useState(defaultTo);
+function SvodkaPage({receipts, activePeriod, setActivePeriod, users, cards}) {
   const [showFilters,setShowFilters]=useState(false);
-  const customFilterActive=dateFrom!==defaultFrom||dateTo!==defaultTo;
+  const [selEmployee,setSelEmployee]=useState(null);
+  const [cats,setCats]=useState([]);
+  const [selCards,setSelCards]=useState([]);
+  const filtersActive=!!selEmployee||cats.length>0||selCards.length>0;
 
   const filtered=receipts.filter(r=>{
-    if(customFilterActive) return (!dateFrom||r.date>=dateFrom) && (!dateTo||r.date<=dateTo);
-    return inPeriod(r.date, activePeriod);
+    if(!inPeriod(r.date, activePeriod)) return false;
+    if(selEmployee && (r.employee||"Алексей Шукалович")!==selEmployee) return false;
+    if(cats.length>0 && !cats.includes(r.category)) return false;
+    if(selCards.length>0 && !selCards.includes(r.payment)) return false;
+    return true;
   });
 
   const total=filtered.reduce((s,r)=>s+Number(r.amount),0);
@@ -898,11 +901,11 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
           <div style={{flex:1,minWidth:0}}>
             <SegmentedControl
               segments={PERIOD_OPTIONS.map(o=>o.label)}
-              active={customFilterActive?null:periodLabel(activePeriod)}
-              onChange={l=>{setActivePeriod(periodKey(l));setDateFrom(defaultFrom);setDateTo(defaultTo);}}/>
+              active={periodLabel(activePeriod)}
+              onChange={l=>setActivePeriod(periodKey(l))}/>
           </div>
           <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
-            <FilterIcon active={customFilterActive} onClick={()=>setShowFilters(true)}/>
+            <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)}/>
           </div>
         </div>
       </div>
@@ -928,7 +931,16 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
         <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))}/>
         <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))}/>
       </div>
-      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
+      {showFilters&&<FiltersModal
+        employees={users}
+        selectedEmployee={selEmployee}
+        categories={CATEGORIES}
+        cards={cards}
+        selectedCats={cats}
+        selectedCards={selCards}
+        onApply={r=>{ setSelEmployee(r.employee); setCats(r.cats); setSelCards(r.cards); }}
+        onReset={()=>{ setSelEmployee(null); setCats([]); setSelCards([]); }}
+        onClose={()=>setShowFilters(false)}/>}
     </div>
   );
 }
@@ -1213,92 +1225,159 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
   );
 }
 
-function FiltersModal({from,to,sources,sort,onApply,onReset,onClose}) {
-  const fromRef=useRef(null);
-  const toRef=useRef(null);
+function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories,selectedCats,cards,selectedCards,sources,onApply,onReset,onClose}) {
+  const hasEmp=employees!==undefined;
+  const hasCats=categories!==undefined;
+  const hasCards=cards!==undefined;
   const hasSource=sources!==undefined;
-  const hasSort=sort!==undefined;
+
+  const [pFrom,setPFrom]=useState(from||"");
+  const [pTo,setPTo]=useState(to||"");
+  const [periodChip,setPeriodChip]=useState(null);
+  const [selEmp,setSelEmp]=useState(selectedEmployee||null);
+  const [selCats,setSelCats]=useState(selectedCats||[]);
+  const [selCards,setSelCards]=useState(selectedCards||[]);
   const [selSources,setSelSources]=useState(sources||[]);
-  const [selSort,setSelSort]=useState(sort||"new");
-  const SOURCE_CHIPS=[["Все",null],["ФНС","fns"],["QR","qr_scan"],["Фото","photo_ocr"],["Вручную","manual"]];
-  const SORT_OPTS=[["new","Сначала новые"],["old","Сначала старые"],["amount_desc","По сумме (убыв.)"],["amount_asc","По сумме (возр.)"]];
-  const toggleSource=val=>{
-    if(val===null){setSelSources([]);return;}
-    setSelSources(prev=>prev.includes(val)?prev.filter(s=>s!==val):[...prev,val]);
-  };
-  const chipOn=val=>val===null?selSources.length===0:selSources.includes(val);
+
+  const toggleIn=(arr,setArr,val)=>{ if(val===null){setArr([]);return;} setArr(prev=>prev.includes(val)?prev.filter(x=>x!==val):[...prev,val]); };
+  const isOn=(arr,val)=>val===null?arr.length===0:arr.includes(val);
+
   const inputStyle={width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"};
-  const labelStyle={fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:6,letterSpacing:"0.05em",textTransform:"uppercase"};
-  const apply=(f,t)=>{onApply(f,t,{sources:selSources,sort:selSort});onClose();};
+  const labelStyle={fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"};
+  const chip=on=>({padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:on?600:500,background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D",display:"inline-flex",alignItems:"center",gap:6});
+
+  const PERIOD_CHIPS=[["week","Неделя"],["month","Месяц"],["quarter","Квартал"],["year","Год"]];
+  const fillPeriod=key=>{
+    const today=todayISO();
+    const f = key==="week"?daysAgoISO(7) : key==="month"?monthStartISO() : key==="quarter"?quarterStartISO() : `${today.slice(0,4)}-01-01`;
+    setPFrom(f); setPTo(today); setPeriodChip(key);
+  };
+  const empName=u=>(`${u.first_name||""} ${u.last_name||""}`).trim()||u.email||"—";
+  const cardNames=hasCards?cards.map(c=>c.name).concat("Наличные"):[];
+
+  const apply=()=>{
+    onApply({from:pFrom,to:pTo,employee:selEmp,cats:selCats,cards:selCards,sources:selSources});
+    onClose();
+  };
+
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden"}}>
-        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",maxHeight:"86dvh"}}>
+        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Фильтры</span>
           <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
         </div>
-        <div style={{padding:"16px"}}>
-          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:6,letterSpacing:"0.05em"}}>Период</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div style={{padding:"16px",overflow:"auto",flex:1,display:"flex",flexDirection:"column",gap:18}}>
+          {dateBuilder&&(
             <div>
-              <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
-              <input ref={fromRef} type="date" defaultValue={from||monthStartISO()} style={inputStyle}/>
-            </div>
-            <div>
-              <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>До</div>
-              <input ref={toRef} type="date" defaultValue={to||todayISO()} style={inputStyle}/>
-            </div>
-          </div>
-          {hasSource&&(
-            <div style={{marginTop:18}}>
-              <div style={labelStyle}>Источник</div>
+              <div style={labelStyle}>Период</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {SOURCE_CHIPS.map(([label,val])=>{
-                  const on=chipOn(val);
-                  return (
-                    <button key={label} onClick={()=>toggleSource(val)} style={{
-                      padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",
-                      fontFamily:FONT,fontSize:12,fontWeight:on?600:500,
-                      background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D"
-                    }}>{label}</button>
-                  );
-                })}
+                {PERIOD_CHIPS.map(([key,label])=>(
+                  <button key={key} onClick={()=>fillPeriod(key)} style={chip(periodChip===key)}>{label}</button>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
+                <div>
+                  <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
+                  <input type="date" value={pFrom} onChange={e=>{setPFrom(e.target.value);setPeriodChip(null);}} style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>До</div>
+                  <input type="date" value={pTo} onChange={e=>{setPTo(e.target.value);setPeriodChip(null);}} style={inputStyle}/>
+                </div>
               </div>
             </div>
           )}
-          {hasSort&&(
-            <div style={{marginTop:18}}>
-              <div style={labelStyle}>Сортировка</div>
-              {SORT_OPTS.map(([val,label])=>(
-                <label key={val} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer",fontFamily:FONT,fontSize:13,color:C.dark}}>
-                  <input type="radio" name="filters-sort" checked={selSort===val} onChange={()=>setSelSort(val)} style={{accentColor:"#A4161A"}}/>
-                  {label}
-                </label>
-              ))}
+
+          {hasEmp&&(
+            <div>
+              <div style={labelStyle}>Сотрудник</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[["Все сотрудники",null],...employees.map(u=>[empName(u),empName(u)])].map(([label,val])=>(
+                  <button key={val||"all"} onClick={()=>setSelEmp(val)} style={chip(val===null?!selEmp:selEmp===val)}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasCats&&(
+            <div>
+              <div style={labelStyle}>Категория</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[["Все",null],...categories.map(c=>[c,c])].map(([label,val])=>(
+                  <button key={label} onClick={()=>toggleIn(selCats,setSelCats,val)} style={chip(isOn(selCats,val))}>
+                    {val&&<span style={{width:8,height:8,borderRadius:"50%",background:catColor(val).fg,flexShrink:0}}/>}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasCards&&(
+            <div>
+              <div style={labelStyle}>Карта</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[["Все",null],...cardNames.map(n=>[shortPayment(n),n])].map(([label,val])=>(
+                  <button key={val||"all"} onClick={()=>toggleIn(selCards,setSelCards,val)} style={chip(isOn(selCards,val))}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasSource&&(
+            <div>
+              <div style={labelStyle}>Источник</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[["Все",null],["ФНС","fns"],["QR","qr_scan"],["Фото","photo_ocr"],["Вручную","manual"]].map(([label,val])=>(
+                  <button key={label} onClick={()=>toggleIn(selSources,setSelSources,val)} style={chip(isOn(selSources,val))}>{label}</button>
+                ))}
+              </div>
             </div>
           )}
         </div>
-        <div style={{padding:"0 16px 16px",display:"flex",gap:8}}>
-          <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{padding:"12px 16px",display:"flex",gap:8,borderTop:`1px solid ${C.silver}`,flexShrink:0}}>
+          <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </button>
-          <button onClick={()=>apply(fromRef.current.value,toRef.current.value)} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
+          <button onClick={apply} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
         </div>
       </div>
     </div>
   );
 }
 
-function FilterIcon({active,onClick}) {
+function FilterIcon({active,onClick,size=34}) {
   const stroke=active?C.cherry:C.gray;
   return (
-    <button onClick={onClick} style={{width:34,height:34,border:`1px solid ${active?C.cherry:C.silver}`,background:active?C.cherryL:C.white,cursor:"pointer",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+    <button onClick={onClick} style={{position:"relative",width:size,height:size,border:`1px solid ${active?C.cherry:C.silver}`,background:active?C.cherryL:C.white,cursor:"pointer",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round">
         <line x1="3" y1="6" x2="9" y2="6"/><circle cx="13" cy="6" r="2.2" fill={C.white}/><line x1="15.5" y1="6" x2="21" y2="6"/>
         <line x1="3" y1="12" x2="15" y2="12"/><circle cx="18" cy="12" r="2.2" fill={C.white}/><line x1="20.5" y1="12" x2="21" y2="12"/>
         <line x1="3" y1="18" x2="6" y2="18"/><circle cx="10" cy="18" r="2.2" fill={C.white}/><line x1="12.5" y1="18" x2="21" y2="18"/>
       </svg>
+      {active&&<span style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:C.cherry,border:`1.5px solid ${C.white}`}}/>}
     </button>
+  );
+}
+
+// Compact period picker pill with a dropdown — Operacii header.
+function PeriodPicker({value,onChange}) {
+  const [open,setOpen]=useState(false);
+  return (
+    <div style={{position:"relative",flexShrink:0}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"9px 12px",background:"#EEF0F4",border:"none",borderRadius:8,fontFamily:FONT,fontSize:13,color:"#111318",cursor:"pointer",whiteSpace:"nowrap"}}>
+        {periodLabel(value)}<span style={{fontSize:9,opacity:0.55}}>▾</span>
+      </button>
+      {open&&(<>
+        <div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:90}}/>
+        <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,zIndex:91,background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.14)",overflow:"hidden",minWidth:130}}>
+          {PERIOD_OPTIONS.map(o=>(
+            <button key={o.key} onClick={()=>{onChange(o.key);setOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",border:"none",background:value===o.key?C.cherryL:C.white,color:value===o.key?C.cherry:C.dark,fontFamily:FONT,fontSize:13,cursor:"pointer",fontWeight:value===o.key?600:400,whiteSpace:"nowrap"}}>{o.label}</button>
+          ))}
+        </div>
+      </>)}
+    </div>
   );
 }
 
@@ -1306,7 +1385,8 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [search,setSearch]=useState("");
   const [sources,setSources]=useState([]);   // [] = «Все»
-  const [sort,setSort]=useState("new");       // new | old | amount_desc | amount_asc
+  const [cats,setCats]=useState([]);          // выбранные категории, [] = «Все»
+  const [selCards,setSelCards]=useState([]);  // выбранные карты (по полю payment), [] = «Все»
   const [showFilters,setShowFilters]=useState(false);
   const defaultFrom="", defaultTo="";
   const [dateFrom,setDateFrom]=useState(defaultFrom);
@@ -1315,7 +1395,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const [detail,setDetail]=useState(null);
-  const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+  const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
   const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | "partial"
   // In-flight FNS prefetch keyed by qrText, started the instant the modal
   // captures a QR (before the user taps "Загрузить чек"). By the time the
@@ -1362,7 +1442,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     const parsed = parseQRString(qrText);
     // Prefill form from local QR parse — reliable even when FNS fails.
     setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
-                   org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null}));
+                   org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null, source: "qr_scan"}));
     setFnsStatus("loading");
 
     let d;
@@ -1436,6 +1516,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
       fn: d.fn || p.fn,
       raw_data: d,
       payment,
+      source: "photo_ocr",
     }));
     setShowAdd(true);
     setFnsStatus("ok");
@@ -1449,10 +1530,12 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     setShowScan(false);
     if (qrText) {
       const parsed = parseQRString(qrText);
+      // Came through the QR scanner (FNS just failed) — still a QR-sourced receipt.
       setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
-                     org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null}));
+                     org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null, source: "qr_scan"}));
       setFnsStatus("partial");  // show the yellow banner so the user knows why fields are empty
     } else {
+      setForm(p => ({...p, source: "manual"}));
       setFnsStatus(null);
     }
     setShowAdd(true);
@@ -1464,27 +1547,22 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     return inPeriod(r.date, activePeriod);
   };
   const filtered=receipts.filter(r=>{
+    if(cats.length>0 && !cats.includes(r.category)) return false;
+    if(selCards.length>0 && !selCards.includes(r.payment)) return false;
     if(sources.length>0 && !sources.includes(r.source)) return false;
     if(!search) return inDate(r);
     const q=search.toLowerCase();
     return (r.org.toLowerCase().includes(q)||shortOrg(r.org).toLowerCase().includes(q))&&inDate(r);
   });
-  const sorted=[...filtered].sort((a,b)=>{
-    if(sort==="amount_desc") return Number(b.amount)-Number(a.amount);
-    if(sort==="amount_asc")  return Number(a.amount)-Number(b.amount);
-    if(sort==="old")         return a.date.localeCompare(b.date);
-    return b.date.localeCompare(a.date); // «Сначала новые» — по умолчанию
-  });
-  const visible=sorted.slice(0,limit);
-  const hiddenCount=sorted.length-limit;
-  const grouped=sort==="new"||sort==="old";   // помесячные заголовки для сортировок по дате
-  const groups=grouped?groupByMonth(visible, sort==="old"):null;  // «старые» → месяцы по возрастанию
-  const filtersActive=customFilterActive||sources.length>0||sort!=="new";
+  const groups=groupByMonth(filtered.slice(0,limit));
+  const hiddenCount=filtered.length-limit;
+  const filtersActive=customFilterActive||cats.length>0||selCards.length>0||sources.length>0;
 
   async function addR() {
     const payload={
       date:form.date, org:form.org, category:form.category,
       payment:form.payment, amount:Number(form.amount),
+      source:form.source||"manual",
     };
     if(form.fn) payload.fn=form.fn;
     if(form.raw_data) payload.raw_data=form.raw_data;
@@ -1497,7 +1575,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
       const body=await res.json().catch(()=>null);
       const existingId=body?.detail?.existing_id;
       setShowAdd(false);
-      setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+      setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
       setFnsStatus(null);
       if(existingId) {
         try {
@@ -1521,7 +1599,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     const created=await res.json();
     handleAdd(created);
     setShowAdd(false);
-    setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null});
+    setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
     setFnsStatus(null);
   }
 
@@ -1529,39 +1607,26 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     <div style={{position:"relative"}}>
       {/* TODO: ФНС «Мои чеки онлайн» — включить когда будет готова интеграция
       <TabBar tabs={["Чеки","Онлайн чеки"]} active={tab} onSelect={setTab}/> */}
-      <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",border:`1px solid ${C.silver}`,padding:"8px 12px",gap:8,marginBottom:10,background:C.lightGray,borderRadius:10}}>
+      <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",border:`1px solid ${C.silver}`,padding:"8px 12px",gap:8,background:C.lightGray,borderRadius:10}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.grayL} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..." style={{border:"none",outline:"none",flex:1,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..." style={{border:"none",outline:"none",flex:1,minWidth:0,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
         </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <div style={{flex:1,minWidth:0}}>
-            <SegmentedControl
-              segments={PERIOD_OPTIONS.map(o=>o.label)}
-              active={customFilterActive?null:periodLabel(activePeriod)}
-              onChange={l=>{setActivePeriod(periodKey(l));setDateFrom(defaultFrom);setDateTo(defaultTo);}}/>
-          </div>
-          <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:8}}>
-            <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)}/>
-          </div>
-        </div>
+        <PeriodPicker value={activePeriod} onChange={k=>{setActivePeriod(k);setDateFrom(defaultFrom);setDateTo(defaultTo);}}/>
+        <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)} size={44}/>
       </div>
       <div style={{paddingBottom:80}}>
-        {visible.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
-        {grouped
-          ? groups.map(([key,group])=>(
-              <div key={key}>
-                <div style={{padding:"6px 16px",background:C.lightGray,borderBottom:`1px solid ${C.silver}`,borderTop:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:2,height:10,background:C.cherryM}}/><span style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
-                </div>
-                {group.items.map(r=>(
-                  <SwipeableReceiptCard key={r.id} receipt={r} onClick={()=>setDetail(r)} onDelete={()=>handleDelete(r.id)}/>
-                ))}
-              </div>
-            ))
-          : visible.map(r=>(
+        {groups.map(([key,group])=>(
+          <div key={key}>
+            <div style={{padding:"6px 16px",background:C.lightGray,borderBottom:`1px solid ${C.silver}`,borderTop:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:2,height:10,background:C.cherryM}}/><span style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
+            </div>
+            {group.items.map(r=>(
               <SwipeableReceiptCard key={r.id} receipt={r} onClick={()=>setDetail(r)} onDelete={()=>handleDelete(r.id)}/>
             ))}
+          </div>
+        ))}
+        {groups.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
         {hiddenCount>0&&(
           <div style={{padding:"14px 16px",textAlign:"center"}}>
             <button onClick={()=>setLimit(l=>l+30)} style={{padding:"10px 20px",border:`1px solid ${C.silver}`,background:C.white,color:C.cherry,fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer",borderRadius:10,letterSpacing:"0.03em"}}>
@@ -1577,9 +1642,16 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         onPrefetch={prefetchFns}
         onOcrFile={handleOcrFile}
         onManual={handleManual}/>}
-      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} sources={sources} sort={sort}
-        onApply={(f,t,extra)=>{setDateFrom(f);setDateTo(t);if(extra){setSources(extra.sources);setSort(extra.sort);}}}
-        onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);setSources([]);setSort("new");}}
+      {showFilters&&<FiltersModal
+        dateBuilder
+        from={dateFrom} to={dateTo}
+        categories={CATEGORIES}
+        cards={cards}
+        sources={sources}
+        selectedCats={cats}
+        selectedCards={selCards}
+        onApply={r=>{ setDateFrom(r.from); setDateTo(r.to); setCats(r.cats); setSelCards(r.cards); setSources(r.sources); }}
+        onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);setCats([]);setSelCards([]);setSources([]);}}
         onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal
         receipt={detail}
@@ -2270,7 +2342,7 @@ export default function App() {
         </div>
       </div>
       <div style={{flex:1,overflow:"auto"}}>
-        {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
+        {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod} users={users} cards={cards}/>}
         {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser}/>}
