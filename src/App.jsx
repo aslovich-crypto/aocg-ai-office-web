@@ -144,7 +144,7 @@ function groupByMonth(items) {
 function SectionHead({num,title}) {
   return (
     <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0 8px"}}>
-      <div style={{width:20,height:20,background:C.lightGray,color:C.gray,fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,flexShrink:0}}>{num}</div>
+      {num&&<div style={{width:20,height:20,background:C.lightGray,color:C.gray,fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,flexShrink:0}}>{num}</div>}
       <span style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.mid,fontFamily:FONT}}>{title}</span>
       <div style={{flex:1,height:"0.5px",background:C.silver}}/>
     </div>
@@ -249,7 +249,7 @@ function SectionCard({title,num,children}) {
   return (
     <div style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:8,borderRadius:8,overflow:"hidden"}}>
       <div style={{height:32,background:"#F6F7F9",borderBottom:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8,padding:"0 14px"}}>
-        <span style={{fontSize:9,fontFamily:"'Courier New', Courier, monospace",color:"#9CA3AF"}}>{num}</span>
+        {num&&<span style={{fontSize:9,fontFamily:"'Courier New', Courier, monospace",color:"#9CA3AF"}}>{num}</span>}
         <span style={{fontSize:11,fontWeight:600,letterSpacing:"0.12em",color:"#636B7D",fontFamily:FONT,textTransform:"uppercase"}}>{title}</span>
       </div>
       <div style={{padding:"4px 14px 8px"}}>{children}</div>
@@ -912,7 +912,7 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
           <div style={{fontSize:30,fontWeight:700,color:"#111318",fontFamily:FONT,fontVariantNumeric:"tabular-nums",lineHeight:1.1,marginBottom:4}}>{fmt(total)}</div>
           <div style={{fontSize:12,color:"#636B7D",fontFamily:FONT}}>{subLine}</div>
         </div>
-        <SectionCard title="Сотрудники" num="01">
+        <SectionCard title="Сотрудники">
           {empData.map((d,i)=>(
             <div key={i}
               style={{height:44,display:"flex",alignItems:"center",gap:10,borderBottom:i<empData.length-1?`0.5px solid ${C.silver}`:"none"}}>
@@ -924,9 +924,9 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod}) {
           ))}
           {empData.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Нет данных за период</div>}
         </SectionCard>
-        <Donut title="Организации" data={Object.entries(orgMap).map(([name,d])=>({name:shortOrg(name),...d}))} num="02"/>
-        <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))} num="03"/>
-        <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))} num="04"/>
+        <Donut title="Организации" data={Object.entries(orgMap).map(([name,d])=>({name:shortOrg(name),...d}))}/>
+        <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))}/>
+        <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))}/>
       </div>
       {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
     </div>
@@ -956,6 +956,10 @@ function shortPayment(p) {
   if (p === "Корпоративная карта") return "Корп.карта";
   return p;
 }
+
+// Источник чека → короткая метка для индикатора в карточке.
+const SOURCE_LABELS = {fns:"ФНС", qr_scan:"QR", photo_ocr:"Фото", manual:"Вручную"};
+const sourceLabel = s => SOURCE_LABELS[s] || null;
 
 function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   const [tx,setTx]=useState(0);
@@ -1033,6 +1037,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
             <span style={{display:"inline-block",padding:"2px 6px",borderRadius:4,background:col.bg,color:col.fg,fontSize:10,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{r.category||"Не указано"}</span>
             <span style={{flexShrink:0}}>·</span>
             <span style={{whiteSpace:"nowrap",flexShrink:0}}>{fmtDate(r.date)}</span>
+            {sourceLabel(r.source)&&<span style={{fontSize:10,color:"#636B7D",whiteSpace:"nowrap",flexShrink:0}}>· {sourceLabel(r.source)}</span>}
             <span style={{flexShrink:0}}>·</span>
             <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>{payment}{card4?` •••${card4}`:""}</span>
             <span style={{flex:1}}/>
@@ -1208,11 +1213,23 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
   );
 }
 
-function FiltersModal({from,to,onApply,onReset,onClose}) {
+function FiltersModal({from,to,sources,sort,onApply,onReset,onClose}) {
   const fromRef=useRef(null);
   const toRef=useRef(null);
+  const hasSource=sources!==undefined;
+  const hasSort=sort!==undefined;
+  const [selSources,setSelSources]=useState(sources||[]);
+  const [selSort,setSelSort]=useState(sort||"new");
+  const SOURCE_CHIPS=[["Все",null],["ФНС","fns"],["QR","qr_scan"],["Фото","photo_ocr"],["Вручную","manual"]];
+  const SORT_OPTS=[["new","Сначала новые"],["old","Сначала старые"],["amount_desc","По сумме (убыв.)"],["amount_asc","По сумме (возр.)"]];
+  const toggleSource=val=>{
+    if(val===null){setSelSources([]);return;}
+    setSelSources(prev=>prev.includes(val)?prev.filter(s=>s!==val):[...prev,val]);
+  };
+  const chipOn=val=>val===null?selSources.length===0:selSources.includes(val);
   const inputStyle={width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"};
-  const apply=(f,t)=>{onApply(f,t);onClose();};
+  const labelStyle={fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:6,letterSpacing:"0.05em",textTransform:"uppercase"};
+  const apply=(f,t)=>{onApply(f,t,{sources:selSources,sort:selSort});onClose();};
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden"}}>
@@ -1232,6 +1249,34 @@ function FiltersModal({from,to,onApply,onReset,onClose}) {
               <input ref={toRef} type="date" defaultValue={to||todayISO()} style={inputStyle}/>
             </div>
           </div>
+          {hasSource&&(
+            <div style={{marginTop:18}}>
+              <div style={labelStyle}>Источник</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {SOURCE_CHIPS.map(([label,val])=>{
+                  const on=chipOn(val);
+                  return (
+                    <button key={label} onClick={()=>toggleSource(val)} style={{
+                      padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",
+                      fontFamily:FONT,fontSize:12,fontWeight:on?600:500,
+                      background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D"
+                    }}>{label}</button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {hasSort&&(
+            <div style={{marginTop:18}}>
+              <div style={labelStyle}>Сортировка</div>
+              {SORT_OPTS.map(([val,label])=>(
+                <label key={val} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer",fontFamily:FONT,fontSize:13,color:C.dark}}>
+                  <input type="radio" name="filters-sort" checked={selSort===val} onChange={()=>setSelSort(val)} style={{accentColor:"#A4161A"}}/>
+                  {label}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{padding:"0 16px 16px",display:"flex",gap:8}}>
           <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1259,8 +1304,9 @@ function FilterIcon({active,onClick}) {
 
 function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, activePeriod, setActivePeriod}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
-  const [tab,setTab]=useState("Чеки");
   const [search,setSearch]=useState("");
+  const [sources,setSources]=useState([]);   // [] = «Все»
+  const [sort,setSort]=useState("new");       // new | old | amount_desc | amount_asc
   const [showFilters,setShowFilters]=useState(false);
   const defaultFrom="", defaultTo="";
   const [dateFrom,setDateFrom]=useState(defaultFrom);
@@ -1418,13 +1464,22 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     return inPeriod(r.date, activePeriod);
   };
   const filtered=receipts.filter(r=>{
+    if(sources.length>0 && !sources.includes(r.source)) return false;
     if(!search) return inDate(r);
     const q=search.toLowerCase();
     return (r.org.toLowerCase().includes(q)||shortOrg(r.org).toLowerCase().includes(q))&&inDate(r);
   });
-  const groups=groupByMonth(filtered.slice(0,limit));
-  const hiddenCount=filtered.length-limit;
-  const filtersActive=customFilterActive;
+  const sorted=[...filtered].sort((a,b)=>{
+    if(sort==="amount_desc") return Number(b.amount)-Number(a.amount);
+    if(sort==="amount_asc")  return Number(a.amount)-Number(b.amount);
+    if(sort==="old")         return a.date.localeCompare(b.date);
+    return b.date.localeCompare(a.date); // «Сначала новые» — по умолчанию
+  });
+  const visible=sorted.slice(0,limit);
+  const hiddenCount=sorted.length-limit;
+  const grouped=sort==="new";                 // помесячные заголовки только для сортировки по умолчанию
+  const groups=grouped?groupByMonth(visible):null;
+  const filtersActive=customFilterActive||sources.length>0||sort!=="new";
 
   async function addR() {
     const payload={
@@ -1472,7 +1527,8 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
 
   return (
     <div style={{position:"relative"}}>
-      <TabBar tabs={["Чеки","Онлайн чеки"]} active={tab} onSelect={setTab}/>
+      {/* TODO: ФНС «Мои чеки онлайн» — включить когда будет готова интеграция
+      <TabBar tabs={["Чеки","Онлайн чеки"]} active={tab} onSelect={setTab}/> */}
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px"}}>
         <div style={{display:"flex",alignItems:"center",border:`1px solid ${C.silver}`,padding:"8px 12px",gap:8,marginBottom:10,background:C.lightGray,borderRadius:10}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.grayL} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -1491,17 +1547,21 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         </div>
       </div>
       <div style={{paddingBottom:80}}>
-        {groups.map(([key,group])=>(
-          <div key={key}>
-            <div style={{padding:"6px 16px",background:C.lightGray,borderBottom:`1px solid ${C.silver}`,borderTop:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:2,height:10,background:C.cherryM}}/><span style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
-            </div>
-            {group.items.map(r=>(
+        {visible.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
+        {grouped
+          ? groups.map(([key,group])=>(
+              <div key={key}>
+                <div style={{padding:"6px 16px",background:C.lightGray,borderBottom:`1px solid ${C.silver}`,borderTop:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:2,height:10,background:C.cherryM}}/><span style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
+                </div>
+                {group.items.map(r=>(
+                  <SwipeableReceiptCard key={r.id} receipt={r} onClick={()=>setDetail(r)} onDelete={()=>handleDelete(r.id)}/>
+                ))}
+              </div>
+            ))
+          : visible.map(r=>(
               <SwipeableReceiptCard key={r.id} receipt={r} onClick={()=>setDetail(r)} onDelete={()=>handleDelete(r.id)}/>
             ))}
-          </div>
-        ))}
-        {groups.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
         {hiddenCount>0&&(
           <div style={{padding:"14px 16px",textAlign:"center"}}>
             <button onClick={()=>setLimit(l=>l+30)} style={{padding:"10px 20px",border:`1px solid ${C.silver}`,background:C.white,color:C.cherry,fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer",borderRadius:10,letterSpacing:"0.03em"}}>
@@ -1517,7 +1577,10 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         onPrefetch={prefetchFns}
         onOcrFile={handleOcrFile}
         onManual={handleManual}/>}
-      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} onApply={(f,t)=>{setDateFrom(f);setDateTo(t);}} onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);}} onClose={()=>setShowFilters(false)}/>}
+      {showFilters&&<FiltersModal from={dateFrom} to={dateTo} sources={sources} sort={sort}
+        onApply={(f,t,extra)=>{setDateFrom(f);setDateTo(t);if(extra){setSources(extra.sources);setSort(extra.sort);}}}
+        onReset={()=>{setDateFrom(defaultFrom);setDateTo(defaultTo);setSources([]);setSort("new");}}
+        onClose={()=>setShowFilters(false)}/>}
       {detail&&<ReceiptDetailModal
         receipt={detail}
         paymentOptions={paymentOptions}
