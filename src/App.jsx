@@ -310,14 +310,18 @@ async function decodeQrFromFile(file, {maxDim=1600}={}) {
   }
 }
 
-// Two-phase scanner, full-screen native-style layout:
-//   1. `scanning`  — camera fills the screen; dark overlay with a 260px
+// Auto-loading scanner, full-screen native-style layout (iPhone-like):
+//   1. `scanning`  — camera fills the screen; dark overlay with a 270px
 //      cutout in the center; white L-corner markers at the cutout corners.
 //   2. `captured`  — pause(true) freezes the frame; corners go green; bottom
-//      pill swaps to confirm/rescan.
-//   3. `loading`   — full dim + centered spinner.
-//   4. `fnsError`  — full dim + centered text + bottom pill offers OCR fallback.
+//      pill shows the local QR preview + "Отмена". After 1s the FNS lookup
+//      auto-starts (no button) → `loading`.
+//   3. `loading`   — full dim; bottom pill shows a spinner + "Отмена".
+//   4. `fnsError`  — full dim; bottom pill offers OCR / retry / manual entry.
 //   5. `cameraError` — full dim; bottom pill offers manual entry.
+//
+// "Отмена" (in `captured` or `loading`) cancels the auto-load, discards any
+// in-flight result and resumes scanning.
 //
 // `onCapture(qrText) => Promise<'ok'|'partial'>` is the only network-touching
 // prop; the modal owns its own UI transitions but never decides what counts
@@ -336,11 +340,22 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const fileRef = useRef(null);
   const ocrFileRef = useRef(null);
   const mountedRef = useRef(true);
+  const autoTimerRef = useRef(null);   // the 1s "captured → auto-load" timer
+  const cancelledRef = useRef(false);  // user tapped "Отмена"; discard any in-flight result
+
+  // Latest callbacks behind a ref so the auto-load timer (driven by an effect
+  // keyed only on phase/qrText) never restarts just because the parent
+  // re-rendered with fresh prop identities.
+  const cbRef = useRef({onCapture, onClose});
+  useEffect(() => { cbRef.current = {onCapture, onClose}; });
 
   const CUTOUT = 270; // visual cutout size in px; matches design spec
   const cornerColor = (phase === "captured" || flashGreen) ? "#15803D" : "#FFFFFF";
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
+  }, []);
 
   const capture = useCallback((text) => {
     try { if (navigator.vibrate) navigator.vibrate(100); } catch { /* ignored */ }
@@ -428,26 +443,51 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     startCamera();
   }
 
-  async function confirm() {
-    if (!qrText || !onCapture) return;
+  // Fire the FNS lookup and resolve the modal. Stable identity so the
+  // auto-load effect below isn't disturbed by parent re-renders.
+  const runFnsLoad = useCallback(async (text) => {
+    if (!text || !cbRef.current.onCapture) return;
     setLoadingMsg("Загружаем данные из ФНС…");
     setPhase("loading");
     let result;
-    try { result = await onCapture(qrText); }
+    try { result = await cbRef.current.onCapture(text); }
     catch { result = "partial"; }
-    if (!mountedRef.current) return;
-    if (result === "ok") onClose();
+    if (!mountedRef.current || cancelledRef.current) return; // cancelled mid-flight → keep scanning
+    if (result === "ok") cbRef.current.onClose();
     else setPhase("fnsError");
+  }, []);
+
+  // Auto-load: 1s after a QR is captured, kick off the FNS lookup with no
+  // button press (iPhone-style). The window lets the user read the preview
+  // and tap "Отмена" first. Keyed on phase+qrText so it fires once per
+  // capture and a parent re-render can't reset the countdown.
+  useEffect(() => {
+    if (phase !== "captured") return;
+    cancelledRef.current = false;
+    autoTimerRef.current = setTimeout(() => {
+      if (mountedRef.current && !cancelledRef.current) runFnsLoad(qrText);
+    }, 1000);
+    return () => { if (autoTimerRef.current) clearTimeout(autoTimerRef.current); };
+  }, [phase, qrText, runFnsLoad]);
+
+  // "Отмена" — works during the 1s preview window and during loading. Cancels
+  // the pending auto-load, discards any in-flight result, resumes scanning.
+  function cancel(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    cancelledRef.current = true;
+    if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null; }
+    rescan();
   }
 
   async function handleOcrPick(file) {
     if (!file || !onOcrFile) return;
+    cancelledRef.current = false;
     setLoadingMsg("Распознаём чек…");
     setPhase("loading");
     let result;
     try { result = await onOcrFile(file); }
     catch { result = "partial"; }
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || cancelledRef.current) return;
     if (result === "ok") onClose();
     else setPhase("fnsError");
   }
@@ -493,10 +533,10 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
 
       {/* Top bar — back + flashlight (both white, circular, blurred backdrop) */}
       <div style={{position:"absolute",top:0,left:0,right:0,padding:"calc(env(safe-area-inset-top) + 12px) 16px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:5,pointerEvents:"none"}}>
-        <button onClick={onClose} aria-label="Назад"
+        <button type="button" onClick={(e) => { e.preventDefault(); onClose(); }} aria-label="Назад"
           style={{pointerEvents:"auto",width:44,height:44,borderRadius:"50%",border:"none",background:"rgba(0,0,0,0.4)",color:"#fff",fontSize:26,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(8px)"}}>‹</button>
         {torchSupported && (phase === "scanning" || phase === "captured") && (
-          <button onClick={toggleTorch} aria-label="Фонарик" aria-pressed={torchOn}
+          <button type="button" onClick={(e) => { e.preventDefault(); toggleTorch(); }} aria-label="Фонарик" aria-pressed={torchOn}
             style={{pointerEvents:"auto",width:44,height:44,borderRadius:"50%",border:"none",
               background: torchOn ? "rgba(255,221,87,0.95)" : "rgba(0,0,0,0.4)",
               color: torchOn ? "#161A1D" : "#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
@@ -506,37 +546,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
         )}
       </div>
 
-      {/* Captured-QR chip — sits just under the cutout so it doesn't cover the QR.
-          Format: "Сумма: 1 234,56 ₽ · 13.01.2026" per spec. */}
-      {phase === "captured" && qrParsed && (
-        <div style={{position:"absolute",left:"50%",top:`calc(50% + ${CUTOUT/2}px + 14px)`,transform:"translateX(-50%)",padding:"10px 14px",background:"rgba(21,128,61,0.95)",borderRadius:10,fontFamily:FONT,fontSize:13,color:"#fff",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",justifyContent:"center",maxWidth:"calc(100vw - 32px)",zIndex:5,boxShadow:"0 4px 16px rgba(0,0,0,0.3)"}}>
-          {qrParsed.amount
-            ? <span><span style={{opacity:0.75}}>Сумма:</span> <span style={{fontWeight:600}}>{Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</span></span>
-            : <span style={{fontWeight:600}}>QR распознан</span>}
-          {qrParsed.date && <><span style={{opacity:0.5}}>·</span><span>{fmtDate(qrParsed.date)}</span></>}
-        </div>
-      )}
-
-      {/* Loading spinner — centered above the bottom pill */}
-      {phase === "loading" && (
-        <div style={{position:"absolute",top:"45%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#fff",fontFamily:FONT,fontSize:14,textAlign:"center",padding:"0 16px"}}>
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
-            <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
-              <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
-            </path>
-          </svg>
-          {loadingMsg}
-        </div>
-      )}
-
-      {/* FNS error message — centered */}
-      {phase === "fnsError" && (
-        <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:6,color:"#fff",fontFamily:FONT,textAlign:"center",maxWidth:340,padding:"0 16px"}}>
-          <span style={{fontSize:16,fontWeight:600}}>Данные ФНС не загрузились</span>
-          <span style={{fontSize:13,opacity:0.7}}>Распознать чек по фото, заполнить вручную или попробовать ещё раз</span>
-        </div>
-      )}
+      {/* Preview / loading / FNS-error all live in the bottom pill now. */}
 
       {/* Camera error */}
       {phase === "cameraError" && (
@@ -562,55 +572,74 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
           <div style={{textAlign:"center",color:C.gray,fontFamily:FONT,fontSize:13}}>
             Наведите QR-код чека в рамку
           </div>
-          <button onClick={() => fileRef.current.click()}
+          <button type="button" onClick={(e) => { e.preventDefault(); fileRef.current.click(); }}
             style={{padding:"12px",border:`1px solid ${C.silver}`,background:C.white,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
             <span style={{fontSize:16}}>📷</span> Загрузить фото
           </button>
           <div style={{textAlign:"center"}}>
-            <button onClick={() => onManual()}
+            <button type="button" onClick={(e) => { e.preventDefault(); onManual(); }}
               style={{background:"none",border:"none",color:C.gray,fontFamily:FONT,fontSize:13,cursor:"pointer",padding:"4px"}}>
               Ввести вручную
             </button>
           </div>
         </>}
 
-        {phase === "captured" && <>
-          <button onClick={confirm}
-            style={{padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer",letterSpacing:"0.03em"}}>
-            Загрузить чек
-          </button>
-          <button onClick={rescan}
-            style={{padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer"}}>
-            Сканировать снова
-          </button>
-        </>}
+        {phase === "captured" && (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:FONT,fontSize:11,color:C.gray,marginBottom:3,letterSpacing:"0.02em"}}>Чек распознан</div>
+              <div style={{fontFamily:FONT,fontSize:15,fontWeight:600,color:C.dark,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                {qrParsed?.amount ? `${Number(qrParsed.amount).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽` : "QR-код"}
+                {qrParsed?.date ? ` · ${fmtDate(qrParsed.date)}` : ""}
+              </div>
+            </div>
+            <button type="button" onClick={cancel}
+              style={{flexShrink:0,padding:"10px 18px",background:C.lightGray,border:"none",borderRadius:10,fontFamily:FONT,fontSize:13,color:C.mid,cursor:"pointer"}}>
+              Отмена
+            </button>
+          </div>
+        )}
 
         {phase === "loading" && (
-          <button disabled
-            style={{padding:"14px",background:C.lightGray,border:"none",borderRadius:12,fontFamily:FONT,fontSize:13,color:C.grayL,cursor:"default"}}>
-            Загружаем…
-          </button>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.cherry} strokeWidth="2.5" style={{flexShrink:0}}>
+                <circle cx="12" cy="12" r="9" strokeOpacity="0.2"/>
+                <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
+                  <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+                </path>
+              </svg>
+              <span style={{fontFamily:FONT,fontSize:14,color:C.dark,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{loadingMsg}</span>
+            </div>
+            <button type="button" onClick={cancel}
+              style={{flexShrink:0,padding:"10px 18px",background:C.lightGray,border:"none",borderRadius:10,fontFamily:FONT,fontSize:13,color:C.mid,cursor:"pointer"}}>
+              Отмена
+            </button>
+          </div>
         )}
 
         {phase === "fnsError" && <>
+          <div style={{textAlign:"center",color:C.gray,fontFamily:FONT,fontSize:13,marginBottom:2}}>
+            Данные ФНС не загрузились
+          </div>
           {onOcrFile && (
-            <button onClick={() => ocrFileRef.current?.click()}
+            <button type="button" onClick={(e) => { e.preventDefault(); ocrFileRef.current?.click(); }}
               style={{padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               <span style={{fontSize:16}}>📷</span> Распознать фото чека
             </button>
           )}
-          <button onClick={() => onManual(qrText)}
+          <button type="button" onClick={(e) => { e.preventDefault(); cancelledRef.current = false; runFnsLoad(qrText); }}
             style={{padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:12,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer"}}>
-            Заполнить вручную
+            Попробовать снова
           </button>
-          <button onClick={rescan}
-            style={{padding:"6px",background:"none",border:"none",fontFamily:FONT,fontSize:12,color:C.gray,cursor:"pointer"}}>
-            Сканировать снова
+          <button type="button" onClick={(e) => { e.preventDefault(); onManual(qrText); }}
+            style={{padding:"12px",background:"none",border:"none",fontFamily:FONT,fontSize:13,color:C.gray,cursor:"pointer"}}>
+            Заполнить вручную
           </button>
         </>}
 
         {phase === "cameraError" && (
-          <button onClick={() => onManual()}
+          <button type="button" onClick={(e) => { e.preventDefault(); onManual(); }}
             style={{padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer"}}>
             Ввести вручную
           </button>
