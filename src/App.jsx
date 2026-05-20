@@ -1237,6 +1237,7 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   const [selCats,setSelCats]=useState(selectedCats||[]);
   const [selCards,setSelCards]=useState(selectedCards||[]);
   const [selSources,setSelSources]=useState(sources||[]);
+  const [periodChip,setPeriodChip]=useState(null);
   const [shown,setShown]=useState(false);
   useEffect(()=>{ const id=requestAnimationFrame(()=>setShown(true)); return ()=>cancelAnimationFrame(id); },[]);
 
@@ -1247,33 +1248,47 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   const labelStyle={fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"};
   const chip=on=>({padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:on?600:500,background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D",display:"inline-flex",alignItems:"center",gap:6});
 
+  const PERIOD_CHIPS=[["week","Неделя"],["month","Месяц"],["quarter","Квартал"],["year","Год"]];
+  const fillPeriod=key=>{
+    const today=todayISO();
+    const f = key==="week"?daysAgoISO(7) : key==="month"?monthStartISO() : key==="quarter"?quarterStartISO() : `${today.slice(0,4)}-01-01`;
+    setPFrom(f); setPTo(today); setPeriodChip(key);
+  };
   const empName=u=>(`${u.first_name||""} ${u.last_name||""}`).trim()||u.email||"—";
   const cardNames=hasCards?cards.map(c=>c.name).concat("Наличные"):[];
 
-  const apply=()=>{
-    onApply({from:pFrom,to:pTo,employee:selEmp,cats:selCats,cards:selCards,sources:selSources});
-    onClose();
-  };
+  const EASE="cubic-bezier(0.32, 0.72, 0, 1)";
+  const close=()=>{ setShown(false); setTimeout(onClose, 220); };  // play exit, then unmount
+  const apply=()=>{ onApply({from:pFrom,to:pTo,employee:selEmp,cats:selCats,cards:selCards,sources:selSources}); close(); };
+  const reset=()=>{ onReset(); close(); };
 
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16,opacity:shown?1:0,transition:"opacity 200ms ease"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",maxHeight:"86dvh",transform:shown?"translateY(0)":"translateY(20px)",opacity:shown?1:0,transition:"transform 200ms ease, opacity 200ms ease"}}>
-        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-          <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Фильтры</span>
-          <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
+    <div onClick={close} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.3)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:120,opacity:shown?1:0,transition:`opacity ${shown?280:220}ms ease`}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",maxHeight:"88dvh",paddingBottom:"env(safe-area-inset-bottom)",transform:shown?"translateY(0)":"translateY(100%)",transition:`transform ${shown?280:220}ms ${EASE}`}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px",flexShrink:0}}>
+          <div style={{width:36,height:4,borderRadius:2,background:"#D5D7DD"}}/>
+        </div>
+        <div style={{padding:"4px 16px 12px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+          <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:600}}>Фильтры</span>
+          <button onClick={close} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
         </div>
         <div style={{padding:"16px",overflow:"auto",flex:1,display:"flex",flexDirection:"column",gap:18}}>
           {dateBuilder&&(
             <div>
               <div style={labelStyle}>Период</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                {PERIOD_CHIPS.map(([key,label])=>(
+                  <button key={key} onClick={()=>fillPeriod(key)} style={chip(periodChip===key)}>{label}</button>
+                ))}
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div>
                   <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
-                  <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} style={inputStyle}/>
+                  <input type="date" value={pFrom} onChange={e=>{setPFrom(e.target.value);setPeriodChip(null);}} style={inputStyle}/>
                 </div>
                 <div>
                   <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>До</div>
-                  <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} style={inputStyle}/>
+                  <input type="date" value={pTo} onChange={e=>{setPTo(e.target.value);setPeriodChip(null);}} style={inputStyle}/>
                 </div>
               </div>
             </div>
@@ -1327,7 +1342,7 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
           )}
         </div>
         <div style={{padding:"12px 16px",display:"flex",gap:8,borderTop:`1px solid ${C.silver}`,flexShrink:0}}>
-          <button onClick={()=>{onReset();onClose();}} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <button onClick={reset} title="Сбросить" style={{width:44,height:44,border:`1px solid ${C.silver}`,background:C.white,color:C.gray,cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           </button>
           <button onClick={apply} style={{flex:1,padding:"12px",background:C.cherry,border:"none",fontFamily:FONT,fontSize:13,color:C.white,cursor:"pointer",borderRadius:10,fontWeight:600,letterSpacing:"0.04em"}}>Применить</button>
