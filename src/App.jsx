@@ -351,11 +351,14 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const autoTimerRef = useRef(null);   // the 1s "captured → auto-load" timer
   const cancelledRef = useRef(false);  // user tapped "Отмена"; discard any in-flight result
 
-  // Latest callbacks behind a ref so the auto-load timer (driven by an effect
-  // keyed only on phase/qrText) never restarts just because the parent
-  // re-rendered with fresh prop identities.
-  const cbRef = useRef({onCapture, onClose});
-  useEffect(() => { cbRef.current = {onCapture, onClose}; });
+  // Latest callbacks behind a ref so the auto-load timer and the camera
+  // effect (keyed on stable values) never restart just because the parent
+  // re-rendered with fresh prop identities. The parent recreates onPrefetch /
+  // onCapture every render; if `capture` depended on them directly it would
+  // churn `startCamera` → tear down and restart html5-qrcode mid-scan, which
+  // throws "Cannot clear while scan is ongoing" and white-screens the app.
+  const cbRef = useRef({onCapture, onClose, onPrefetch});
+  useEffect(() => { cbRef.current = {onCapture, onClose, onPrefetch}; });
 
   const CUTOUT = 270; // visual cutout size in px; matches design spec
   const cornerColor = (phase === "captured" || flashGreen) ? "#15803D" : "#FFFFFF";
@@ -372,9 +375,10 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     setQrText(text);
     setQrParsed(parseQRString(text));
     setPhase("captured");
-    if (onPrefetch) { try { onPrefetch(text); } catch { /* ignored */ } }
+    const pf = cbRef.current.onPrefetch;
+    if (pf) { try { pf(text); } catch { /* ignored */ } }
     setTimeout(() => { if (mountedRef.current) setFlashGreen(false); }, 500);
-  }, [onPrefetch]);
+  }, []);
 
   const startCamera = useCallback(() => {
     if (!scannerRef.current) scannerRef.current = new Html5Qrcode("qr-reader");
