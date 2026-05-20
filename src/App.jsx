@@ -1328,14 +1328,16 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     const cash = Number(raw.cashTotalSum) || 0;
     const card = Number(raw.ecashTotalSum) || 0;
     const suggested = await _suggestPayment(d.org);
+    const defaultCard = cards.find(c => c.is_default)?.name || null;
     let payment = "Не указано";
     if (cash > 0 && card === 0)      payment = "Наличные";
-    else if (card > 0 && cash === 0) payment = (suggested && suggested !== "Наличные") ? suggested : "Личная карта";
+    else if (card > 0 && cash === 0) payment = (suggested && suggested !== "Наличные") ? suggested : (defaultCard || "Не указано");
     else if (suggested)              payment = suggested;
 
     setForm(p => ({...p,
       org: d.org || p.org,
       amount: d.total ? String(d.total) : p.amount,
+      category: d.category || p.category,
       raw_data: d.raw || d,
       payment,
     }));
@@ -1366,9 +1368,10 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     }
 
     const suggested = await _suggestPayment(d.org);
+    const defaultCard = cards.find(c => c.is_default)?.name || null;
     let payment = "Не указано";
     if (d.payment_type === "cash")      payment = "Наличные";
-    else if (d.payment_type === "card") payment = (suggested && suggested !== "Наличные") ? suggested : "Личная карта";
+    else if (d.payment_type === "card") payment = (suggested && suggested !== "Наличные") ? suggested : (defaultCard || "Не указано");
     else if (suggested)                 payment = suggested;
 
     setForm(p => ({...p,
@@ -1645,7 +1648,7 @@ function OtchetyPage({receipts}) {
   );
 }
 
-function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard}) {
+function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard}) {
   const [tab,setTab]=useState("Аккаунт");
   const [roles,setRoles]=useState({admin:true,employee:true,manager:true,accountant:true});
   const [newCard,setNewCard]=useState("");
@@ -1698,9 +1701,11 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard}) {
           {CATEGORIES.map((c,i)=><div key={c} style={{background:i%2===0?C.white:C.lightGray,padding:"9px 14px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:FONT,fontSize:13,color:C.dark}}>{c}</span><span style={{color:C.cherryM,fontSize:11,cursor:"pointer"}}>✎</span></div>)}
           <div style={{marginTop:12}}><Btn>+ Добавить категорию</Btn></div>
           <SectionHead num="02" title="Мои карты"/>
-          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,lineHeight:1.5}}>Карты подставляются автоматически при сканировании чека — по истории трат в той же организации.</div>
+          <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,lineHeight:1.5}}>При сканировании чека карта подставляется по истории трат в той же организации. Если истории нет — подставляется карта по умолчанию (отмечена ★).</div>
           {cards.map((c,i)=>(
-            <div key={c.id} style={{background:i%2===0?C.white:C.lightGray,padding:"5px 14px",borderBottom:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
+            <div key={c.id} style={{background:i%2===0?C.white:C.lightGray,padding:"5px 14px",borderBottom:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:10}}>
+              <span onClick={()=>{if(!c.is_default)onSetDefaultCard(c.id);}} title={c.is_default?"Карта по умолчанию":"Сделать картой по умолчанию"}
+                style={{fontSize:16,cursor:c.is_default?"default":"pointer",flexShrink:0,color:c.is_default?C.cherry:C.grayL,lineHeight:1}}>{c.is_default?"★":"☆"}</span>
               <input defaultValue={c.name} onBlur={e=>{const v=e.target.value.trim();if(v&&v!==c.name)onUpdateCard(c.id,v);else e.target.value=c.name;}}
                 style={{flex:1,border:"none",background:"transparent",fontSize:13,fontFamily:FONT,color:C.dark,outline:"none",padding:"4px 0"}}/>
               <span onClick={()=>onDeleteCard(c.id)} style={{color:C.cherryM,fontSize:14,cursor:"pointer",flexShrink:0}}>✕</span>
@@ -1947,6 +1952,11 @@ export default function App() {
     setCards(prev=>prev.filter(x=>x.id!==id));
   }
 
+  async function setDefaultCard(id) {
+    const res=await fetch(`${API}/api/cards/${id}/default`,{method:"PATCH"});
+    if(res.ok) setCards(prev=>prev.map(x=>({...x,is_default:x.id===id})));
+  }
+
   function handleAdd(created) {
     const norm={...created,amount:Number(created.amount)};
     setReceipts(prev=>prev.some(x=>x.id===norm.id)
@@ -2015,7 +2025,7 @@ export default function App() {
         {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
-        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard}/>}
+        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard}/>}
       </div>
       <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {NAV.map(n=>(
