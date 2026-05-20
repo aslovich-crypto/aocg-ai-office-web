@@ -1719,51 +1719,187 @@ function OtchetyPage({receipts}) {
   );
 }
 
-function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard}) {
-  const [tab,setTab]=useState("Аккаунт");
+// ─── SETTINGS HELPERS & PARTS ─────────────────────────────
+const ROLE_LABEL = Object.fromEntries(ROLES.map(r=>[r.id,r.label]));
+const roleLabel = id => ROLE_LABEL[id] || "Сотрудник";
+const userInitials = u => (`${(u.first_name||"")[0]||""}${(u.last_name||"")[0]||""}`).toUpperCase() || "?";
+
+const SVC_ICON = {fns:"🧾", alfabank:"🏦", anthropic:"🤖"};
+const SVC_STATUS = {
+  active:         {label:"Активен",       bg:"#F0FDF4", fg:"#15803D"},
+  in_progress:    {label:"В разработке",  bg:"#FFFBEB", fg:"#B45309"},
+  not_connected:  {label:"Не подключено", bg:"#EEF0F4", fg:"#636B7D"},
+  not_configured: {label:"Не настроен",   bg:"#EEF0F4", fg:"#636B7D"},
+};
+
+function ServiceCard({svc}) {
+  const m = SVC_STATUS[svc.status] || SVC_STATUS.not_connected;
+  return (
+    <div style={{background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"12px 14px",marginBottom:10,display:"flex",alignItems:"flex-start",gap:12}}>
+      <div style={{width:36,height:36,borderRadius:8,background:C.lightGray,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{SVC_ICON[svc.key]||"⚙"}</div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:3}}>
+          <span style={{fontFamily:FONT,fontSize:13,fontWeight:700,color:C.dark}}>{svc.name}</span>
+          <span style={{fontFamily:FONT,fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:10,background:m.bg,color:m.fg,whiteSpace:"nowrap"}}>{m.label}</span>
+        </div>
+        <div style={{fontFamily:FONT,fontSize:11,color:C.gray,lineHeight:1.4}}>{svc.description}</div>
+        {svc.key==="fns"&&(
+          <div style={{marginTop:8}}>
+            <button disabled title="Скоро" style={{padding:"6px 14px",border:`1px solid ${C.silver}`,background:C.lightGray,color:C.grayL,fontFamily:FONT,fontSize:12,borderRadius:8,cursor:"not-allowed"}}>Подключить</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Swipe-left to reveal "Удалить" — mirrors SwipeableReceiptCard's pointer logic.
+function SwipeableUserRow({user,onDelete,deletable=true}) {
+  const [tx,setTx]=useState(0);
+  const startX=useRef(0), startY=useRef(0), dragging=useRef(false), locked=useRef(null);
+  const REVEAL=72;
+  const u=user;
+  const name=[u.last_name,u.first_name,u.patronymic].filter(Boolean).join(" ")||u.email||"Без имени";
+  function down(e){if(!deletable)return;dragging.current=true;locked.current=null;startX.current=e.clientX;startY.current=e.clientY;e.currentTarget.setPointerCapture?.(e.pointerId);}
+  function move(e){if(!dragging.current)return;const dx=e.clientX-startX.current,dy=e.clientY-startY.current;if(locked.current===null){if(Math.abs(dx)>6||Math.abs(dy)>6)locked.current=Math.abs(dx)>Math.abs(dy)?"x":"y";else return;}if(locked.current!=="x")return;const base=tx<0?-REVEAL:0;setTx(Math.min(0,Math.max(-REVEAL,base+dx)));}
+  function up(){if(!dragging.current)return;dragging.current=false;if(locked.current==="x")setTx(tx<-REVEAL/2?-REVEAL:0);}
+  return (
+    <div style={{position:"relative",background:"#B91C1C",borderBottom:`1px solid ${C.silver}`,overflow:"hidden"}}>
+      {deletable&&<div onClick={onDelete} style={{position:"absolute",top:0,right:0,bottom:0,width:REVEAL,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontFamily:FONT,fontSize:12,fontWeight:600}}>Удалить</div>}
+      <div onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        style={{background:C.white,padding:"11px 14px",display:"flex",alignItems:"center",gap:12,transform:`translateX(${tx}px)`,transition:dragging.current?"none":"transform 0.2s ease",userSelect:"none",touchAction:"pan-y",borderLeft:`3px solid ${u.is_active!==false?C.cherry:C.silver}`}}>
+        <div style={{width:34,height:34,borderRadius:"50%",background:C.cherry,color:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:11,fontWeight:700,flexShrink:0}}>{userInitials(u)}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
+          <div style={{fontFamily:FONT,fontSize:11,color:C.gray}}>{roleLabel(u.role)} · {u.is_active!==false?"активен":"неактивен"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddEmployeeSheet({onClose,onAdd}) {
+  const [f,setF]=useState({first_name:"",last_name:"",patronymic:"",email:"",role:"employee"});
+  const [busy,setBusy]=useState(false);
+  const ROLE_CHIPS=[["employee","Сотрудник"],["manager","Руководитель"],["accountant","Бухгалтер"]];
+  const inp={width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"};
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  async function submit(){
+    if(!f.first_name.trim()||busy)return;
+    setBusy(true);
+    await onAdd(f);
+    setBusy(false);
+    onClose();
+  }
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",overflow:"hidden",display:"flex",flexDirection:"column",maxHeight:"88dvh",paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.silver}`}}>
+          <span style={{fontFamily:FONT,fontSize:14,fontWeight:600,color:C.dark}}>Новый сотрудник</span>
+          <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,cursor:"pointer",fontSize:20,padding:4,lineHeight:1}}>✕</button>
+        </div>
+        <div style={{overflow:"auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}}>
+          <input style={inp} placeholder="Имя" value={f.first_name} onChange={e=>set("first_name",e.target.value)}/>
+          <input style={inp} placeholder="Фамилия" value={f.last_name} onChange={e=>set("last_name",e.target.value)}/>
+          <input style={inp} placeholder="Отчество" value={f.patronymic} onChange={e=>set("patronymic",e.target.value)}/>
+          <input style={inp} placeholder="Email" type="email" value={f.email} onChange={e=>set("email",e.target.value)}/>
+          <div>
+            <div style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.gray,fontFamily:FONT,marginBottom:8}}>Роль</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {ROLE_CHIPS.map(([val,label])=>{
+                const on=f.role===val;
+                return <button key={val} onClick={()=>set("role",val)} style={{padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:on?600:500,background:on?C.cherry:"#EEF0F4",color:on?"#fff":"#636B7D"}}>{label}</button>;
+              })}
+            </div>
+          </div>
+        </div>
+        <div style={{padding:"12px 16px",borderTop:`1px solid ${C.silver}`,background:C.lightGray}}>
+          <Btn full onClick={submit} disabled={!f.first_name.trim()||busy}>Добавить сотрудника</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ACC_FIELDS=[["Имя","first_name"],["Отчество","patronymic"],["Фамилия","last_name"],["Email","email"],["ИНН","inn"],["Регион","region"],["Табельный №","employee_id"]];
+
+// Account tab. Mounted with key={me.id} so loading the current user resets the
+// form via the useState initializer — no syncing effect needed.
+function AccountTab({me, onSave}) {
+  const [acc,setAcc]=useState({
+    first_name:me.first_name||"", patronymic:me.patronymic||"", last_name:me.last_name||"",
+    email:me.email||"", inn:me.inn||"", region:me.region||"", employee_id:me.employee_id||"",
+  });
   const [roles,setRoles]=useState({admin:true,employee:true,manager:true,accountant:true});
+  const [saved,setSaved]=useState(false);
+  async function save(){
+    const u=await onSave(acc);
+    if(u){ setSaved(true); setTimeout(()=>setSaved(false),2000); }
+  }
+  return (
+    <div style={{padding:"12px 16px 80px"}}>
+      <SectionHead title="Личные данные"/>
+      {ACC_FIELDS.map(([label,key],i)=>(
+        <div key={key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 12px",borderBottom:`1px solid ${C.silver}`,background:i%2===0?C.white:C.lightGray}}>
+          <span style={{fontSize:11,color:C.gray,fontFamily:FONT,minWidth:110,flexShrink:0}}>{label}</span>
+          <input value={acc[key]} onChange={e=>setAcc(p=>({...p,[key]:e.target.value}))} placeholder="—"
+            style={{flex:1,textAlign:"right",border:"none",background:"transparent",fontSize:13,color:C.dark,fontFamily:FONT,outline:"none",padding:"7px 0"}}/>
+        </div>
+      ))}
+      <div style={{marginTop:14}}><Btn full onClick={save}>Сохранить</Btn></div>
+
+      <SectionHead title="Права доступа"/>
+      {ROLES.map(r=>(
+        <div key={r.id} style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:6,borderLeft:roles[r.id]?`3px solid ${C.cherry}`:`3px solid ${C.silver}`,borderRadius:6}}>
+          <div style={{padding:"11px 14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+              <span style={{fontFamily:FONT,fontSize:13,color:roles[r.id]?C.dark:C.gray,fontWeight:700}}>{r.label}</span>
+              <Toggle value={roles[r.id]} onChange={v=>setRoles(p=>({...p,[r.id]:v}))}/>
+            </div>
+            <div style={{fontFamily:FONT,fontSize:11,color:C.gray,lineHeight:1.5}}>{r.desc}</div>
+          </div>
+        </div>
+      ))}
+      {saved&&<div style={{position:"fixed",left:"50%",bottom:90,transform:"translateX(-50%)",background:"#15803D",color:"#fff",padding:"10px 18px",borderRadius:10,fontFamily:FONT,fontSize:13,fontWeight:600,zIndex:400,boxShadow:"0 6px 16px rgba(0,0,0,0.2)"}}>Сохранено ✓</div>}
+    </div>
+  );
+}
+
+function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard,users,onAddUser,onUpdateUser,onDeleteUser}) {
+  const [tab,setTab]=useState("Аккаунт");
   const [newCard,setNewCard]=useState("");
+  const [showAddEmp,setShowAddEmp]=useState(false);
+  const [servicesList,setServicesList]=useState([]);
+  const me = users.find(u=>u.id===1) || {};
+
+  useEffect(()=>{
+    fetch(`${API}/api/services/`).then(r=>r.json()).then(d=>setServicesList(Array.isArray(d)?d:[])).catch(()=>{});
+  },[]);
+
   return (
     <div>
       <TabBar tabs={["Аккаунт","Лицензии","Пользователи","Сервисы","Общие"]} active={tab} onSelect={setTab}/>
-      {tab==="Аккаунт"&&(
-        <div style={{padding:"12px 16px 80px"}}>
-          <SectionHead title="Личные данные"/>
-          {[["Имя","Алексей"],["Отчество","Иванович"],["Фамилия","Шукалович"],["Дата рождения","01.09.1980"],["Email","a.slovich@gmail.com"],["ИНН","7839112580"],["Регион","Россия"],["Табельный №","—"]].map(([k,v],i)=>(
-            <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",borderBottom:`1px solid ${C.silver}`,background:i%2===0?C.white:C.lightGray}}>
-              <span style={{fontSize:11,color:C.gray,fontFamily:FONT,minWidth:120}}>{k}</span>
-              <span style={{fontSize:13,color:C.dark,fontFamily:FONT}}>{v}</span>
-            </div>
-          ))}
-          <SectionHead title="Права доступа"/>
-          {ROLES.map(r=>(
-            <div key={r.id} style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:6,borderLeft:roles[r.id]?`3px solid ${C.cherry}`:`3px solid ${C.silver}`,borderRadius:6}}>
-              <div style={{padding:"11px 14px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                  <span style={{fontFamily:FONT,fontSize:13,color:roles[r.id]?C.dark:C.gray,fontWeight:700}}>{r.label}</span>
-                  <Toggle value={roles[r.id]} onChange={v=>setRoles(p=>({...p,[r.id]:v}))}/>
-                </div>
-                <div style={{fontFamily:FONT,fontSize:11,color:C.gray,lineHeight:1.5}}>{r.desc}</div>
-              </div>
-            </div>
-          ))}
-          <div style={{marginTop:14}}><Btn>Сохранить изменения</Btn></div>
+      {tab==="Аккаунт"&&<AccountTab key={me.id||"new"} me={me} onSave={p=>onUpdateUser(1,p)}/>}
+      {tab==="Лицензии"&&(
+        <div style={{padding:"60px 24px",textAlign:"center"}}>
+          <div style={{fontFamily:FONT,fontSize:13,color:C.grayL}}>Управление лицензиями — скоро</div>
         </div>
       )}
-      {tab==="Лицензии"&&<div style={{padding:"12px 16px"}}><Block><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:24,height:24,background:C.cherry,display:"flex",alignItems:"center",justifyContent:"center",color:C.white,fontSize:12}}>✕</div><div><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>Ваша лицензия истекла</div><div style={{fontFamily:FONT,fontSize:11,color:C.gray}}>Необходимо продление</div></div></div></Block><Btn>Продлить лицензию</Btn></div>}
-      {tab==="Пользователи"&&<div style={{padding:"12px 16px"}}><SectionHead title="Сотрудники"/><div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"11px 14px",display:"flex",alignItems:"center",gap:12,borderLeft:`3px solid ${C.cherry}`}}><div style={{width:34,height:34,background:C.cherry,color:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:11,fontWeight:700,borderRadius:6}}>АШ</div><div><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>Алексей Шукалович</div><div style={{fontFamily:FONT,fontSize:11,color:C.gray}}>Директор · a.slovich@gmail.com</div></div></div></div>}
+      {tab==="Пользователи"&&(
+        <div style={{padding:"12px 16px 80px"}}>
+          <SectionHead title="Сотрудники"/>
+          {users.map(u=>(
+            <SwipeableUserRow key={u.id} user={u} deletable={u.id!==1} onDelete={()=>onDeleteUser(u.id)}/>
+          ))}
+          {users.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Пока нет сотрудников</div>}
+          <div style={{marginTop:14}}><Btn full onClick={()=>setShowAddEmp(true)}>+ Добавить сотрудника</Btn></div>
+        </div>
+      )}
       {tab==="Сервисы"&&(
         <div style={{padding:"12px 16px 80px"}}>
-          <SectionHead title="Мои чеки онлайн"/>
-          <div style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:14}}>
-            <div style={{background:C.lightGray,borderBottom:`1px solid ${C.silver}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}><div style={{width:3,height:14,background:C.silver}}/><span style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.mid,fontFamily:FONT}}>МОИ ЧЕКИ ОНЛАЙН</span></div>
-            <div style={{padding:"12px 14px"}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Привязанные номера</div><div style={{display:"flex",justifyContent:"space-between",padding:"8px 10px",background:C.lightGray,border:`1px solid ${C.silver}`,marginBottom:10}}><span style={{fontSize:11,color:C.gray,fontFamily:FONT}}>Телефон</span><span style={{fontSize:13,color:C.dark,fontFamily:FONT}}>+7 921 868 44 41</span></div><Btn outline small>Добавить номер</Btn></div>
-          </div>
-          <SectionHead title="Интеграция с 1С"/>
-          <div style={{background:C.white,border:`1px solid ${C.silver}`}}>
-            <div style={{background:C.lightGray,borderBottom:`1px solid ${C.silver}`,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}><div style={{width:3,height:14,background:C.cherry}}/><span style={{fontWeight:900,fontSize:12,fontFamily:FONT,color:C.cherry}}>1С</span><span style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.mid,fontFamily:FONT}}>ИНТЕГРАЦИЯ</span></div>
-            <div style={{padding:"12px 14px"}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>API-ключ</div><Block><span style={{fontSize:11,color:C.mid,fontFamily:"Courier, monospace",wordBreak:"break-all"}}>93f9609eb68e15ecabf4efdccbad9b0d</span></Block><Btn outline small>Копировать ⎘</Btn></div>
-          </div>
+          <SectionHead title="Интеграции"/>
+          {servicesList.map(s=><ServiceCard key={s.key} svc={s}/>)}
+          {servicesList.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Загрузка…</div>}
         </div>
       )}
       {tab==="Общие"&&(
@@ -1794,6 +1930,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
           </div>
         </div>
       )}
+      {showAddEmp&&<AddEmployeeSheet onClose={()=>setShowAddEmp(false)} onAdd={onAddUser}/>}
     </div>
   );
 }
@@ -1998,6 +2135,7 @@ export default function App() {
   const [page,setPage]=useState("svodka");
   const [receipts,setReceipts]=useState([]);
   const [cards,setCards]=useState([]);
+  const [users,setUsers]=useState([]);
   const [activePeriod,setActivePeriod]=useState("month");
 
   // Don't fetch receipts/cards until the user has consented — keeps the
@@ -2011,6 +2149,10 @@ export default function App() {
     fetch(`${API}/api/cards/`)
       .then(r=>r.json())
       .then(data=>setCards(Array.isArray(data)?data:[]))
+      .catch(()=>{});
+    fetch(`${API}/api/users/`)
+      .then(r=>r.json())
+      .then(data=>setUsers(Array.isArray(data)?data:[]))
       .catch(()=>{});
   },[consentGiven]);
 
@@ -2038,6 +2180,29 @@ export default function App() {
   async function setDefaultCard(id) {
     const res=await fetch(`${API}/api/cards/${id}/default`,{method:"PATCH"});
     if(res.ok) setCards(prev=>prev.map(x=>({...x,is_default:x.id===id})));
+  }
+
+  async function addUser(payload) {
+    const res=await fetch(`${API}/api/users/`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+    if(res.ok){const u=await res.json();setUsers(prev=>[...prev,u]);return u;}
+    return null;
+  }
+
+  async function updateUser(id, patch) {
+    const res=await fetch(`${API}/api/users/${id}`,{
+      method:"PATCH",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(patch)
+    });
+    if(res.ok){const u=await res.json();setUsers(prev=>prev.map(x=>x.id===id?u:x));return u;}
+    return null;
+  }
+
+  async function deleteUser(id) {
+    await fetch(`${API}/api/users/${id}`,{method:"DELETE"});
+    setUsers(prev=>prev.filter(x=>x.id!==id));
   }
 
   function handleAdd(created) {
@@ -2108,7 +2273,7 @@ export default function App() {
         {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
-        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard}/>}
+        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser}/>}
       </div>
       <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {NAV.map(n=>(
