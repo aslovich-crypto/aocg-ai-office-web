@@ -1233,7 +1233,6 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
 
   const [pFrom,setPFrom]=useState(from||monthStartISO());
   const [pTo,setPTo]=useState(to||todayISO());
-  const [periodChip,setPeriodChip]=useState(null);
   const [selEmp,setSelEmp]=useState(selectedEmployee||null);
   const [selCats,setSelCats]=useState(selectedCats||[]);
   const [selCards,setSelCards]=useState(selectedCards||[]);
@@ -1246,12 +1245,6 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   const labelStyle={fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"};
   const chip=on=>({padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:on?600:500,background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D",display:"inline-flex",alignItems:"center",gap:6});
 
-  const PERIOD_CHIPS=[["week","Неделя"],["month","Месяц"],["quarter","Квартал"],["year","Год"]];
-  const fillPeriod=key=>{
-    const today=todayISO();
-    const f = key==="week"?daysAgoISO(7) : key==="month"?monthStartISO() : key==="quarter"?quarterStartISO() : `${today.slice(0,4)}-01-01`;
-    setPFrom(f); setPTo(today); setPeriodChip(key);
-  };
   const empName=u=>(`${u.first_name||""} ${u.last_name||""}`).trim()||u.email||"—";
   const cardNames=hasCards?cards.map(c=>c.name).concat("Наличные"):[];
 
@@ -1271,19 +1264,14 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
           {dateBuilder&&(
             <div>
               <div style={labelStyle}>Период</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {PERIOD_CHIPS.map(([key,label])=>(
-                  <button key={key} onClick={()=>fillPeriod(key)} style={chip(periodChip===key)}>{label}</button>
-                ))}
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div>
                   <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>От</div>
-                  <input type="date" value={pFrom} onChange={e=>{setPFrom(e.target.value);setPeriodChip(null);}} style={inputStyle}/>
+                  <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} style={inputStyle}/>
                 </div>
                 <div>
                   <div style={{fontSize:10,color:C.gray,fontFamily:FONT,marginBottom:4}}>До</div>
-                  <input type="date" value={pTo} onChange={e=>{setPTo(e.target.value);setPeriodChip(null);}} style={inputStyle}/>
+                  <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} style={inputStyle}/>
                 </div>
               </div>
             </div>
