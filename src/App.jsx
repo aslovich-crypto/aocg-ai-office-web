@@ -133,10 +133,10 @@ const fmtDateTime = ts => {
   return d.toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
 };
 
-function groupByMonth(items) {
+function groupByMonth(items, asc=false) {
   const g={};
   items.forEach(r=>{const k=r.date.slice(0,7);if(!g[k])g[k]={label:monthLabel(r.date),items:[]};g[k].items.push(r);});
-  return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0]));
+  return Object.entries(g).sort((a,b)=>asc?a[0].localeCompare(b[0]):b[0].localeCompare(a[0]));
 }
 
 // ─── ATOMS ────────────────────────────────────────────────
@@ -1477,8 +1477,8 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   });
   const visible=sorted.slice(0,limit);
   const hiddenCount=sorted.length-limit;
-  const grouped=sort==="new";                 // помесячные заголовки только для сортировки по умолчанию
-  const groups=grouped?groupByMonth(visible):null;
+  const grouped=sort==="new"||sort==="old";   // помесячные заголовки для сортировок по дате
+  const groups=grouped?groupByMonth(visible, sort==="old"):null;  // «старые» → месяцы по возрастанию
   const filtersActive=customFilterActive||sources.length>0||sort!=="new";
 
   async function addR() {
