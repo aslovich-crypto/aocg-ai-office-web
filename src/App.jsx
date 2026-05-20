@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine } from "lucide-react";
+import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -1237,6 +1237,8 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   const [selCats,setSelCats]=useState(selectedCats||[]);
   const [selCards,setSelCards]=useState(selectedCards||[]);
   const [selSources,setSelSources]=useState(sources||[]);
+  const [shown,setShown]=useState(false);
+  useEffect(()=>{ const id=requestAnimationFrame(()=>setShown(true)); return ()=>cancelAnimationFrame(id); },[]);
 
   const toggleIn=(arr,setArr,val)=>{ if(val===null){setArr([]);return;} setArr(prev=>prev.includes(val)?prev.filter(x=>x!==val):[...prev,val]); };
   const isOn=(arr,val)=>val===null?arr.length===0:arr.includes(val);
@@ -1254,8 +1256,8 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   };
 
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",maxHeight:"86dvh"}}>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:120,padding:16,opacity:shown?1:0,transition:"opacity 200ms ease"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:420,borderRadius:16,overflow:"hidden",display:"flex",flexDirection:"column",maxHeight:"86dvh",transform:shown?"translateY(0)":"translateY(20px)",opacity:shown?1:0,transition:"transform 200ms ease, opacity 200ms ease"}}>
         <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Фильтры</span>
           <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
@@ -1350,6 +1352,21 @@ function FilterIcon({active,onClick,size=34}) {
 }
 
 // Compact period picker pill with a dropdown — Operacii header.
+// Mounts fresh on open, so the rAF flip plays the scale/opacity intro.
+function PeriodMenu({value,onChange,onClose}) {
+  const [shown,setShown]=useState(false);
+  useEffect(()=>{ const id=requestAnimationFrame(()=>setShown(true)); return ()=>cancelAnimationFrame(id); },[]);
+  return (<>
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:90}}/>
+    <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,zIndex:91,background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.14)",overflow:"hidden",minWidth:130,
+                 opacity:shown?1:0,transform:shown?"scale(1)":"scale(0.95)",transformOrigin:"top right",transition:"opacity 150ms ease, transform 150ms ease"}}>
+      {PERIOD_OPTIONS.map(o=>(
+        <button key={o.key} onClick={()=>onChange(o.key)} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",border:"none",background:value===o.key?C.cherryL:C.white,color:value===o.key?C.cherry:C.dark,fontFamily:FONT,fontSize:13,cursor:"pointer",fontWeight:value===o.key?600:400,whiteSpace:"nowrap"}}>{o.label}</button>
+      ))}
+    </div>
+  </>);
+}
+
 function PeriodPicker({value,onChange}) {
   const [open,setOpen]=useState(false);
   return (
@@ -1357,14 +1374,7 @@ function PeriodPicker({value,onChange}) {
       <button onClick={()=>setOpen(o=>!o)} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"9px 12px",background:"#EEF0F4",border:"none",borderRadius:8,fontFamily:FONT,fontSize:13,color:"#111318",cursor:"pointer",whiteSpace:"nowrap"}}>
         {periodLabel(value)}<span style={{fontSize:9,opacity:0.55}}>▾</span>
       </button>
-      {open&&(<>
-        <div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:90}}/>
-        <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,zIndex:91,background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.14)",overflow:"hidden",minWidth:130}}>
-          {PERIOD_OPTIONS.map(o=>(
-            <button key={o.key} onClick={()=>{onChange(o.key);setOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",border:"none",background:value===o.key?C.cherryL:C.white,color:value===o.key?C.cherry:C.dark,fontFamily:FONT,fontSize:13,cursor:"pointer",fontWeight:value===o.key?600:400,whiteSpace:"nowrap"}}>{o.label}</button>
-          ))}
-        </div>
-      </>)}
+      {open&&<PeriodMenu value={value} onChange={k=>{onChange(k);setOpen(false);}} onClose={()=>setOpen(false)}/>}
     </div>
   );
 }
@@ -1545,6 +1555,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const groups=groupByMonth(filtered.slice(0,limit));
   const hiddenCount=filtered.length-limit;
   const filtersActive=customFilterActive||cats.length>0||selCards.length>0||sources.length>0;
+  const resetFilters=()=>{ setDateFrom(defaultFrom); setDateTo(defaultTo); setCats([]); setSelCards([]); setSources([]); setSearch(""); };
 
   async function addR() {
     const payload={
@@ -1614,7 +1625,19 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
             ))}
           </div>
         ))}
-        {groups.length===0&&<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{color:C.grayL,fontFamily:FONT,fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase"}}>Нет операций</div></div>}
+        {groups.length===0&&(
+          <div style={{textAlign:"center",padding:"56px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+            <ReceiptText size={48} color="#EEF0F4" strokeWidth={1.5}/>
+            {(filtersActive||search)?(<>
+              <div style={{fontSize:15,color:"#636B7D",fontFamily:FONT}}>Ничего не найдено</div>
+              <div style={{fontSize:13,color:"#9CA3AF",fontFamily:FONT}}>Попробуйте изменить фильтры</div>
+              <button onClick={resetFilters} style={{marginTop:4,background:"none",border:"none",color:C.cherry,fontFamily:FONT,fontSize:13,fontWeight:600,cursor:"pointer"}}>Сбросить фильтры</button>
+            </>):(<>
+              <div style={{fontSize:15,color:"#636B7D",fontFamily:FONT}}>Нет чеков за этот период</div>
+              <div style={{fontSize:13,color:"#9CA3AF",fontFamily:FONT}}>Нажмите + чтобы добавить первый чек</div>
+            </>)}
+          </div>
+        )}
         {hiddenCount>0&&(
           <div style={{padding:"14px 16px",textAlign:"center"}}>
             <button onClick={()=>setLimit(l=>l+30)} style={{padding:"10px 20px",border:`1px solid ${C.silver}`,background:C.white,color:C.cherry,fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer",borderRadius:10,letterSpacing:"0.03em"}}>
@@ -2300,7 +2323,7 @@ export default function App() {
     return <ConsentScreen onAccept={() => setConsentGiven(true)}/>;
   }
 
-  const NAV=[{id:"svodka",icon:"▦",label:"Сводка"},{id:"operacii",icon:"≡",label:"Операции"},{id:"otchety",icon:"▤",label:"Отчёты"},{id:"nastroyki",icon:"⚙",label:"Настройки"}];
+  const NAV=[{id:"svodka",Icon:LayoutDashboard,label:"Сводка"},{id:"operacii",Icon:Receipt,label:"Операции"},{id:"otchety",Icon:FileText,label:"Отчёты"},{id:"nastroyki",Icon:Settings,label:"Настройки"}];
   const PT={svodka:"Сводка",operacii:"Операции",otchety:"Отчёты",nastroyki:"Настройки"};
   return (
     <div style={{maxWidth:480,margin:"0 auto",height:"100dvh",display:"flex",flexDirection:"column",background:C.light,fontFamily:FONT,overflow:"hidden"}}>
@@ -2336,12 +2359,16 @@ export default function App() {
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser}/>}
       </div>
       <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
-        {NAV.map(n=>(
-          <button key={n.id} onClick={()=>setPage(n.id)} style={{flex:1,padding:"9px 0",border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",transition:"all 0.15s",borderRight:`1px solid ${C.silver}`}}>
-            <span style={{fontSize:15,color:page===n.id?C.cherry:C.grayL}}>{n.icon}</span>
-            <span style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:FONT,color:page===n.id?C.cherry:C.grayL}}>{n.label}</span>
-          </button>
-        ))}
+        {NAV.map(n=>{
+          const Icon=n.Icon;
+          const color=page===n.id?C.cherry:"#636B7D";
+          return (
+            <button key={n.id} onClick={()=>setPage(n.id)} style={{flex:1,padding:"9px 0",border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",transition:"opacity 100ms ease",borderRight:`1px solid ${C.silver}`}}>
+              <Icon size={20} color={color} strokeWidth={2}/>
+              <span style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:FONT,color}}>{n.label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
