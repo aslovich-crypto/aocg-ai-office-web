@@ -1231,8 +1231,8 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   const hasCards=cards!==undefined;
   const hasSource=sources!==undefined;
 
-  const [pFrom,setPFrom]=useState(from||"");
-  const [pTo,setPTo]=useState(to||"");
+  const [pFrom,setPFrom]=useState(from||monthStartISO());
+  const [pTo,setPTo]=useState(to||todayISO());
   const [periodChip,setPeriodChip]=useState(null);
   const [selEmp,setSelEmp]=useState(selectedEmployee||null);
   const [selCats,setSelCats]=useState(selectedCats||[]);
