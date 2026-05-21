@@ -211,15 +211,17 @@ function SectionHead({num,title}) {
   );
 }
 
-function Btn({children,onClick,disabled,outline,full,small}) {
+function Btn({children,onClick,disabled,outline,full,small,loading}) {
+  // loading: in-flight submit — keep the cherry fill, dim to 0.6, block clicks.
+  const off=disabled||loading;
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      background:disabled?C.lightGray:outline?"transparent":C.cherry,
-      color:disabled?C.grayL:outline?C.cherry:C.white,
-      border:`1.5px solid ${disabled?C.silver:C.cherry}`,
+    <button onClick={onClick} disabled={off} style={{
+      background:loading?C.cherry:disabled?C.lightGray:outline?"transparent":C.cherry,
+      color:loading?C.white:disabled?C.grayL:outline?C.cherry:C.white,
+      border:`1.5px solid ${(disabled&&!loading)?C.silver:C.cherry}`,
       padding:small?"6px 12px":"9px 18px",
       fontFamily:FONT,fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",
-      cursor:disabled?"default":"pointer",transition:"all 0.15s",width:full?"100%":"auto",borderRadius:6
+      cursor:off?"default":"pointer",opacity:loading?0.6:1,transition:"all 0.15s",width:full?"100%":"auto",borderRadius:6
     }}>{children}</button>
   );
 }
@@ -1448,6 +1450,9 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [detail,setDetail]=useState(null);
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
   const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | "partial"
+  const [isSubmitting,setIsSubmitting]=useState(false); // POST /receipts in flight — blocks double-submit
+  const [addError,setAddError]=useState("");            // red banner above the submit button
+  const [dupId,setDupId]=useState(null);                // on 409: id of the receipt that already exists
   // In-flight FNS prefetch keyed by qrText, started the instant the modal
   // captures a QR (before the user taps "Загрузить чек"). By the time the
   // user confirms, the network round-trip is usually already done.
@@ -1611,48 +1616,57 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const resetFilters=()=>{ setDateFrom(defaultFrom); setDateTo(defaultTo); setCats([]); setSelCards([]); setSources([]); setSearch(""); };
 
   async function addR() {
-    const payload={
-      date:form.date, org:form.org, category:form.category,
-      payment:form.payment, amount:Number(form.amount),
-      source:form.source||"manual",
-    };
-    if(form.fn) payload.fn=form.fn;
-    if(form.raw_data) payload.raw_data=form.raw_data;
-    const res=await authFetch(`/api/receipts/`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(payload)
-    });
-    if(res.status===409) {
-      const body=await res.json().catch(()=>null);
-      const existingId=body?.detail?.existing_id;
+    if(isSubmitting) return;                                    // защита от двойного клика
+    if(!form.org||!form.amount){ setAddError("Заполните организацию и сумму"); return; }
+    setIsSubmitting(true);
+    setAddError(""); setDupId(null);
+    try {
+      const payload={
+        date:form.date, org:form.org, category:form.category,
+        payment:form.payment, amount:Number(form.amount),
+        source:form.source||"manual",
+      };
+      if(form.fn) payload.fn=form.fn;
+      if(form.raw_data) payload.raw_data=form.raw_data;
+      const res=await authFetch(`/api/receipts/`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+      if(res.status===409){
+        const body=await res.json().catch(()=>null);
+        setDupId(body?.detail?.existing_id||null); // плашка предложит «Открыть» существующий
+        setAddError("Этот чек уже добавлен");
+        return;
+      }
+      if(!res.ok){ setAddError("Не удалось добавить чек. Попробуйте ещё раз"); return; }
+      const created=await res.json();
+      handleAdd(created);
       setShowAdd(false);
       setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
       setFnsStatus(null);
-      if(existingId) {
-        try {
-          const er=await authFetch(`/api/receipts/${existingId}`);
-          if(er.ok) {
-            const ex=await er.json();
-            handleAdd(ex);
-            alert("Этот чек уже добавлен ранее — открываю существующий");
-            setDetail({...ex,amount:Number(ex.amount)});
-            return;
-          }
-        } catch {}
+      setAddError(""); setDupId(null);
+    } catch {
+      setAddError("Не удалось добавить чек. Проверьте интернет");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  // From the 409 banner: jump to the receipt that already exists.
+  async function openDup() {
+    if(!dupId) return;
+    try {
+      const er=await authFetch(`/api/receipts/${dupId}`);
+      if(er.ok){
+        const ex=await er.json();
+        handleAdd(ex);
+        setShowAdd(false);
+        setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
+        setFnsStatus(null); setAddError(""); setDupId(null);
+        setDetail({...ex,amount:Number(ex.amount)});
       }
-      alert("Этот чек уже добавлен ранее");
-      return;
-    }
-    if(!res.ok) {
-      alert("Не удалось сохранить чек");
-      return;
-    }
-    const created=await res.json();
-    handleAdd(created);
-    setShowAdd(false);
-    setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
-    setFnsStatus(null);
+    } catch { /* network — leave the banner as is */ }
   }
 
   return (
@@ -1731,7 +1745,13 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         onChangePayment={async p=>{const upd=await handleUpdate(detail.id,{payment:p});if(upd) setDetail(upd);}}
       />}
       {showAdd&&(
-        <Modal title="Добавить чек" onClose={()=>{setShowAdd(false);setFnsStatus(null);}} footer={<Btn full onClick={addR} disabled={!form.org||!form.amount}>Добавить чек</Btn>}>
+        <Modal title="Добавить чек" onClose={()=>{setShowAdd(false);setFnsStatus(null);setAddError("");setDupId(null);}} footer={<>
+          {addError&&<div style={{marginBottom:8,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,fontFamily:FONT,fontSize:12,color:"#B91C1C",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+            <span>{addError}</span>
+            {dupId&&<button onClick={openDup} style={{flexShrink:0,border:"none",background:"none",color:"#B91C1C",fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer",textDecoration:"underline",padding:0}}>Открыть</button>}
+          </div>}
+          <Btn full onClick={addR} disabled={!form.org||!form.amount} loading={isSubmitting}>{isSubmitting?"Добавляю…":"Добавить чек"}</Btn>
+        </>}>
           <div style={{paddingTop:12}}>
             {fnsStatus==="loading"&&(
               <div style={{marginBottom:12,padding:"8px 12px",background:"#EEF0F4",border:`1px solid ${C.silver}`,borderRadius:6,fontFamily:FONT,fontSize:11,color:C.mid,display:"flex",alignItems:"center",gap:8}}>
