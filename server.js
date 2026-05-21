@@ -1,14 +1,14 @@
-/* global process */
 // Production static server with SPA history fallback.
-// Railway: set the frontend service Start Command to `npm run start`
-// (Build Command stays `npm run build`). Listens on $PORT.
+// Railway: Start Command = `npm run start`, Build Command = `npm run build`.
+// This service's public domain routes to port 4173 (legacy from vite preview),
+// so we listen there — not on $PORT — to match the existing networking config.
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(__dirname, "dist");
-const port = process.env.PORT || 4173;
+const port = 4173;
 
 const app = express();
 app.use(express.static(dist));
