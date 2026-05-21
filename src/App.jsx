@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff } from "lucide-react";
+import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff, Mail } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -63,6 +63,19 @@ async function authFetch(path, opts = {}, ms = 15000, _retry = true) {
     try { window.dispatchEvent(new Event("auth:logout")); } catch { /* ignore */ }
   }
   return res;
+}
+
+// Sign out: revoke the refresh token server-side, clear local tokens, drop to login.
+async function logout() {
+  const rt = tokens.refresh;
+  try {
+    await fetch(API + "/api/auth/logout", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({refresh_token: rt}),
+    });
+  } catch { /* offline — clear locally anyway */ }
+  tokens.clear();
+  try { window.dispatchEvent(new Event("auth:logout")); } catch { /* ignore */ }
 }
 
 const C = {
@@ -1996,7 +2009,74 @@ function AccountTab({me, onSave}) {
           </div>
         </div>
       ))}
+      <div style={{marginTop:20,paddingTop:16,borderTop:`1px solid ${C.silver}`}}>
+        <button onClick={logout} style={{width:"100%",padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.cherry,cursor:"pointer"}}>Выйти</button>
+      </div>
       {saved&&<div style={{position:"fixed",left:"50%",bottom:90,transform:"translateX(-50%)",background:"#15803D",color:"#fff",padding:"10px 18px",borderRadius:10,fontFamily:FONT,fontSize:13,fontWeight:600,zIndex:400,boxShadow:"0 6px 16px rgba(0,0,0,0.2)"}}>Сохранено ✓</div>}
+    </div>
+  );
+}
+
+function InviteSheet({onClose}) {
+  const [role,setRole]=useState("employee");
+  const [hours,setHours]=useState(72);
+  const [maxUses,setMaxUses]=useState(1);
+  const [created,setCreated]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [copied,setCopied]=useState(false);
+  const ROLE_CHIPS=[["employee","Сотрудник"],["manager","Руководитель"],["accountant","Бухгалтер"]];
+  const TTL_CHIPS=[[24,"1 день"],[72,"3 дня"],[168,"7 дней"],[720,"30 дней"]];
+  const USE_CHIPS=[[1,"Одноразовая"],[999,"Многоразовая"]];
+  const chip=on=>({padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:on?600:500,background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D"});
+  const lbl={fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.gray,fontFamily:FONT,marginBottom:8};
+  async function create(){
+    if(busy)return; setBusy(true);
+    try{
+      const res=await authFetch("/api/invite/create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,expires_hours:hours,max_uses:maxUses})});
+      const d=await res.json().catch(()=>null);
+      if(res.ok&&d&&d.invite_url) setCreated(d);
+    }catch{ /* ignore */ }
+    finally{ setBusy(false); }
+  }
+  async function copy(){ try{ await navigator.clipboard.writeText(created.invite_url); setCopied(true); setTimeout(()=>setCopied(false),2000); }catch{ /* ignore */ } }
+  async function share(){ try{ if(navigator.share){ await navigator.share({title:"Приглашение в AOCG AI Офис",url:created.invite_url}); } else { copy(); } }catch{ /* cancelled */ } }
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.3)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",maxHeight:"88dvh",paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px"}}><div style={{width:36,height:4,borderRadius:2,background:"#D5D7DD"}}/></div>
+        <div style={{padding:"4px 16px 12px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:600}}>Ссылка-приглашение</span>
+          <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{padding:"16px",overflow:"auto"}}>
+          {!created ? (
+            <>
+              <div style={lbl}>Роль</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+                {ROLE_CHIPS.map(([v,l])=><button key={v} onClick={()=>setRole(v)} style={chip(role===v)}>{l}</button>)}
+              </div>
+              <div style={lbl}>Срок действия</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+                {TTL_CHIPS.map(([v,l])=><button key={v} onClick={()=>setHours(v)} style={chip(hours===v)}>{l}</button>)}
+              </div>
+              <div style={lbl}>Использований</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
+                {USE_CHIPS.map(([v,l])=><button key={v} onClick={()=>setMaxUses(v)} style={chip(maxUses===v)}>{l}</button>)}
+              </div>
+              <Btn full onClick={create} disabled={busy}>{busy?"Создаём…":"Создать"}</Btn>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:13,color:C.gray,fontFamily:FONT,marginBottom:8}}>Ссылка готова — отправьте сотруднику:</div>
+              <div style={{background:C.lightGray,border:`1px solid ${C.silver}`,borderRadius:10,padding:"10px 12px",fontSize:12,color:C.dark,fontFamily:"monospace",wordBreak:"break-all",marginBottom:14}}>{created.invite_url}</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={copy} style={{flex:1,padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,fontFamily:FONT,fontSize:13,fontWeight:600,color:C.dark,cursor:"pointer"}}>{copied?"Скопировано ✓":"📋 Скопировать"}</button>
+                <button onClick={share} style={{flex:1,padding:"12px",background:C.cherry,border:"none",borderRadius:10,fontFamily:FONT,fontSize:13,fontWeight:600,color:"#fff",cursor:"pointer"}}>↗ Поделиться</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2005,6 +2085,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   const [tab,setTab]=useState("Аккаунт");
   const [newCard,setNewCard]=useState("");
   const [showAddEmp,setShowAddEmp]=useState(false);
+  const [showInvite,setShowInvite]=useState(false);
   const [servicesList,setServicesList]=useState([]);
   const me = users.find(u=>u.id===1) || {};
 
@@ -2029,6 +2110,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
           ))}
           {users.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Пока нет сотрудников</div>}
           <div style={{marginTop:14}}><Btn full onClick={()=>setShowAddEmp(true)}>+ Добавить сотрудника</Btn></div>
+          <div style={{marginTop:10}}><Btn full outline onClick={()=>setShowInvite(true)}>+ Создать ссылку-приглашение</Btn></div>
         </div>
       )}
       {tab==="Сервисы"&&(
@@ -2067,6 +2149,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
         </div>
       )}
       {showAddEmp&&<AddEmployeeSheet onClose={()=>setShowAddEmp(false)} onAdd={onAddUser}/>}
+      {showInvite&&<InviteSheet onClose={()=>setShowInvite(false)}/>}
     </div>
   );
 }
@@ -2355,13 +2438,17 @@ function VerifyEmailScreen({onAuthed, navigate}) {
   );
 }
 
-// Placeholders — built out in the next step (registration flow, invite join).
-function RegisterScreen({navigate}) {
+function CheckEmailScreen({email, navigate}) {
   return (
     <AuthShell>
-      <div style={{textAlign:"center",maxWidth:340}}>
-        <AocgLogo width={120}/>
-        <div style={{marginTop:22,fontSize:15,color:"#636B7D",fontFamily:FONT}}>Регистрация — скоро</div>
+      <div style={{maxWidth:340,display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center"}}>
+        <Mail size={48} color={C.cherry} strokeWidth={1.5}/>
+        <h1 style={{fontSize:20,fontWeight:700,color:C.dark,fontFamily:FONT,margin:"16px 0 8px"}}>Проверьте почту</h1>
+        <div style={{fontSize:14,color:"#636B7D",fontFamily:FONT,lineHeight:1.5}}>
+          Мы отправили письмо на <b style={{color:C.dark}}>{email}</b>. Откройте ссылку в письме, чтобы подтвердить аккаунт.
+        </div>
+        <button onClick={()=>{window.location.href="mailto:";}} type="button"
+          style={{marginTop:22,padding:"12px 24px",background:C.cherry,color:"#fff",border:"none",borderRadius:10,fontFamily:FONT,fontSize:14,fontWeight:600,cursor:"pointer"}}>Открыть почту</button>
         <button onClick={()=>navigate("/login")} type="button"
           style={{marginTop:16,background:"none",border:"none",color:C.cherry,fontSize:14,cursor:"pointer",fontFamily:FONT}}>← Ко входу</button>
       </div>
@@ -2369,14 +2456,165 @@ function RegisterScreen({navigate}) {
   );
 }
 
-function JoinScreen({navigate}) {
+function RegisterScreen({onAuthed, navigate}) {
+  const [step,setStep]=useState(1);            // 1: choose type, 2: form
+  const [orgType,setOrgType]=useState(null);   // 'person' | 'company'
+  const [f,setF]=useState({inn:"",org_name:"",phone:"",email:"",password:"",password2:"",first_name:"",last_name:""});
+  const [showPw,setShowPw]=useState(false);
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [sent,setSent]=useState(false);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  async function onInn(v) {
+    set("inn", v);
+    const digits=v.replace(/\D/g,"");
+    if(digits.length===10||digits.length===12){
+      try{
+        const r=await fetchWithTimeout(API+"/api/egrul/"+digits,{},9000);
+        const d=await r.json().catch(()=>null);
+        if(d&&d.name) set("org_name", d.name);
+      }catch{ /* manual entry */ }
+    }
+  }
+
+  async function submit() {
+    setErr("");
+    if(!f.email.trim()||!f.password){ setErr("Заполните email и пароль"); return; }
+    if(f.password.length<8){ setErr("Пароль не менее 8 символов"); return; }
+    if(f.password!==f.password2){ setErr("Пароли не совпадают"); return; }
+    if(!f.first_name.trim()){ setErr("Укажите имя"); return; }
+    setBusy(true);
+    try{
+      const body={
+        phone:f.phone.trim()||null, email:f.email.trim(), password:f.password,
+        first_name:f.first_name.trim(), last_name:f.last_name.trim(), org_type:orgType,
+        org_name:orgType==="company"?f.org_name.trim():null,
+        inn:orgType==="company"?(f.inn.replace(/\D/g,"")||null):null,
+      };
+      const res=await fetchWithTimeout(API+"/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)},15000);
+      const d=await res.json().catch(()=>({}));
+      if(res.ok){
+        if(d.access_token){ onAuthed(d); return; }   // auto-verified (no email provider)
+        setSent(true); return;                         // verification email sent
+      }
+      setErr(typeof d.detail==="string"?d.detail:"Не удалось зарегистрироваться");
+    }catch{ setErr("Нет связи с сервером"); }
+    finally{ setBusy(false); }
+  }
+
+  if(sent) return <CheckEmailScreen email={f.email} navigate={navigate}/>;
+
+  const typeBtn=(label,desc,t)=>(
+    <button onClick={()=>{setOrgType(t);setStep(2);setErr("");}} type="button"
+      style={{width:"100%",textAlign:"left",padding:"14px 16px",border:`1px solid ${orgType===t?C.cherry:C.silver}`,borderRadius:12,background:C.white,cursor:"pointer",marginBottom:10}}>
+      <div style={{fontSize:15,fontWeight:600,color:C.dark,fontFamily:FONT}}>{label}</div>
+      <div style={{fontSize:12,color:"#636B7D",fontFamily:FONT,marginTop:2}}>{desc}</div>
+    </button>
+  );
+
   return (
     <AuthShell>
-      <div style={{textAlign:"center",maxWidth:340}}>
+      <div style={{width:"100%",maxWidth:380,display:"flex",flexDirection:"column",alignItems:"center"}}>
         <AocgLogo width={120}/>
-        <div style={{marginTop:22,fontSize:15,color:"#636B7D",fontFamily:FONT}}>Вход по приглашению — скоро</div>
-        <button onClick={()=>navigate("/login")} type="button"
-          style={{marginTop:16,background:"none",border:"none",color:C.cherry,fontSize:14,cursor:"pointer",fontFamily:FONT}}>← Ко входу</button>
+        {step===1 ? (
+          <div style={{width:"100%",marginTop:22}}>
+            <div style={{fontSize:16,fontWeight:600,color:C.dark,fontFamily:FONT,textAlign:"center",marginBottom:18}}>Как будете использовать AI Офис?</div>
+            {typeBtn("Для себя","ИП или физлицо","person")}
+            {typeBtn("Для компании","ООО, АО — с ИНН","company")}
+            <button onClick={()=>navigate("/login")} type="button"
+              style={{marginTop:8,width:"100%",background:"none",border:"none",color:C.cherry,fontFamily:FONT,fontSize:14,cursor:"pointer"}}>Уже есть аккаунт? Войти</button>
+          </div>
+        ) : (
+          <div style={{width:"100%",marginTop:18,display:"flex",flexDirection:"column",gap:10}}>
+            <button onClick={()=>setStep(1)} type="button" style={{alignSelf:"flex-start",background:"none",border:"none",color:"#636B7D",fontFamily:FONT,fontSize:13,cursor:"pointer",padding:0,marginBottom:2}}>← Назад</button>
+            {orgType==="company" && <>
+              <input value={f.inn} onChange={e=>onInn(e.target.value)} inputMode="numeric" placeholder="ИНН компании" style={A_INPUT}/>
+              <input value={f.org_name} onChange={e=>set("org_name",e.target.value)} placeholder="Название компании" style={A_INPUT}/>
+            </>}
+            <input value={f.first_name} onChange={e=>set("first_name",e.target.value)} placeholder="Имя" style={A_INPUT}/>
+            <input value={f.last_name} onChange={e=>set("last_name",e.target.value)} placeholder="Фамилия" style={A_INPUT}/>
+            <input value={f.phone} onChange={e=>set("phone",e.target.value)} inputMode="tel" placeholder="Телефон" style={A_INPUT}/>
+            <input value={f.email} onChange={e=>set("email",e.target.value)} autoCapitalize="none" autoCorrect="off" placeholder="Email" style={A_INPUT}/>
+            <div style={{position:"relative"}}>
+              <input value={f.password} onChange={e=>set("password",e.target.value)} type={showPw?"text":"password"} placeholder="Пароль (от 8 символов)" style={{...A_INPUT,paddingRight:44}}/>
+              <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#636B7D",display:"flex",padding:6}}>{showPw?<EyeOff size={18}/>:<Eye size={18}/>}</button>
+            </div>
+            <input value={f.password2} onChange={e=>set("password2",e.target.value)} type={showPw?"text":"password"} placeholder="Повторите пароль" style={A_INPUT}/>
+            {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT}}>{err}</div>}
+            <button onClick={submit} disabled={busy}
+              style={{marginTop:4,padding:"13px",background:C.cherry,color:"#fff",border:"none",borderRadius:10,fontFamily:FONT,fontSize:15,fontWeight:600,cursor:busy?"default":"pointer",opacity:busy?0.7:1}}>{busy?"Создаём…":"Зарегистрироваться"}</button>
+          </div>
+        )}
+      </div>
+    </AuthShell>
+  );
+}
+
+function JoinScreen({token, onAuthed, navigate}) {
+  const [info,setInfo]=useState(null);     // {is_valid, role, org_name}
+  const [loading,setLoading]=useState(true);
+  const [f,setF]=useState({first_name:"",last_name:"",phone:"",email:"",password:"",password2:""});
+  const [showPw,setShowPw]=useState(false);
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [sent,setSent]=useState(false);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+
+  useEffect(()=>{
+    fetchWithTimeout(API+"/api/invite/validate/"+encodeURIComponent(token),{},12000)
+      .then(async r=>{ setInfo(await r.json().catch(()=>null)); })
+      .catch(()=>setInfo(null))
+      .finally(()=>setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  async function submit() {
+    setErr("");
+    if(!f.email.trim()||!f.password){ setErr("Заполните email и пароль"); return; }
+    if(f.password.length<8){ setErr("Пароль не менее 8 символов"); return; }
+    if(f.password!==f.password2){ setErr("Пароли не совпадают"); return; }
+    if(!f.first_name.trim()){ setErr("Укажите имя"); return; }
+    setBusy(true);
+    try{
+      const body={ token, phone:f.phone.trim()||null, email:f.email.trim(), password:f.password,
+        first_name:f.first_name.trim(), last_name:f.last_name.trim() };
+      const res=await fetchWithTimeout(API+"/api/auth/register-by-invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)},15000);
+      const d=await res.json().catch(()=>({}));
+      if(res.ok){ if(d.access_token){ onAuthed(d); return; } setSent(true); return; }
+      setErr(typeof d.detail==="string"?d.detail:"Не удалось присоединиться");
+    }catch{ setErr("Нет связи с сервером"); }
+    finally{ setBusy(false); }
+  }
+
+  if(loading) return <AuthShell><div style={{textAlign:"center"}}><AocgLogo width={120}/><div style={{marginTop:22,fontSize:14,color:"#636B7D",fontFamily:FONT}}>Проверяем приглашение…</div></div></AuthShell>;
+  if(!info||!info.is_valid) return (
+    <AuthShell><div style={{textAlign:"center",maxWidth:340}}><AocgLogo width={120}/>
+      <div style={{marginTop:22,fontSize:15,color:C.dark,fontFamily:FONT}}>Ссылка недействительна или истекла</div>
+      <button onClick={()=>navigate("/login")} type="button" style={{marginTop:16,background:"none",border:"none",color:C.cherry,fontSize:14,cursor:"pointer",fontFamily:FONT}}>← Ко входу</button>
+    </div></AuthShell>
+  );
+  if(sent) return <CheckEmailScreen email={f.email} navigate={navigate}/>;
+
+  return (
+    <AuthShell>
+      <div style={{width:"100%",maxWidth:380,display:"flex",flexDirection:"column",alignItems:"center"}}>
+        <AocgLogo width={120}/>
+        <div style={{fontSize:16,fontWeight:600,color:C.dark,fontFamily:FONT,marginTop:18,textAlign:"center"}}>Присоединиться к «{info.org_name}»</div>
+        <div style={{fontSize:13,color:"#636B7D",fontFamily:FONT,marginBottom:18}}>Роль: {roleLabel(info.role)}</div>
+        <div style={{width:"100%",display:"flex",flexDirection:"column",gap:10}}>
+          <input value={f.first_name} onChange={e=>set("first_name",e.target.value)} placeholder="Имя" style={A_INPUT}/>
+          <input value={f.last_name} onChange={e=>set("last_name",e.target.value)} placeholder="Фамилия" style={A_INPUT}/>
+          <input value={f.phone} onChange={e=>set("phone",e.target.value)} inputMode="tel" placeholder="Телефон" style={A_INPUT}/>
+          <input value={f.email} onChange={e=>set("email",e.target.value)} autoCapitalize="none" autoCorrect="off" placeholder="Email" style={A_INPUT}/>
+          <div style={{position:"relative"}}>
+            <input value={f.password} onChange={e=>set("password",e.target.value)} type={showPw?"text":"password"} placeholder="Пароль (от 8 символов)" style={{...A_INPUT,paddingRight:44}}/>
+            <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#636B7D",display:"flex",padding:6}}>{showPw?<EyeOff size={18}/>:<Eye size={18}/>}</button>
+          </div>
+          <input value={f.password2} onChange={e=>set("password2",e.target.value)} type={showPw?"text":"password"} placeholder="Повторите пароль" style={A_INPUT}/>
+          {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT}}>{err}</div>}
+          <button onClick={submit} disabled={busy} style={{marginTop:4,padding:"13px",background:C.cherry,color:"#fff",border:"none",borderRadius:10,fontFamily:FONT,fontSize:15,fontWeight:600,cursor:busy?"default":"pointer",opacity:busy?0.7:1}}>{busy?"Присоединяем…":"Присоединиться"}</button>
+        </div>
       </div>
     </AuthShell>
   );
