@@ -1039,7 +1039,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
           transform:`translateX(${tx}px)`,transition:dragging.current?"none":"transform 0.2s ease",
           cursor:"pointer",userSelect:"none",touchAction:"pan-y"
         }}>
-        <div style={{width:40,height:40,borderRadius:"50%",background:col.bg,color:col.fg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:16,fontWeight:700,flexShrink:0}}>{orgInitial(r.org)}</div>
+        <div style={{width:38,height:38,borderRadius:"50%",background:col.bg,color:col.fg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:15,fontWeight:700,flexShrink:0}}>{orgInitial(r.org)}</div>
         <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center",gap:4}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{flex:1,minWidth:0,fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{shortOrg(r.org)}</span>
@@ -1340,16 +1340,14 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
   );
 }
 
-function FilterIcon({active,onClick,size=34}) {
-  const stroke=active?C.cherry:C.gray;
+function FilterIcon({active,onClick,size=38}) {
+  const stroke=active?C.cherry:"#636B7D";
   return (
-    <button onClick={onClick} style={{position:"relative",width:size,height:size,border:`1px solid ${active?C.cherry:C.silver}`,background:active?C.cherryL:C.white,cursor:"pointer",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round">
-        <line x1="3" y1="6" x2="9" y2="6"/><circle cx="13" cy="6" r="2.2" fill={C.white}/><line x1="15.5" y1="6" x2="21" y2="6"/>
-        <line x1="3" y1="12" x2="15" y2="12"/><circle cx="18" cy="12" r="2.2" fill={C.white}/><line x1="20.5" y1="12" x2="21" y2="12"/>
-        <line x1="3" y1="18" x2="6" y2="18"/><circle cx="10" cy="18" r="2.2" fill={C.white}/><line x1="12.5" y1="18" x2="21" y2="18"/>
+    <button onClick={onClick} style={{position:"relative",width:size,height:size,border:"none",background:active?C.cherryL:"#EEF0F4",cursor:"pointer",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2 4h12M4 8h8M6 12h4" stroke={stroke} strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
-      {active&&<span style={{position:"absolute",top:-3,right:-3,width:9,height:9,borderRadius:"50%",background:C.cherry,border:`1.5px solid ${C.white}`}}/>}
+      {active&&<span style={{position:"absolute",top:6,right:6,width:7,height:7,borderRadius:"50%",background:C.cherry,border:"1.5px solid #fff"}}/>}
     </button>
   );
 }
@@ -1610,12 +1608,12 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
       {/* TODO: ФНС «Мои чеки онлайн» — включить когда будет готова интеграция
       <TabBar tabs={["Чеки","Онлайн чеки"]} active={tab} onSelect={setTab}/> */}
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px",display:"flex",alignItems:"center",gap:8}}>
-        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",border:`1px solid ${C.silver}`,padding:"8px 12px",gap:8,background:C.lightGray,borderRadius:10}}>
+        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",border:`1px solid #EEF0F4`,padding:"8px 12px",gap:8,background:"#F6F7F9",borderRadius:10}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.grayL} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..." style={{border:"none",outline:"none",flex:1,minWidth:0,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
         </div>
         <PeriodPicker value={activePeriod} onChange={k=>{setActivePeriod(k);setDateFrom(defaultFrom);setDateTo(defaultTo);}}/>
-        <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)} size={44}/>
+        <FilterIcon active={filtersActive} onClick={()=>setShowFilters(true)}/>
       </div>
       <div style={{paddingBottom:80}}>
         {groups.map(([key,group])=>(
@@ -2338,7 +2336,7 @@ export default function App() {
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,flexShrink:0}}>
         <div style={{padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:38,height:38,background:"#ffffff",border:"1px solid #E8E4E0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <div style={{width:38,height:38,background:"#ffffff",border:"1.5px solid #D1D5DB",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <svg width="32" height="7.5" viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M286.511 0C304.22 2.1117e-07 321.53 5.25113 336.254 15.0893C350.978 24.9276 362.454 38.911 369.231 55.2714C376.008 71.6317 377.781 89.6342 374.326 107.002C370.871 124.37 362.344 140.324 349.822 152.846C337.3 165.367 321.347 173.895 303.979 177.349C286.611 180.804 268.608 179.031 252.248 172.254C235.888 165.478 221.904 154.002 212.066 139.278C202.228 124.554 196.977 107.243 196.977 89.5349H230.233C230.233 100.666 233.534 111.546 239.718 120.801C245.902 130.056 254.691 137.269 264.975 141.529C275.258 145.788 286.574 146.903 297.491 144.731C308.408 142.56 318.435 137.2 326.306 129.329C334.177 121.459 339.537 111.431 341.708 100.514C343.88 89.5973 342.765 78.2817 338.506 67.9982C334.246 57.7147 327.033 48.9253 317.778 42.7414C308.523 36.5575 297.642 33.2569 286.511 33.2569V0Z" fill="#161A1D"/>
                 <path d="M483.489 179.07C465.78 179.07 448.47 173.819 433.746 163.98C419.022 154.142 407.546 140.159 400.769 123.798C393.992 107.438 392.219 89.4357 395.674 72.0676C399.129 54.6995 407.656 38.7459 420.178 26.2243C432.7 13.7026 448.653 5.17523 466.021 1.7205C483.389 -1.73421 501.392 0.0388551 517.752 6.81554C534.112 13.5922 548.096 25.0681 557.934 39.7921C567.772 54.516 573.023 71.8266 573.023 89.535L539.767 89.535C539.767 78.4042 536.466 67.5235 530.282 58.2686C524.098 49.0137 515.309 41.8004 505.025 37.5409C494.742 33.2813 483.426 32.1668 472.509 34.3383C461.592 36.5098 451.565 41.8698 443.694 49.7404C435.823 57.611 430.463 67.6388 428.292 78.5557C426.12 89.4725 427.235 100.788 431.494 111.072C435.754 121.355 442.967 130.145 452.222 136.328C461.477 142.512 472.358 145.813 483.489 145.813L483.489 179.07Z" fill="#161A1D"/>
@@ -2348,9 +2346,9 @@ export default function App() {
             </div>
             <div>
               <div style={{lineHeight:1.1}}>
-                <span style={{fontSize:13,fontFamily:FONT,color:C.dark,letterSpacing:"0.08em",fontWeight:700}}>AI Офис</span>
-                <span style={{fontSize:13,fontFamily:FONT,color:C.grayL,letterSpacing:"0.08em",fontWeight:400}}> | </span>
-                <span style={{fontSize:13,fontFamily:FONT,color:C.cherry,letterSpacing:"0.08em",fontWeight:700}}>Чеки</span>
+                <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:500}}>AI Офис</span>
+                <span style={{fontSize:15,fontFamily:FONT,color:C.grayL,fontWeight:400}}> | </span>
+                <span style={{fontSize:15,fontFamily:FONT,color:C.cherry,fontWeight:600}}>Чеки</span>
               </div>
             </div>
           </div>
