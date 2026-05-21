@@ -2019,13 +2019,13 @@ function AccountTab({me, onSave}) {
 
 function InviteSheet({onClose}) {
   const [role,setRole]=useState("employee");
-  const [hours,setHours]=useState(72);
+  const [hours,setHours]=useState(null);   // null = бессрочная (по умолчанию)
   const [maxUses,setMaxUses]=useState(1);
   const [created,setCreated]=useState(null);
   const [busy,setBusy]=useState(false);
   const [copied,setCopied]=useState(false);
   const ROLE_CHIPS=[["employee","Сотрудник"],["manager","Руководитель"],["accountant","Бухгалтер"]];
-  const TTL_CHIPS=[[24,"1 день"],[72,"3 дня"],[168,"7 дней"],[720,"30 дней"]];
+  const TTL_CHIPS=[[24,"1 день"],[168,"7 дней"],[720,"30 дней"],[null,"Бессрочная"]];
   const USE_CHIPS=[[1,"Одноразовая"],[999,"Многоразовая"]];
   const chip=on=>({padding:"6px 12px",border:"none",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:on?600:500,background:on?"#A4161A":"#EEF0F4",color:on?"#fff":"#636B7D"});
   const lbl={fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.gray,fontFamily:FONT,marginBottom:8};
@@ -2057,7 +2057,7 @@ function InviteSheet({onClose}) {
               </div>
               <div style={lbl}>Срок действия</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
-                {TTL_CHIPS.map(([v,l])=><button key={v} onClick={()=>setHours(v)} style={chip(hours===v)}>{l}</button>)}
+                {TTL_CHIPS.map(([v,l])=><button key={l} onClick={()=>setHours(v)} style={chip(hours===v)}>{l}</button>)}
               </div>
               <div style={lbl}>Использований</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
@@ -2087,10 +2087,16 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   const [showAddEmp,setShowAddEmp]=useState(false);
   const [showInvite,setShowInvite]=useState(false);
   const [servicesList,setServicesList]=useState([]);
+  const [invites,setInvites]=useState([]);
   const me = users.find(u=>u.id===1) || {};
+
+  const loadInvites=()=>authFetch(`/api/invite/list`).then(r=>r.json()).then(d=>setInvites(Array.isArray(d)?d:[])).catch(()=>{});
+  const delInvite=(token)=>authFetch(`/api/invite/${token}`,{method:"DELETE"}).then(()=>loadInvites()).catch(()=>{});
 
   useEffect(()=>{
     authFetch(`/api/services/`).then(r=>r.json()).then(d=>setServicesList(Array.isArray(d)?d:[])).catch(()=>{});
+    loadInvites();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   return (
@@ -2111,6 +2117,20 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
           {users.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Пока нет сотрудников</div>}
           <div style={{marginTop:14}}><Btn full onClick={()=>setShowAddEmp(true)}>+ Добавить сотрудника</Btn></div>
           <div style={{marginTop:10}}><Btn full outline onClick={()=>setShowInvite(true)}>+ Создать ссылку-приглашение</Btn></div>
+          {invites.length>0 && (
+            <div style={{marginTop:18}}>
+              <SectionHead title="Ссылки-приглашения"/>
+              {invites.map(inv=>(
+                <div key={inv.token} style={{display:"flex",alignItems:"center",gap:10,background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"10px 12px",marginBottom:6}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,color:C.dark,fontFamily:FONT,fontWeight:600}}>{roleLabel(inv.role)}</div>
+                    <div style={{fontSize:11,color:C.gray,fontFamily:FONT}}>{inv.expires_at?`до ${new Date(inv.expires_at).toLocaleDateString("ru-RU")}`:"Бессрочная"} · {inv.max_uses>1?"многоразовая":"одноразовая"}</div>
+                  </div>
+                  <button onClick={()=>delInvite(inv.token)} title="Удалить" style={{border:"none",background:"none",color:C.cherryM,fontSize:16,cursor:"pointer",flexShrink:0,padding:4}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {tab==="Сервисы"&&(
@@ -2149,7 +2169,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
         </div>
       )}
       {showAddEmp&&<AddEmployeeSheet onClose={()=>setShowAddEmp(false)} onAdd={onAddUser}/>}
-      {showInvite&&<InviteSheet onClose={()=>setShowInvite(false)}/>}
+      {showInvite&&<InviteSheet onClose={()=>{setShowInvite(false);loadInvites();}}/>}
     </div>
   );
 }
