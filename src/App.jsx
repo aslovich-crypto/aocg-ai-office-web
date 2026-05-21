@@ -390,7 +390,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const [qrText, setQrText] = useState("");
   const [qrParsed, setQrParsed] = useState(null);
   const [flashGreen, setFlashGreen] = useState(false); // 0.5s green pulse on capture
-  const [sheetOpen, setSheetOpen] = useState(false);   // photo-source bottom sheet
   const [previewFile, setPreviewFile] = useState(null);// chosen photo/file awaiting confirmation
   const [previewUrl, setPreviewUrl] = useState(null);  // object URL for the image preview (null for PDFs)
   const [previewBusy, setPreviewBusy] = useState(false); // OCR in flight on the preview screen
@@ -399,8 +398,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const cameraOn = useRef(false);
   const ocrFileRef = useRef(null);
   const cameraInputRef = useRef(null);   // <input capture="environment"> — take a photo
-  const galleryInputRef = useRef(null);  // <input> — pick from gallery
-  const filesInputRef = useRef(null);    // <input accept includes pdf> — pick from Files/iCloud
+  const galleryInputRef = useRef(null);  // <input> — pick from gallery (native picker, no capture)
   const previewUrlRef = useRef(null);    // tracks the live object URL so we can revoke it
   const mountedRef = useRef(true);
   const autoTimerRef = useRef(null);   // the 1s "captured → auto-load" timer
@@ -569,18 +567,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     setPreviewUrl(null); setPreviewFile(null); setPreviewNotice(""); setPreviewBusy(false);
   }
 
-  function openSheet(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    setNotice("");
-    cameraOn.current = false; // gate background scanning while the sheet / preview is up
-    setSheetOpen(true);
-  }
-  function closeSheet(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    setSheetOpen(false);
-    if (phase === "scanning") cameraOn.current = true;
-  }
-
   // A source input fired. Stash the file and show the preview screen; QR
   // decode / OCR are deferred to "Использовать". Images get an object URL;
   // PDFs fall back to a filename placeholder (no inline render).
@@ -594,7 +580,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     setPreviewFile(file);
     setPreviewNotice("");
     setPreviewBusy(false);
-    setSheetOpen(false);
     setPhase("preview");
   }
 
@@ -604,12 +589,11 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     setPhase("scanning");
     cameraOn.current = true;
   }
-  function previewRetake(e) { // Переснять — reopen the source sheet
+  function previewRetake(e) { // Переснять — drop the photo, back to the scanning screen (source buttons + live camera)
     if (e && e.preventDefault) e.preventDefault();
     clearPreview();
     setPhase("scanning");
-    cameraOn.current = false;
-    setSheetOpen(true);
+    cameraOn.current = true;
   }
 
   // "Использовать": QR first (jsQR/Canvas) → standard two-phase FNS flow;
@@ -703,7 +687,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
           same file still fires onChange. */}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e => { pickFile(e.target.files[0]); e.target.value = ""; }}/>
       <input ref={galleryInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e => { pickFile(e.target.files[0]); e.target.value = ""; }}/>
-      <input ref={filesInputRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={e => { pickFile(e.target.files[0]); e.target.value = ""; }}/>
       <input ref={ocrFileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e => { handleOcrPick(e.target.files[0]); e.target.value = ""; }}/>
 
       {/* Bottom pill — white, rounded top, contents swap per phase. Hidden in
@@ -719,12 +702,12 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
             style={{width:"100%",height:52,borderRadius:12,background:"#fff",border:"1px solid #EEF0F4",display:"flex",alignItems:"center",justifyContent:"center",gap:10,fontFamily:FONT,fontSize:15,fontWeight:500,color:"#111318",cursor:"pointer",transition:"opacity 100ms"}}>
             <Camera size={20} color="#111318"/> Сделать фото
           </button>
-          <button type="button" onClick={openSheet}
+          <button type="button" onClick={(e) => { e.preventDefault(); setNotice(""); galleryInputRef.current?.click(); }}
             onPointerDown={e => { e.currentTarget.style.opacity = "0.7"; }}
             onPointerUp={e => { e.currentTarget.style.opacity = "1"; }}
             onPointerLeave={e => { e.currentTarget.style.opacity = "1"; }}
             style={{width:"100%",height:52,borderRadius:12,background:"#fff",border:"1px solid #EEF0F4",display:"flex",alignItems:"center",justifyContent:"center",gap:10,fontFamily:FONT,fontSize:15,fontWeight:400,color:"#636B7D",cursor:"pointer",transition:"opacity 100ms"}}>
-            <ImageUp size={20} color="#636B7D"/> Загрузить
+            <ImageUp size={20} color="#636B7D"/> Загрузить из галереи
           </button>
           <button type="button" onClick={(e) => { e.preventDefault(); onManual(); }}
             style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"none",border:"none",cursor:"pointer",padding:"4px",fontFamily:FONT,fontSize:13,color:"#9CA3AF"}}>
@@ -793,31 +776,6 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
           </button>
         )}
       </div>
-      )}
-
-      {/* Photo-source bottom sheet — gallery / files / cancel ("Сделать фото"
-          is now a dedicated button in the scanning panel). */}
-      {sheetOpen && (
-        <div onClick={closeSheet} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.5)",zIndex:20,display:"flex",alignItems:"flex-end"}}>
-          <div onClick={e => e.stopPropagation()}
-            style={{width:"100%",background:C.white,borderRadius:"16px 16px 0 0",padding:"8px 12px calc(12px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column"}}>
-            <div style={{alignSelf:"center",width:40,height:4,borderRadius:2,background:C.silver,margin:"6px 0 8px"}}/>
-            {[
-              {icon:"🖼", label:"Выбрать из галереи", ref:galleryInputRef},
-              {icon:"📄", label:"Выбрать из файлов",  ref:filesInputRef},
-            ].map(opt => (
-              <button key={opt.label} type="button"
-                onClick={(e) => { e.preventDefault(); opt.ref.current?.click(); }}
-                style={{display:"flex",alignItems:"center",gap:14,padding:"15px 8px",background:"none",border:"none",borderBottom:`1px solid ${C.lightGray}`,fontFamily:FONT,fontSize:15,color:C.dark,cursor:"pointer",textAlign:"left",width:"100%"}}>
-                <span style={{fontSize:20,width:24,textAlign:"center"}}>{opt.icon}</span>{opt.label}
-              </button>
-            ))}
-            <button type="button" onClick={closeSheet}
-              style={{display:"flex",alignItems:"center",gap:14,padding:"15px 8px",marginTop:4,background:"none",border:"none",fontFamily:FONT,fontSize:15,color:C.gray,cursor:"pointer",textAlign:"left",width:"100%"}}>
-              <span style={{fontSize:20,width:24,textAlign:"center"}}>✕</span>Отмена
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Preview screen — chosen photo full-screen, confirm or retake */}
