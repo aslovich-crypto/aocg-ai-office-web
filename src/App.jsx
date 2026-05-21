@@ -237,14 +237,6 @@ function RuleInput({label,value,onChange,type="text",placeholder}) {
   );
 }
 
-function Toggle({value,onChange}) {
-  return (
-    <div onClick={()=>onChange(!value)} style={{width:34,height:18,background:value?C.cherry:C.silver,position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0,borderRadius:6}}>
-      <div style={{position:"absolute",top:2,left:value?16:2,width:12,height:12,background:C.white,boxShadow:"0 1px 3px rgba(0,0,0,0.15)",transition:"left 0.2s",borderRadius:4}}/>
-    </div>
-  );
-}
-
 function TabBar({tabs,active,onSelect}) {
   return (
     <div style={{display:"flex",borderBottom:`1px solid ${C.silver}`,background:C.white,overflowX:"auto"}}>
@@ -1971,49 +1963,171 @@ function AddEmployeeSheet({onClose,onAdd}) {
   );
 }
 
-const ACC_FIELDS=[["Имя","first_name"],["Отчество","patronymic"],["Фамилия","last_name"],["Email","email"],["ИНН","inn"],["Регион","region"],["Табельный №","employee_id"]];
+// +7 999 123 45 67 mask
+function formatPhone(v) {
+  let d = (v || "").replace(/\D/g, "");
+  if (d.startsWith("8")) d = "7" + d.slice(1);
+  if (d && !d.startsWith("7")) d = "7" + d;
+  d = d.slice(0, 11);
+  if (!d) return "";   // empty input → empty (placeholder shows)
+  let out = "+7";
+  if (d.length > 1) out += " " + d.slice(1, 4);
+  if (d.length >= 5) out += " " + d.slice(4, 7);
+  if (d.length >= 8) out += " " + d.slice(7, 9);
+  if (d.length >= 10) out += " " + d.slice(9, 11);
+  return out;
+}
 
-// Account tab. Mounted with key={me.id} so loading the current user resets the
-// form via the useState initializer — no syncing effect needed.
-function AccountTab({me, onSave}) {
-  const [acc,setAcc]=useState({
-    first_name:me.first_name||"", patronymic:me.patronymic||"", last_name:me.last_name||"",
-    email:me.email||"", inn:me.inn||"", region:me.region||"", employee_id:me.employee_id||"",
-  });
-  const [roles,setRoles]=useState({admin:true,employee:true,manager:true,accountant:true});
-  const [saved,setSaved]=useState(false);
-  async function save(){
-    const u=await onSave(acc);
-    if(u){ setSaved(true); setTimeout(()=>setSaved(false),2000); }
+function ChangePasswordModal({onClose}) {
+  const [oldPw,setOldPw]=useState("");
+  const [newPw,setNewPw]=useState("");
+  const [rep,setRep]=useState("");
+  const [show,setShow]=useState(false);
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [done,setDone]=useState(false);
+  const inp={width:"100%",padding:"11px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:14,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box",outline:"none"};
+  async function submit(){
+    setErr("");
+    if(newPw.length<8){ setErr("Новый пароль не менее 8 символов"); return; }
+    if(newPw!==rep){ setErr("Пароли не совпадают"); return; }
+    if(busy) return; setBusy(true);
+    try{
+      const res=await authFetch("/api/users/me/change-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({old_password:oldPw,new_password:newPw})});
+      const d=await res.json().catch(()=>({}));
+      if(res.ok){ setDone(true); setTimeout(onClose,1200); return; }
+      setErr(typeof d.detail==="string"?d.detail:"Не удалось изменить пароль");
+    }catch{ setErr("Нет связи с сервером"); }
+    finally{ setBusy(false); }
   }
   return (
-    <div style={{padding:"12px 16px 80px"}}>
-      <SectionHead title="Личные данные"/>
-      {ACC_FIELDS.map(([label,key],i)=>(
-        <div key={key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 12px",borderBottom:`1px solid ${C.silver}`,background:i%2===0?C.white:C.lightGray}}>
-          <span style={{fontSize:11,color:C.gray,fontFamily:FONT,minWidth:110,flexShrink:0}}>{label}</span>
-          <input value={acc[key]} onChange={e=>setAcc(p=>({...p,[key]:e.target.value}))} placeholder="—"
-            style={{flex:1,textAlign:"right",border:"none",background:"transparent",fontSize:13,color:C.dark,fontFamily:FONT,outline:"none",padding:"7px 0"}}/>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.3)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px"}}><div style={{width:36,height:4,borderRadius:2,background:"#D5D7DD"}}/></div>
+        <div style={{padding:"4px 16px 12px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:600}}>Изменить пароль</span>
+          <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
         </div>
-      ))}
-      <div style={{marginTop:14}}><Btn full onClick={save}>Сохранить</Btn></div>
-
-      <SectionHead title="Права доступа"/>
-      {ROLES.map(r=>(
-        <div key={r.id} style={{background:C.white,border:`1px solid ${C.silver}`,marginBottom:6,borderLeft:roles[r.id]?`3px solid ${C.cherry}`:`3px solid ${C.silver}`,borderRadius:6}}>
-          <div style={{padding:"11px 14px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-              <span style={{fontFamily:FONT,fontSize:13,color:roles[r.id]?C.dark:C.gray,fontWeight:700}}>{r.label}</span>
-              <Toggle value={roles[r.id]} onChange={v=>setRoles(p=>({...p,[r.id]:v}))}/>
-            </div>
-            <div style={{fontFamily:FONT,fontSize:11,color:C.gray,lineHeight:1.5}}>{r.desc}</div>
-          </div>
+        <div style={{padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
+          {done ? (
+            <div style={{textAlign:"center",padding:"16px 0",fontSize:15,color:"#15803D",fontFamily:FONT,fontWeight:600}}>Пароль изменён ✓</div>
+          ) : (<>
+            <input style={inp} type={show?"text":"password"} placeholder="Текущий пароль" value={oldPw} onChange={e=>setOldPw(e.target.value)}/>
+            <input style={inp} type={show?"text":"password"} placeholder="Новый пароль (от 8 символов)" value={newPw} onChange={e=>setNewPw(e.target.value)}/>
+            <input style={inp} type={show?"text":"password"} placeholder="Повторите новый пароль" value={rep} onChange={e=>setRep(e.target.value)}/>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.gray,fontFamily:FONT,cursor:"pointer"}}>
+              <input type="checkbox" checked={show} onChange={e=>setShow(e.target.checked)} style={{accentColor:C.cherry}}/> Показать пароли
+            </label>
+            {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT}}>{err}</div>}
+            <Btn full onClick={submit} disabled={busy}>{busy?"Сохраняем…":"Сохранить пароль"}</Btn>
+          </>)}
         </div>
-      ))}
-      <div style={{marginTop:20,paddingTop:16,borderTop:`1px solid ${C.silver}`}}>
-        <button onClick={logout} style={{width:"100%",padding:"12px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:10,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.cherry,cursor:"pointer"}}>Выйти</button>
       </div>
+    </div>
+  );
+}
+
+function AccountTab() {
+  const [me,setMe]=useState(null);
+  const [acc,setAcc]=useState({first_name:"",last_name:"",phone:"",employee_number:""});
+  const [saved,setSaved]=useState(false);
+  const [err,setErr]=useState("");
+  const [showPwModal,setShowPwModal]=useState(false);
+
+  // Phone is stored E.164 ("+79991234567") in the DB; mask it for display.
+  const fromApi=(d)=>({first_name:d.first_name||"",last_name:d.last_name||"",phone:formatPhone(d.phone||""),employee_number:d.employee_number||""});
+
+  useEffect(()=>{
+    authFetch("/api/users/me").then(r=>r.json()).then(d=>{
+      if(d&&d.id){ setMe(d); setAcc(fromApi(d)); }
+    }).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  const set=(k,v)=>setAcc(p=>({...p,[k]:v}));
+  async function save(){
+    const fn=acc.first_name.trim(), ln=acc.last_name.trim();
+    const digits=acc.phone.replace(/\D/g,"");           // "79991234567" | ""
+    if(!fn){ setErr("Укажите имя"); return; }
+    if(!ln){ setErr("Укажите фамилию"); return; }
+    if(digits && digits.length!==11){ setErr("Телефон: 11 цифр или оставьте пустым"); return; }
+    setErr("");
+    const payload={ first_name:fn, last_name:ln, phone:digits?("+"+digits):"", employee_number:acc.employee_number.trim() };
+    const res=await authFetch("/api/users/me",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    if(res.ok){
+      const d=await res.json().catch(()=>null);
+      if(d&&d.id){ setMe(d); setAcc(fromApi(d)); }
+      setSaved(true); setTimeout(()=>setSaved(false),2000);
+    } else { setErr("Не удалось сохранить"); }
+  }
+  const oauthSoon=()=>alert("Скоро");
+
+  if(!me) return <div style={{padding:"40px 20px",textAlign:"center",color:C.grayL,fontFamily:FONT,fontSize:13}}>Загрузка…</div>;
+
+  const role = me.role || "employee";
+  const roleDesc = (ROLES.find(r=>r.id===role)||{}).desc || "";
+  const consent = me.consent;
+  const rowStyle=(i)=>({display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 12px",borderBottom:`1px solid ${C.silver}`,background:i%2===0?C.white:C.lightGray});
+  const lbl={fontSize:11,color:C.gray,fontFamily:FONT,minWidth:110,flexShrink:0};
+  const fin={flex:1,textAlign:"right",border:"none",background:"transparent",fontSize:13,color:C.dark,fontFamily:FONT,outline:"none",padding:"7px 0"};
+  const PROVIDERS=[["yandex","Я","Яндекс","#FC3F1D","#fff"],["google","G","Google","#fff","#4285F4"],["mailru","@","Mail.ru","#005FF9","#fff"]];
+  const linked = me.linked_providers || [];
+
+  return (
+    <div style={{padding:"12px 16px calc(env(safe-area-inset-bottom) + 80px)"}}>
+      <SectionHead title="Личные данные"/>
+      <div style={rowStyle(0)}><span style={lbl}>Имя</span><input value={acc.first_name} onChange={e=>set("first_name",e.target.value)} placeholder="—" style={fin}/></div>
+      <div style={rowStyle(1)}><span style={lbl}>Фамилия</span><input value={acc.last_name} onChange={e=>set("last_name",e.target.value)} placeholder="—" style={fin}/></div>
+      <div style={rowStyle(0)}>
+        <span style={lbl}>Email</span>
+        <span style={{flex:1,minWidth:0,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,fontSize:13,color:C.gray,fontFamily:FONT}}>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{me.email||"—"}</span>
+          {me.is_email_verified && <span title="подтверждён" style={{color:"#15803D",fontSize:12,flexShrink:0}}>✓</span>}
+        </span>
+      </div>
+      <div style={rowStyle(1)}><span style={lbl}>Телефон</span><input value={acc.phone} onChange={e=>set("phone",formatPhone(e.target.value))} inputMode="tel" placeholder="+7 ___ ___ __ __" style={{...fin,fontVariantNumeric:"tabular-nums"}}/></div>
+      <div style={rowStyle(0)}><span style={lbl}>Табельный №</span><input value={acc.employee_number} onChange={e=>set("employee_number",e.target.value)} placeholder="—" style={{...fin,fontVariantNumeric:"tabular-nums"}}/></div>
+      {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT,marginTop:10}}>{err}</div>}
+      <div style={{marginTop:err?8:14}}><Btn full onClick={save}>Сохранить</Btn></div>
+
+      <SectionHead title="Ваша роль"/>
+      <div style={{background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,borderLeft:`3px solid ${C.cherry}`,padding:"12px 14px"}}>
+        <span style={{display:"inline-block",background:C.cherryL,color:C.cherry,fontFamily:FONT,fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20}}>{roleLabel(role)}</span>
+        <div style={{fontFamily:FONT,fontSize:12,color:C.gray,lineHeight:1.5,marginTop:8}}>{roleDesc}</div>
+      </div>
+      <div style={{fontSize:11,color:C.grayL,fontFamily:FONT,marginTop:6}}>Роль изменяется Администратором на вкладке «Пользователи»</div>
+
+      <SectionHead title="Безопасность"/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+        <span style={{fontFamily:FONT,fontSize:14,color:C.dark}}>Пароль ••••••••</span>
+        <button onClick={()=>setShowPwModal(true)} style={{border:`1px solid ${C.silver}`,background:C.white,borderRadius:8,padding:"7px 14px",fontFamily:FONT,fontSize:13,color:C.cherry,fontWeight:600,cursor:"pointer"}}>Изменить</button>
+      </div>
+      <div style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.gray,fontFamily:FONT,marginBottom:8}}>Привязанные аккаунты</div>
+      {PROVIDERS.map(([key,icon,name,bg,fg])=>{
+        const isLinked=linked.includes(key);
+        return (
+          <div key={key} style={{display:"flex",alignItems:"center",gap:10,background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+            <span style={{width:30,height:30,borderRadius:"50%",background:bg,color:fg,border:bg==="#fff"?`1px solid ${C.silver}`:"none",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:14,fontWeight:700,flexShrink:0}}>{icon}</span>
+            <span style={{flex:1,fontFamily:FONT,fontSize:14,color:C.dark}}>{name}</span>
+            <button onClick={oauthSoon} style={{border:`1px solid ${C.silver}`,background:C.white,borderRadius:8,padding:"6px 12px",fontFamily:FONT,fontSize:13,color:isLinked?C.cherry:C.gray,cursor:"pointer"}}>{isLinked?"Отвязать":"Привязать"}</button>
+          </div>
+        );
+      })}
+
+      {consent && (<>
+        <SectionHead title="Согласие на обработку данных"/>
+        <div style={{background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"12px 14px"}}>
+          <div style={{fontFamily:FONT,fontSize:13,color:C.dark,lineHeight:1.5}}>Согласие дано {consent.given_at?new Date(consent.given_at).toLocaleDateString("ru-RU"):"—"} · Политика конфиденциальности v{consent.policy_version}</div>
+          <button onClick={()=>alert(CONSENT_TEXT)} style={{marginTop:8,background:"none",border:"none",color:C.cherry,fontFamily:FONT,fontSize:13,cursor:"pointer",padding:0}}>Посмотреть текст согласия</button>
+        </div>
+      </>)}
+
+      <div style={{marginTop:24}}>
+        <button onClick={logout} style={{width:"100%",padding:"12px",background:C.white,border:`1.5px solid ${C.cherry}`,borderRadius:10,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.cherry,cursor:"pointer"}}>Выйти из аккаунта</button>
+      </div>
+
       {saved&&<div style={{position:"fixed",left:"50%",bottom:90,transform:"translateX(-50%)",background:"#15803D",color:"#fff",padding:"10px 18px",borderRadius:10,fontFamily:FONT,fontSize:13,fontWeight:600,zIndex:400,boxShadow:"0 6px 16px rgba(0,0,0,0.2)"}}>Сохранено ✓</div>}
+      {showPwModal&&<ChangePasswordModal onClose={()=>setShowPwModal(false)}/>}
     </div>
   );
 }
@@ -2082,7 +2196,7 @@ function InviteSheet({onClose}) {
   );
 }
 
-function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard,users,onAddUser,onUpdateUser,onDeleteUser}) {
+function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard,users,onAddUser,onDeleteUser}) {
   const [tab,setTab]=useState("Аккаунт");
   const [newCard,setNewCard]=useState("");
   const [showAddEmp,setShowAddEmp]=useState(false);
@@ -2090,7 +2204,6 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   const [servicesList,setServicesList]=useState([]);
   const [invites,setInvites]=useState([]);
   const [copiedToken,setCopiedToken]=useState(null);
-  const me = users.find(u=>u.id===1) || {};
 
   const loadInvites=()=>authFetch(`/api/invite/list`).then(r=>r.json()).then(d=>setInvites(Array.isArray(d)?d:[])).catch(()=>{});
   const delInvite=(token)=>authFetch(`/api/invite/${token}`,{method:"DELETE"}).then(()=>loadInvites()).catch(()=>{});
@@ -2105,7 +2218,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   return (
     <div>
       <TabBar tabs={["Аккаунт","Лицензии","Пользователи","Сервисы","Общие"]} active={tab} onSelect={setTab}/>
-      {tab==="Аккаунт"&&<AccountTab key={me.id||"new"} me={me} onSave={p=>onUpdateUser(1,p)}/>}
+      {tab==="Аккаунт"&&<AccountTab/>}
       {tab==="Лицензии"&&(
         <div style={{padding:"60px 24px",textAlign:"center"}}>
           <div style={{fontFamily:FONT,fontSize:13,color:C.grayL}}>Управление лицензиями — скоро</div>
