@@ -1871,6 +1871,7 @@ function OtchetyPage({receipts}) {
 // ─── SETTINGS HELPERS & PARTS ─────────────────────────────
 const ROLE_LABEL = Object.fromEntries(ROLES.map(r=>[r.id,r.label]));
 const roleLabel = id => ROLE_LABEL[id] || "Сотрудник";
+const ROLE_ICON = {admin:"👑", employee:"👤", manager:"👥", accountant:"🧮"};
 const userInitials = u => (`${(u.first_name||"")[0]||""}${(u.last_name||"")[0]||""}`).toUpperCase() || "?";
 
 const SVC_ICON = {fns:"🧾", alfabank:"🏦", anthropic:"🤖"};
@@ -2088,10 +2089,12 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   const [showInvite,setShowInvite]=useState(false);
   const [servicesList,setServicesList]=useState([]);
   const [invites,setInvites]=useState([]);
+  const [copiedToken,setCopiedToken]=useState(null);
   const me = users.find(u=>u.id===1) || {};
 
   const loadInvites=()=>authFetch(`/api/invite/list`).then(r=>r.json()).then(d=>setInvites(Array.isArray(d)?d:[])).catch(()=>{});
   const delInvite=(token)=>authFetch(`/api/invite/${token}`,{method:"DELETE"}).then(()=>loadInvites()).catch(()=>{});
+  const copyInvite=async(inv)=>{ try{ await navigator.clipboard.writeText(inv.invite_url); setCopiedToken(inv.token); setTimeout(()=>setCopiedToken(null),1500); }catch{ /* ignore */ } };
 
   useEffect(()=>{
     authFetch(`/api/services/`).then(r=>r.json()).then(d=>setServicesList(Array.isArray(d)?d:[])).catch(()=>{});
@@ -2115,22 +2118,23 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
             <SwipeableUserRow key={u.id} user={u} deletable={u.id!==1} onDelete={()=>onDeleteUser(u.id)}/>
           ))}
           {users.length===0&&<div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"10px 0"}}>Пока нет сотрудников</div>}
+          <div style={{marginTop:18}}>
+            <SectionHead title="Ссылки-приглашения"/>
+            {invites.length===0 && <div style={{fontSize:12,color:C.grayL,fontFamily:FONT,padding:"4px 2px"}}>Нет активных ссылок</div>}
+            {invites.map(inv=>(
+              <div key={inv.token} style={{display:"flex",alignItems:"center",gap:8,background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"10px 12px",marginBottom:6}}>
+                <span style={{fontSize:16,flexShrink:0}}>{ROLE_ICON[inv.role]||"👤"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,color:C.dark,fontFamily:FONT,fontWeight:600}}>{roleLabel(inv.role)}</div>
+                  <div style={{fontSize:11,color:C.gray,fontFamily:FONT}}>{inv.expires_at?new Date(inv.expires_at).toLocaleDateString("ru-RU"):"Бессрочная"} · {inv.uses_count}/{inv.max_uses>=999?"∞":inv.max_uses} исп.</div>
+                </div>
+                <button onClick={()=>copyInvite(inv)} title="Скопировать" style={{border:"none",background:"none",fontSize:15,cursor:"pointer",flexShrink:0,padding:4,color:copiedToken===inv.token?"#15803D":C.gray}}>{copiedToken===inv.token?"✓":"📋"}</button>
+                <button onClick={()=>delInvite(inv.token)} title="Удалить" style={{border:"none",background:"none",color:C.cherryM,fontSize:16,cursor:"pointer",flexShrink:0,padding:4}}>✕</button>
+              </div>
+            ))}
+          </div>
           <div style={{marginTop:14}}><Btn full onClick={()=>setShowAddEmp(true)}>+ Добавить сотрудника</Btn></div>
           <div style={{marginTop:10}}><Btn full outline onClick={()=>setShowInvite(true)}>+ Создать ссылку-приглашение</Btn></div>
-          {invites.length>0 && (
-            <div style={{marginTop:18}}>
-              <SectionHead title="Ссылки-приглашения"/>
-              {invites.map(inv=>(
-                <div key={inv.token} style={{display:"flex",alignItems:"center",gap:10,background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,padding:"10px 12px",marginBottom:6}}>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,color:C.dark,fontFamily:FONT,fontWeight:600}}>{roleLabel(inv.role)}</div>
-                    <div style={{fontSize:11,color:C.gray,fontFamily:FONT}}>{inv.expires_at?`до ${new Date(inv.expires_at).toLocaleDateString("ru-RU")}`:"Бессрочная"} · {inv.max_uses>1?"многоразовая":"одноразовая"}</div>
-                  </div>
-                  <button onClick={()=>delInvite(inv.token)} title="Удалить" style={{border:"none",background:"none",color:C.cherryM,fontSize:16,cursor:"pointer",flexShrink:0,padding:4}}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
       {tab==="Сервисы"&&(
