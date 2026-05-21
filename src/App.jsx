@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText } from "lucide-react";
+import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -16,6 +16,53 @@ function fetchWithTimeout(url, opts = {}, ms = 10000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   return fetch(url, {...opts, signal: ctrl.signal}).finally(() => clearTimeout(timer));
+}
+
+// ─── AUTH: token storage + authed fetch (refresh on 401) ───
+const tokens = {
+  get access()  { try { return localStorage.getItem("access_token"); }  catch { return null; } },
+  get refresh() { try { return localStorage.getItem("refresh_token"); } catch { return null; } },
+  set({access_token, refresh_token}) {
+    try {
+      if (access_token)  localStorage.setItem("access_token", access_token);
+      if (refresh_token) localStorage.setItem("refresh_token", refresh_token);
+    } catch { /* storage unavailable */ }
+  },
+  clear() {
+    try { localStorage.removeItem("access_token"); localStorage.removeItem("refresh_token"); } catch { /* ignore */ }
+  },
+};
+
+async function tryRefresh() {
+  const rt = tokens.refresh;
+  if (!rt) return false;
+  try {
+    const r = await fetch(API + "/api/auth/refresh", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({refresh_token: rt}),
+    });
+    if (!r.ok) return false;
+    const d = await r.json().catch(() => null);
+    if (d && d.access_token) { tokens.set({access_token: d.access_token}); return true; }
+  } catch { /* network */ }
+  return false;
+}
+
+// Authed API call. Prepends the API base for "/..." paths, attaches the bearer
+// token, and on 401 tries one refresh+retry; if that fails the session is
+// cleared and an "auth:logout" event tells the app to drop to the login screen.
+async function authFetch(path, opts = {}, ms = 15000, _retry = true) {
+  const url = path.startsWith("http") ? path : `${API}${path}`;
+  const headers = {...(opts.headers || {})};
+  const tok = tokens.access;
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  const res = await fetchWithTimeout(url, {...opts, headers}, ms);
+  if (res.status === 401 && _retry) {
+    if (await tryRefresh()) return authFetch(path, opts, ms, false);
+    tokens.clear();
+    try { window.dispatchEvent(new Event("auth:logout")); } catch { /* ignore */ }
+  }
+  return res;
 }
 
 const C = {
@@ -1403,7 +1450,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
 
   async function _fetchFns(qrText) {
     try {
-      const res = await fetchWithTimeout(`${API}/api/fns/check`, {
+      const res = await authFetch(`/api/fns/check`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({qr_raw: qrText}),
@@ -1424,7 +1471,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   async function _suggestPayment(org) {
     if (!org) return null;
     try {
-      const sres = await fetchWithTimeout(`${API}/api/receipts/suggest-payment?org=${encodeURIComponent(org)}`);
+      const sres = await authFetch(`/api/receipts/suggest-payment?org=${encodeURIComponent(org)}`);
       if (sres.ok) { const sd = await sres.json(); return sd.payment || null; }
     } catch { /* ignored */ }
     return null;
@@ -1491,7 +1538,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     let d = null;
     try {
       // Vision OCR is slower than the FNS/payment calls — allow 20s.
-      const res = await fetchWithTimeout(`${API}/api/receipts/ocr/`, {method: "POST", body: fd}, 20000);
+      const res = await authFetch(`/api/receipts/ocr/`, {method: "POST", body: fd}, 20000);
       if (res.ok) d = await res.json().catch(() => null);
     } catch { /* network or timeout */ }
 
@@ -1566,7 +1613,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     };
     if(form.fn) payload.fn=form.fn;
     if(form.raw_data) payload.raw_data=form.raw_data;
-    const res=await fetch(`${API}/api/receipts/`,{
+    const res=await authFetch(`/api/receipts/`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify(payload)
@@ -1579,7 +1626,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
       setFnsStatus(null);
       if(existingId) {
         try {
-          const er=await fetch(`${API}/api/receipts/${existingId}`);
+          const er=await authFetch(`/api/receipts/${existingId}`);
           if(er.ok) {
             const ex=await er.json();
             handleAdd(ex);
@@ -1723,7 +1770,7 @@ function OtchetyPage({receipts}) {
   const [selected,setSelected]=useState([]);
 
   useEffect(()=>{
-    fetch(`${API}/api/reports/`)
+    authFetch(`/api/reports/`)
       .then(r=>r.json())
       .then(data=>setReports(Array.isArray(data)?data:[]))
       .catch(()=>{});
@@ -1735,7 +1782,7 @@ function OtchetyPage({receipts}) {
   async function create() {
     const sel=free.filter(r=>selected.includes(r.id));
     const total=sel.reduce((s,r)=>s+Number(r.amount),0);
-    const res=await fetch(`${API}/api/reports/`,{
+    const res=await authFetch(`/api/reports/`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({title, total, receiptIds:selected})
@@ -1746,7 +1793,7 @@ function OtchetyPage({receipts}) {
   }
 
   async function changeStatus(id, status) {
-    const res=await fetch(`${API}/api/reports/${id}`,{
+    const res=await authFetch(`/api/reports/${id}`,{
       method:"PATCH",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({status})
@@ -1962,7 +2009,7 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   const me = users.find(u=>u.id===1) || {};
 
   useEffect(()=>{
-    fetch(`${API}/api/services/`).then(r=>r.json()).then(d=>setServicesList(Array.isArray(d)?d:[])).catch(()=>{});
+    authFetch(`/api/services/`).then(r=>r.json()).then(d=>setServicesList(Array.isArray(d)?d:[])).catch(()=>{});
   },[]);
 
   return (
@@ -2145,7 +2192,7 @@ function ConsentScreen({onAccept}) {
     // the user isn't locked out. A future sync job (or settings screen) can
     // re-post when connectivity returns.
     try {
-      await fetch(`${API}/api/consent/`, {
+      await authFetch(`/api/consent/`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({user_id: "local_user", ip_address: null}),
@@ -2213,6 +2260,128 @@ function ConsentScreen({onAccept}) {
   );
 }
 
+// ─── AUTH SCREENS ───────────────────────────────────────────
+function AocgLogo({width=140}) {
+  return (
+    <svg width={width} height={width*180/770} viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M286.511 0C304.22 2.1117e-07 321.53 5.25113 336.254 15.0893C350.978 24.9276 362.454 38.911 369.231 55.2714C376.008 71.6317 377.781 89.6342 374.326 107.002C370.871 124.37 362.344 140.324 349.822 152.846C337.3 165.367 321.347 173.895 303.979 177.349C286.611 180.804 268.608 179.031 252.248 172.254C235.888 165.478 221.904 154.002 212.066 139.278C202.228 124.554 196.977 107.243 196.977 89.5349H230.233C230.233 100.666 233.534 111.546 239.718 120.801C245.902 130.056 254.691 137.269 264.975 141.529C275.258 145.788 286.574 146.903 297.491 144.731C308.408 142.56 318.435 137.2 326.306 129.329C334.177 121.459 339.537 111.431 341.708 100.514C343.88 89.5973 342.765 78.2817 338.506 67.9982C334.246 57.7147 327.033 48.9253 317.778 42.7414C308.523 36.5575 297.642 33.2569 286.511 33.2569V0Z" fill="#161A1D"/>
+      <path d="M483.489 179.07C465.78 179.07 448.47 173.819 433.746 163.98C419.022 154.142 407.546 140.159 400.769 123.798C393.992 107.438 392.219 89.4357 395.674 72.0676C399.129 54.6995 407.656 38.7459 420.178 26.2243C432.7 13.7026 448.653 5.17523 466.021 1.7205C483.389 -1.73421 501.392 0.0388551 517.752 6.81554C534.112 13.5922 548.096 25.0681 557.934 39.7921C567.772 54.516 573.023 71.8266 573.023 89.535L539.767 89.535C539.767 78.4042 536.466 67.5235 530.282 58.2686C524.098 49.0137 515.309 41.8004 505.025 37.5409C494.742 33.2813 483.426 32.1668 472.509 34.3383C461.592 36.5098 451.565 41.8698 443.694 49.7404C435.823 57.611 430.463 67.6388 428.292 78.5557C426.12 89.4725 427.235 100.788 431.494 111.072C435.754 121.355 442.967 130.145 452.222 136.328C461.477 142.512 472.358 145.813 483.489 145.813L483.489 179.07Z" fill="#161A1D"/>
+      <path d="M770 89.5349C770 107.243 764.749 124.554 754.911 139.278C745.072 154.002 731.089 165.478 714.729 172.254C698.368 179.031 680.366 180.804 662.998 177.349C645.63 173.895 629.676 165.367 617.154 152.846C604.633 140.324 596.105 124.37 592.651 107.002C589.196 89.6342 590.969 71.6317 597.746 55.2713C604.522 38.911 615.998 24.9276 630.722 15.0893C645.446 5.25112 662.757 -5.11009e-06 680.465 -3.91369e-06L680.465 33.2569C669.334 33.2569 658.454 36.5575 649.199 42.7414C639.944 48.9253 632.731 57.7147 628.471 67.9982C624.211 78.2817 623.097 89.5973 625.269 100.514C627.44 111.431 632.8 121.459 640.671 129.329C648.541 137.2 658.569 142.56 669.486 144.731C680.403 146.903 691.718 145.788 702.002 141.529C712.285 137.269 721.075 130.056 727.259 120.801C733.442 111.546 736.743 100.666 736.743 89.5349L770 89.5349Z" fill="#161A1D"/>
+      <path d="M71.6279 0L0 179.07H35.814L89.5349 44.7674L143.256 179.07H179.07L107.442 0H71.6279Z" fill="#A4161A"/>
+    </svg>
+  );
+}
+
+function AuthShell({children}) {
+  return (
+    <div style={{position:"fixed",inset:0,background:C.white,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 24px",boxSizing:"border-box",fontFamily:FONT}}>
+      {children}
+    </div>
+  );
+}
+
+const A_INPUT = {width:"100%",padding:"13px 14px",border:`1px solid ${C.silver}`,borderRadius:10,fontSize:15,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box",outline:"none"};
+
+function LoginScreen({onAuthed, navigate}) {
+  const [ident,setIdent]=useState("");
+  const [password,setPassword]=useState("");
+  const [showPw,setShowPw]=useState(false);
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  async function submit() {
+    if(!ident.trim()||!password||busy) return;
+    setBusy(true); setErr("");
+    try {
+      const res=await fetchWithTimeout(API+"/api/auth/login",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({phone_or_email:ident.trim(),password})},15000);
+      const d=await res.json().catch(()=>({}));
+      if(res.ok&&d.access_token){ onAuthed(d); return; }
+      setErr(typeof d.detail==="string"?d.detail:"Неверный логин или пароль");
+    } catch { setErr("Нет связи с сервером"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <AuthShell>
+      <div style={{width:"100%",maxWidth:360,display:"flex",flexDirection:"column",alignItems:"center"}}>
+        <AocgLogo width={140}/>
+        <h1 style={{fontSize:24,fontWeight:700,color:C.dark,fontFamily:FONT,margin:"22px 0 4px"}}>AI Офис</h1>
+        <div style={{fontSize:13,color:"#636B7D",fontFamily:FONT,marginBottom:28,textAlign:"center"}}>Управление первичными документами</div>
+        <input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Телефон или Email" autoCapitalize="none" autoCorrect="off"
+          style={{...A_INPUT,marginBottom:10}}/>
+        <div style={{position:"relative",width:"100%",marginBottom:6}}>
+          <input value={password} onChange={e=>setPassword(e.target.value)} type={showPw?"text":"password"} placeholder="Пароль"
+            onKeyDown={e=>{if(e.key==="Enter")submit();}} style={{...A_INPUT,paddingRight:44}}/>
+          <button onClick={()=>setShowPw(s=>!s)} type="button"
+            style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#636B7D",display:"flex",padding:6}}>
+            {showPw?<EyeOff size={18}/>:<Eye size={18}/>}
+          </button>
+        </div>
+        {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT,width:"100%",marginBottom:4}}>{err}</div>}
+        <button onClick={submit} disabled={busy}
+          style={{width:"100%",marginTop:8,padding:"13px",background:C.cherry,color:"#fff",border:"none",borderRadius:10,fontFamily:FONT,fontSize:15,fontWeight:600,cursor:busy?"default":"pointer",opacity:busy?0.7:1}}>
+          {busy?"Вход…":"Войти"}
+        </button>
+        <button onClick={()=>navigate("/register")} type="button"
+          style={{marginTop:18,background:"none",border:"none",color:C.cherry,fontFamily:FONT,fontSize:14,cursor:"pointer"}}>
+          Зарегистрировать компанию
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function VerifyEmailScreen({onAuthed, navigate}) {
+  const token = new URLSearchParams(window.location.search).get("token");
+  const [state,setState]=useState(token ? "loading" : "error"); // loading | error
+  useEffect(()=>{
+    if(!token) return;
+    fetchWithTimeout(API+"/api/auth/verify-email?token="+encodeURIComponent(token),{},15000)
+      .then(async r=>{ const d=await r.json().catch(()=>({})); if(r.ok&&d.access_token) onAuthed(d); else setState("error"); })
+      .catch(()=>setState("error"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+  return (
+    <AuthShell>
+      <div style={{textAlign:"center",maxWidth:340}}>
+        <AocgLogo width={120}/>
+        <div style={{marginTop:22,fontSize:15,color:C.dark,fontFamily:FONT}}>
+          {state==="loading"?"Подтверждаем email…":"Ссылка недействительна или истекла"}
+        </div>
+        {state==="error"&&<button onClick={()=>navigate("/login")} type="button"
+          style={{marginTop:16,background:"none",border:"none",color:C.cherry,fontSize:14,cursor:"pointer",fontFamily:FONT}}>← Ко входу</button>}
+      </div>
+    </AuthShell>
+  );
+}
+
+// Placeholders — built out in the next step (registration flow, invite join).
+function RegisterScreen({navigate}) {
+  return (
+    <AuthShell>
+      <div style={{textAlign:"center",maxWidth:340}}>
+        <AocgLogo width={120}/>
+        <div style={{marginTop:22,fontSize:15,color:"#636B7D",fontFamily:FONT}}>Регистрация — скоро</div>
+        <button onClick={()=>navigate("/login")} type="button"
+          style={{marginTop:16,background:"none",border:"none",color:C.cherry,fontSize:14,cursor:"pointer",fontFamily:FONT}}>← Ко входу</button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function JoinScreen({navigate}) {
+  return (
+    <AuthShell>
+      <div style={{textAlign:"center",maxWidth:340}}>
+        <AocgLogo width={120}/>
+        <div style={{marginTop:22,fontSize:15,color:"#636B7D",fontFamily:FONT}}>Вход по приглашению — скоро</div>
+        <button onClick={()=>navigate("/login")} type="button"
+          style={{marginTop:16,background:"none",border:"none",color:C.cherry,fontSize:14,cursor:"pointer",fontFamily:FONT}}>← Ко входу</button>
+      </div>
+    </AuthShell>
+  );
+}
+
 export default function App() {
   // Gate the entire UI behind the consent screen on first launch.
   // The flag is checked synchronously during the first render via lazy
@@ -2227,26 +2396,39 @@ export default function App() {
   const [users,setUsers]=useState([]);
   const [activePeriod,setActivePeriod]=useState("month");
 
+  // ─── Auth & lightweight routing ───
+  const [authed, setAuthed] = useState(() => { try { return !!localStorage.getItem("access_token"); } catch { return false; } });
+  const [route, setRoute] = useState(() => (typeof window !== "undefined" ? window.location.pathname : "/"));
+  const navigate = (path) => { try { window.history.pushState({}, "", path); } catch { /* ignore */ } setRoute(path); };
+  const onAuthed = (data) => { tokens.set(data); setAuthed(true); navigate("/"); };
+  useEffect(() => {
+    const onPop = () => setRoute(window.location.pathname);
+    const onLogout = () => setAuthed(false);
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("auth:logout", onLogout);
+    return () => { window.removeEventListener("popstate", onPop); window.removeEventListener("auth:logout", onLogout); };
+  }, []);
+
   // Don't fetch receipts/cards until the user has consented — keeps the
   // consent screen network-quiet, and re-runs the moment they accept.
   useEffect(()=>{
-    if (!consentGiven) return;
-    fetch(`${API}/api/receipts/`)
+    if (!consentGiven || !authed) return;
+    authFetch(`/api/receipts/`)
       .then(r=>r.json())
       .then(data=>setReceipts(Array.isArray(data)?data.map(r=>({...r,amount:Number(r.amount)})):[]))
       .catch(()=>{});
-    fetch(`${API}/api/cards/`)
+    authFetch(`/api/cards/`)
       .then(r=>r.json())
       .then(data=>setCards(Array.isArray(data)?data:[]))
       .catch(()=>{});
-    fetch(`${API}/api/users/`)
+    authFetch(`/api/users/`)
       .then(r=>r.json())
       .then(data=>setUsers(Array.isArray(data)?data:[]))
       .catch(()=>{});
-  },[consentGiven]);
+  },[consentGiven, authed]);
 
   async function addCard(name) {
-    const res=await fetch(`${API}/api/cards/`,{
+    const res=await authFetch(`/api/cards/`,{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({name})
     });
@@ -2254,7 +2436,7 @@ export default function App() {
   }
 
   async function updateCard(id,name) {
-    const res=await fetch(`${API}/api/cards/${id}`,{
+    const res=await authFetch(`/api/cards/${id}`,{
       method:"PATCH",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({name})
     });
@@ -2262,17 +2444,17 @@ export default function App() {
   }
 
   async function deleteCard(id) {
-    await fetch(`${API}/api/cards/${id}`,{method:"DELETE"});
+    await authFetch(`/api/cards/${id}`,{method:"DELETE"});
     setCards(prev=>prev.filter(x=>x.id!==id));
   }
 
   async function setDefaultCard(id) {
-    const res=await fetch(`${API}/api/cards/${id}/default`,{method:"PATCH"});
+    const res=await authFetch(`/api/cards/${id}/default`,{method:"PATCH"});
     if(res.ok) setCards(prev=>prev.map(x=>({...x,is_default:x.id===id})));
   }
 
   async function addUser(payload) {
-    const res=await fetch(`${API}/api/users/`,{
+    const res=await authFetch(`/api/users/`,{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify(payload)
     });
@@ -2281,7 +2463,7 @@ export default function App() {
   }
 
   async function updateUser(id, patch) {
-    const res=await fetch(`${API}/api/users/${id}`,{
+    const res=await authFetch(`/api/users/${id}`,{
       method:"PATCH",headers:{"Content-Type":"application/json"},
       body:JSON.stringify(patch)
     });
@@ -2290,7 +2472,7 @@ export default function App() {
   }
 
   async function deleteUser(id) {
-    await fetch(`${API}/api/users/${id}`,{method:"DELETE"});
+    await authFetch(`/api/users/${id}`,{method:"DELETE"});
     setUsers(prev=>prev.filter(x=>x.id!==id));
   }
 
@@ -2302,14 +2484,14 @@ export default function App() {
   }
 
   async function handleDelete(id) {
-    const res=await fetch(`${API}/api/receipts/${id}`,{method:"DELETE"});
+    const res=await authFetch(`/api/receipts/${id}`,{method:"DELETE"});
     if(res.ok) setReceipts(prev=>prev.filter(x=>x.id!==id));
     else alert("Не удалось удалить чек");
   }
 
   async function handleUpdate(id, patch) {
     try {
-      const res=await fetch(`${API}/api/receipts/${id}`,{
+      const res=await authFetch(`/api/receipts/${id}`,{
         method:"PATCH",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify(patch)
@@ -2325,6 +2507,18 @@ export default function App() {
   // First-launch gate — show the consent screen until the user accepts. The
   // 152-FZ POST + localStorage flip happens inside onAccept; once flipped,
   // the main UI mounts and the receipts/cards effect re-runs.
+  // ─── Auth & route gate ───
+  const isRegister = route === "/register";
+  const isVerify   = route.startsWith("/verify-email");
+  const isJoin     = route.startsWith("/join/");
+  if (route === "/login" || (!authed && !isRegister && !isVerify && !isJoin)) {
+    return <LoginScreen onAuthed={onAuthed} navigate={navigate}/>;
+  }
+  if (isRegister) return <RegisterScreen onAuthed={onAuthed} navigate={navigate}/>;
+  if (isVerify)   return <VerifyEmailScreen onAuthed={onAuthed} navigate={navigate}/>;
+  if (isJoin)     return <JoinScreen token={route.split("/join/")[1] || ""} onAuthed={onAuthed} navigate={navigate}/>;
+
+  // Authed beyond this point.
   if (!consentGiven) {
     return <ConsentScreen onAccept={() => setConsentGiven(true)}/>;
   }
