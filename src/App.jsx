@@ -381,6 +381,60 @@ async function decodeQrFromFile(file, {maxDim=1600}={}) {
 // `onCapture(qrText) => Promise<'ok'|'partial'>` is the only network-touching
 // prop; the modal owns its own UI transitions but never decides what counts
 // as success.
+// Step-by-step progress while a photo is processed (QR → ФНС → OCR). Active
+// step: cherry spinner; completed steps: gray check. Brand v12 §11.
+function ProcessingSteps({step}) {
+  const spinner = (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A4161A" strokeWidth="3" style={{flexShrink:0}}>
+      <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
+      <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
+        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+      </path>
+    </svg>
+  );
+  const done = (text) => (
+    <div style={{display:"flex",alignItems:"center",gap:10,fontFamily:FONT,fontSize:14,color:"#636B7D"}}>
+      <span style={{flexShrink:0,color:"#15803D",fontSize:15,width:16,textAlign:"center"}}>✓</span>{text}
+    </div>
+  );
+  const active = (text) => (
+    <div style={{display:"flex",alignItems:"center",gap:10,fontFamily:FONT,fontSize:14,color:"#111318"}}>
+      {spinner}{text}
+    </div>
+  );
+  return (
+    <div style={{background:"#FFFFFF",padding:20,borderRadius:12,maxWidth:320,width:"calc(100% - 48px)",display:"flex",flexDirection:"column",gap:12,boxShadow:"0 8px 30px rgba(0,0,0,0.25)"}}>
+      {step === "qr" && active("Ищем QR-код в фото…")}
+      {step === "fns" && <>{done("QR-код найден")}{active("Проверяем чек в базе ФНС…")}</>}
+      {step === "ocr_noqr" && <>{done("QR-код не найден")}{active("Распознаём текст чека…")}</>}
+      {step === "ocr_fns" && <>{done("ФНС не подтвердила")}{active("Распознаём текст чека…")}</>}
+    </div>
+  );
+}
+
+// Styled bottom-sheet shown when a QR was found but ФНС couldn't confirm it
+// (not_found / unavailable). Replaces the native confirm(). Brand v12 §11.
+function SaveAsPhotoSheet({title, message, confirmText, cancelText, onConfirm, onCancel}) {
+  return (
+    <div onClick={onCancel} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <style>{"@keyframes aocg-slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+      <div onClick={e => e.stopPropagation()}
+        style={{width:"100%",maxWidth:480,background:"#fff",borderRadius:"16px 16px 0 0",padding:"24px 20px calc(24px + env(safe-area-inset-bottom))",animation:"aocg-slideup 200ms ease"}}>
+        <div style={{fontFamily:FONT,fontWeight:600,fontSize:18,color:"#111318",marginBottom:8}}>{title}</div>
+        <div style={{fontFamily:FONT,fontSize:14,color:"#636B7D",lineHeight:1.45,marginBottom:24}}>{message}</div>
+        <button type="button" onClick={onConfirm}
+          style={{width:"100%",height:48,borderRadius:12,background:"#A4161A",border:"none",color:"#fff",fontFamily:FONT,fontSize:15,fontWeight:600,cursor:"pointer",transition:"opacity 120ms"}}>
+          {confirmText}
+        </button>
+        <button type="button" onClick={onCancel}
+          style={{width:"100%",height:48,marginTop:8,borderRadius:12,background:"#fff",border:"1px solid #EEF0F4",color:"#636B7D",fontFamily:FONT,fontSize:15,cursor:"pointer",transition:"opacity 120ms"}}>
+          {cancelText}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual}) {
   const [phase, setPhase] = useState("scanning"); // scanning | captured | loading | fnsError | cameraError | preview
   const [loadingMsg, setLoadingMsg] = useState("Загружаем данные из ФНС…");
@@ -392,8 +446,9 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const [flashGreen, setFlashGreen] = useState(false); // 0.5s green pulse on capture
   const [previewFile, setPreviewFile] = useState(null);// chosen photo/file awaiting confirmation
   const [previewUrl, setPreviewUrl] = useState(null);  // object URL for the image preview (null for PDFs)
-  const [previewBusy, setPreviewBusy] = useState(false); // OCR in flight on the preview screen
   const [previewNotice, setPreviewNotice] = useState(""); // OCR-failure notice on the preview screen
+  const [step, setStep] = useState(null);        // null|'qr'|'fns'|'ocr_noqr'|'ocr_fns'|'done' — photo-processing progress
+  const [saveSheet, setSaveSheet] = useState(null); // {title,message,confirmText,cancelText} — FNS-fallback sheet
   const scannerRef = useRef(null);
   const cameraOn = useRef(false);
   const ocrFileRef = useRef(null);
@@ -564,7 +619,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   }
   function clearPreview() {
     revokePreviewUrl();
-    setPreviewUrl(null); setPreviewFile(null); setPreviewNotice(""); setPreviewBusy(false);
+    setPreviewUrl(null); setPreviewFile(null); setPreviewNotice(""); setStep(null); setSaveSheet(null);
   }
 
   // A source input fired. Stash the file and show the preview screen; QR
@@ -579,7 +634,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     setPreviewUrl(url);
     setPreviewFile(file);
     setPreviewNotice("");
-    setPreviewBusy(false);
+    setStep(null);
     setPhase("preview");
   }
 
@@ -596,32 +651,57 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     cameraOn.current = true;
   }
 
-  // "Использовать": QR first (jsQR/Canvas) → standard two-phase FNS flow;
-  // otherwise OCR the file. OCR failure stays on the preview with a manual
-  // fallback.
+  // "Использовать": QR-first photo processing with a step indicator.
+  //   QR found + ФНС ok   → form (source=qr_scan)
+  //   QR found + 404/503  → SaveAsPhotoSheet → OCR (source=photo_ocr)
+  //   no QR               → OCR (source=photo_ocr)
+  // decodeQrFromFile / onCapture / onOcrFile are reused as-is; the live-camera
+  // capture()→runFnsLoad path is untouched. previewFile is kept until success
+  // so the OCR fallback (sheet confirm) still has the file.
   async function usePhoto(e) {
     if (e && e.preventDefault) e.preventDefault();
     const file = previewFile;
     if (!file) return;
     setPreviewNotice("");
+    setStep("qr");
     let text = null;
     try { text = await decodeQrFromFile(file); }
     catch { /* not an image, or no QR — fall through to OCR */ }
     if (!mountedRef.current) return;
-    if (text) {
-      clearPreview();
-      capture(text);   // → captured → 1s → FNS auto-load
-      return;
-    }
-    if (!onOcrFile) { setPreviewNotice("Не удалось распознать. Заполните вручную"); return; }
-    setPreviewBusy(true);
+
+    if (!text) { await runOcr(file, false); return; }   // no QR → OCR
+
+    setStep("fns");
+    let result;
+    try { result = await onCapture(text); }   // handleCapture: fills form, returns ok|not_found|unavailable|partial
+    catch { result = "partial"; }
+    if (!mountedRef.current) return;
+
+    if (result === "ok") { setStep("done"); clearPreview(); onClose(); return; }
+
+    // ФНС не подтвердила — спросить, сохранить ли как фото (OCR).
+    setStep(null);
+    const unavailable = result === "unavailable";
+    setSaveSheet({
+      title:   unavailable ? "ФНС временно недоступна" : "Чек не найден в ФНС",
+      message: unavailable
+        ? "Не удалось проверить чек через ФНС. Сохранить как фото? Позже можно проверить вручную."
+        : "Возможно, чек старше 30 дней или не зарегистрирован. Сохранить как фото?",
+      confirmText: "Сохранить как фото",
+      cancelText:  unavailable ? "Попробовать позже" : "Отменить",
+    });
+  }
+
+  // OCR a photo and resolve the modal. fromFns toggles the first (gray) step label.
+  async function runOcr(file, fromFns) {
+    if (!onOcrFile) { setStep(null); setPreviewNotice("Не удалось распознать. Заполните вручную"); return; }
+    setStep(fromFns ? "ocr_fns" : "ocr_noqr");
     let result;
     try { result = await onOcrFile(file); }
     catch { result = "partial"; }
     if (!mountedRef.current) return;
-    setPreviewBusy(false);
-    if (result === "ok") { clearPreview(); onClose(); }
-    else setPreviewNotice("Не удалось распознать. Заполните вручную");
+    if (result === "ok") { setStep("done"); clearPreview(); onClose(); }
+    else { setStep(null); setPreviewNotice("Не удалось распознать. Заполните вручную"); }
   }
 
   // ─── UI ────────────────────────────────────────────────────────
@@ -798,15 +878,9 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
 
           {/* Bottom controls */}
           <div style={{padding:"18px 16px calc(20px + env(safe-area-inset-bottom))",background:"linear-gradient(to top, rgba(0,0,0,0.7), transparent)"}}>
-            {previewBusy ? (
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,color:"#fff",fontFamily:FONT,fontSize:14}}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
-                  <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round">
-                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
-                  </path>
-                </svg>
-                Отправляем на распознавание…
+            {step ? (
+              <div style={{display:"flex",justifyContent:"center"}}>
+                <ProcessingSteps step={step}/>
               </div>
             ) : previewNotice ? (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -834,6 +908,14 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
             )}
           </div>
         </div>
+      )}
+
+      {saveSheet && (
+        <SaveAsPhotoSheet
+          {...saveSheet}
+          onConfirm={() => { const f = previewFile; setSaveSheet(null); runOcr(f, true); }}
+          onCancel={() => { setSaveSheet(null); setStep(null); }}
+        />
       )}
     </div>
   );
@@ -1417,15 +1499,18 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const fnsPrefetchRef = useRef({qrText: null, promise: null});
 
   async function _fetchFns(qrText) {
+    // Surface the HTTP status so callers can tell ok (200) / not_found (404) /
+    // unavailable (503) apart. httpStatus 0 = transport failure → unavailable.
     try {
       const res = await authFetch(`/api/fns/check`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({qr_raw: qrText}),
       });
-      if (res.ok) return await res.json().catch(() => null);
-    } catch { /* network failure or timeout — caller treats null as partial */ }
-    return null;
+      const body = await res.json().catch(() => null);
+      return {httpStatus: res.status, body};
+    } catch { /* network failure or timeout */ }
+    return {httpStatus: 0, body: null};
   }
 
   // Called by the modal as soon as it captures a QR. Fire-and-forget — the
@@ -1467,15 +1552,20 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     }
     fnsPrefetchRef.current = {qrText: null, promise: null};
 
-    if (!d || d.status === "partial" || !d.org) {
+    // Distinguish the FNS outcomes by HTTP status (see fns.py): 404 not_found,
+    // 503/0 unavailable, anything else without an ok body → partial.
+    const {httpStatus, body} = d || {};
+    if (httpStatus === 404)                       { setFnsStatus("partial"); return "not_found"; }
+    if (httpStatus === 503 || httpStatus === 0)   { setFnsStatus("partial"); return "unavailable"; }
+    if (httpStatus !== 200 || !body || body.status !== "ok" || !body.org) {
       setFnsStatus("partial");
       return "partial";
     }
 
-    const raw = d.raw || {};
+    const raw = body.raw || {};
     const cash = Number(raw.cashTotalSum) || 0;
     const card = Number(raw.ecashTotalSum) || 0;
-    const suggested = await _suggestPayment(d.org);
+    const suggested = await _suggestPayment(body.org);
     const defaultCard = cards.find(c => c.is_default)?.name || null;
     let payment = "Не указано";
     if (cash > 0 && card === 0)      payment = "Наличные";
@@ -1483,10 +1573,10 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     else if (suggested)              payment = suggested;
 
     setForm(p => ({...p,
-      org: d.org || p.org,
-      amount: d.total ? String(d.total) : p.amount,
-      category: d.category || p.category,
-      raw_data: d.raw || d,
+      org: body.org || p.org,
+      amount: body.total ? String(body.total) : p.amount,
+      category: body.category || p.category,
+      raw_data: body.raw || body,
       payment,
     }));
     setShowAdd(true);
