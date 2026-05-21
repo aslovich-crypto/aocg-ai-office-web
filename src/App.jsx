@@ -2384,12 +2384,23 @@ function LoginScreen({onAuthed, navigate}) {
     } catch { setErr("Нет связи с сервером"); }
     finally { setBusy(false); }
   }
+  const oauthSoon=()=>alert("OAuth будет добавлен после регистрации приложений у провайдеров");
   return (
     <AuthShell>
       <div style={{width:"100%",maxWidth:360,display:"flex",flexDirection:"column",alignItems:"center"}}>
         <AocgLogo width={140}/>
         <h1 style={{fontSize:24,fontWeight:700,color:C.dark,fontFamily:FONT,margin:"22px 0 4px"}}>AI Офис</h1>
-        <div style={{fontSize:13,color:"#636B7D",fontFamily:FONT,marginBottom:28,textAlign:"center"}}>Управление первичными документами</div>
+        <div style={{fontSize:13,color:"#636B7D",fontFamily:FONT,marginBottom:22,textAlign:"center"}}>Управление первичными документами</div>
+        <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:18}}>
+          <button onClick={oauthSoon} type="button" title="Google" style={{width:52,height:52,borderRadius:"50%",border:`1px solid ${C.silver}`,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#4285F4"}}>G</button>
+          <button onClick={oauthSoon} type="button" title="Яндекс" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#FC3F1D",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:24,fontWeight:700,color:"#fff"}}>Я</button>
+          <button onClick={oauthSoon} type="button" title="Mail.ru" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#005FF9",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#fff"}}>@</button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",marginBottom:18}}>
+          <div style={{flex:1,height:1,background:C.silver}}/>
+          <span style={{fontSize:12,color:"#9CA3AF",fontFamily:FONT}}>или</span>
+          <div style={{flex:1,height:1,background:C.silver}}/>
+        </div>
         <input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Телефон или Email" autoCapitalize="none" autoCorrect="off"
           style={{...A_INPUT,marginBottom:10}}/>
         <div style={{position:"relative",width:"100%",marginBottom:6}}>
