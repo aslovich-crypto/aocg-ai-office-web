@@ -1024,7 +1024,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   }
 
   return (
-    <div style={{position:"relative",background:"#B91C1C",borderBottom:`1px solid ${C.silver}`,overflow:"hidden"}}>
+    <div style={{position:"relative",background:"#B91C1C",overflow:"hidden"}}>
       <div onClick={onDelete} style={{position:"absolute",top:0,right:0,bottom:0,width:REVEAL,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
       </div>
@@ -1035,7 +1035,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
         onPointerCancel={onPointerUp}
         onClick={handleTap}
         style={{
-          background:C.white,padding:"8px 16px",display:"flex",alignItems:"center",gap:12,
+          background:C.white,padding:"11px 14px",display:"flex",alignItems:"center",gap:12,
           transform:`translateX(${tx}px)`,transition:dragging.current?"none":"transform 0.2s ease",
           cursor:"pointer",userSelect:"none",touchAction:"pan-y"
         }}>
@@ -1046,7 +1046,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
             <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:700,flexShrink:0}}>{fmt(r.amount)}</span>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#636B7D",fontFamily:FONT,minWidth:0}}>
-            <span style={{display:"inline-block",padding:"2px 6px",borderRadius:4,background:col.bg,color:col.fg,fontSize:10,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{r.category||"Не указано"}</span>
+            <span style={{display:"inline-block",padding:"2px 8px",borderRadius:20,background:col.bg,color:col.fg,fontSize:10,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{r.category||"Не указано"}</span>
             <span style={{flexShrink:0}}>·</span>
             <span style={{whiteSpace:"nowrap",flexShrink:0}}>{fmtDate(r.date)}</span>
             {sourceLabel(r.source)&&<span style={{fontSize:10,color:"#636B7D",whiteSpace:"nowrap",flexShrink:0}}>· {sourceLabel(r.source)}</span>}
@@ -1619,13 +1619,18 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
       </div>
       <div style={{paddingBottom:80}}>
         {groups.map(([key,group])=>(
-          <div key={key}>
-            <div style={{padding:"6px 16px",background:C.lightGray,borderBottom:`1px solid ${C.silver}`,borderTop:`1px solid ${C.silver}`,display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:2,height:10,background:C.cherryM}}/><span style={{fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
+          <div key={key} style={{marginTop:6}}>
+            <div style={{padding:"10px 16px 6px",display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:3,height:12,background:"#D1D5DB",borderRadius:2}}/><span style={{fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
             </div>
-            {group.items.map(r=>(
-              <SwipeableReceiptCard key={r.id} receipt={r} onClick={()=>setDetail(r)} onDelete={()=>handleDelete(r.id)}/>
-            ))}
+            <div style={{margin:"0 12px",borderRadius:12,overflow:"hidden",background:C.white,border:`1px solid ${C.silver}`}}>
+              {group.items.map((r,i)=>(
+                <div key={r.id}>
+                  <SwipeableReceiptCard receipt={r} onClick={()=>setDetail(r)} onDelete={()=>handleDelete(r.id)}/>
+                  {i<group.items.length-1&&<div style={{height:1,background:C.silver,marginLeft:62}}/>}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
         {groups.length===0&&(
