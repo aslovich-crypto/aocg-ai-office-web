@@ -2481,9 +2481,11 @@ function ConsentScreen({onAccept}) {
 }
 
 // ─── AUTH SCREENS ───────────────────────────────────────────
-function AocgLogo({width=140}) {
+function AocgLogo({width, height}) {
+  const w = height ? height*770/180 : (width || 140);
+  const h = height || (width || 140)*180/770;
   return (
-    <svg width={width} height={width*180/770} viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={w} height={h} viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M286.511 0C304.22 2.1117e-07 321.53 5.25113 336.254 15.0893C350.978 24.9276 362.454 38.911 369.231 55.2714C376.008 71.6317 377.781 89.6342 374.326 107.002C370.871 124.37 362.344 140.324 349.822 152.846C337.3 165.367 321.347 173.895 303.979 177.349C286.611 180.804 268.608 179.031 252.248 172.254C235.888 165.478 221.904 154.002 212.066 139.278C202.228 124.554 196.977 107.243 196.977 89.5349H230.233C230.233 100.666 233.534 111.546 239.718 120.801C245.902 130.056 254.691 137.269 264.975 141.529C275.258 145.788 286.574 146.903 297.491 144.731C308.408 142.56 318.435 137.2 326.306 129.329C334.177 121.459 339.537 111.431 341.708 100.514C343.88 89.5973 342.765 78.2817 338.506 67.9982C334.246 57.7147 327.033 48.9253 317.778 42.7414C308.523 36.5575 297.642 33.2569 286.511 33.2569V0Z" fill="#161A1D"/>
       <path d="M483.489 179.07C465.78 179.07 448.47 173.819 433.746 163.98C419.022 154.142 407.546 140.159 400.769 123.798C393.992 107.438 392.219 89.4357 395.674 72.0676C399.129 54.6995 407.656 38.7459 420.178 26.2243C432.7 13.7026 448.653 5.17523 466.021 1.7205C483.389 -1.73421 501.392 0.0388551 517.752 6.81554C534.112 13.5922 548.096 25.0681 557.934 39.7921C567.772 54.516 573.023 71.8266 573.023 89.535L539.767 89.535C539.767 78.4042 536.466 67.5235 530.282 58.2686C524.098 49.0137 515.309 41.8004 505.025 37.5409C494.742 33.2813 483.426 32.1668 472.509 34.3383C461.592 36.5098 451.565 41.8698 443.694 49.7404C435.823 57.611 430.463 67.6388 428.292 78.5557C426.12 89.4725 427.235 100.788 431.494 111.072C435.754 121.355 442.967 130.145 452.222 136.328C461.477 142.512 472.358 145.813 483.489 145.813L483.489 179.07Z" fill="#161A1D"/>
       <path d="M770 89.5349C770 107.243 764.749 124.554 754.911 139.278C745.072 154.002 731.089 165.478 714.729 172.254C698.368 179.031 680.366 180.804 662.998 177.349C645.63 173.895 629.676 165.367 617.154 152.846C604.633 140.324 596.105 124.37 592.651 107.002C589.196 89.6342 590.969 71.6317 597.746 55.2713C604.522 38.911 615.998 24.9276 630.722 15.0893C645.446 5.25112 662.757 -5.11009e-06 680.465 -3.91369e-06L680.465 33.2569C669.334 33.2569 658.454 36.5575 649.199 42.7414C639.944 48.9253 632.731 57.7147 628.471 67.9982C624.211 78.2817 623.097 89.5973 625.269 100.514C627.44 111.431 632.8 121.459 640.671 129.329C648.541 137.2 658.569 142.56 669.486 144.731C680.403 146.903 691.718 145.788 702.002 141.529C712.285 137.269 721.075 130.056 727.259 120.801C733.442 111.546 736.743 100.666 736.743 89.5349L770 89.5349Z" fill="#161A1D"/>
@@ -2508,6 +2510,7 @@ function LoginScreen({onAuthed, navigate}) {
   const [showPw,setShowPw]=useState(false);
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState(false);
+  const [remember,setRemember]=useState(true);   // UI-only — token storage logic unchanged
   async function submit() {
     if(!ident.trim()||!password||busy) return;
     setBusy(true); setErr("");
@@ -2516,62 +2519,83 @@ function LoginScreen({onAuthed, navigate}) {
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({phone_or_email:ident.trim(),password})},15000);
       const d=await res.json().catch(()=>({}));
-      if(res.ok&&d.access_token){ onAuthed(d); return; }
-      setErr(typeof d.detail==="string"?d.detail:"Неверный логин или пароль");
-    } catch { setErr("Нет связи с сервером"); }
+      if(res.ok&&d.access_token){ onAuthed(d); return; }      // success flow unchanged
+      if(res.status===429) setErr("Аккаунт заблокирован на 15 минут. Попробуйте позже");
+      else setErr("Неверный телефон/email или пароль");
+    } catch { setErr("Не удалось войти. Проверьте интернет"); }
     finally { setBusy(false); }
   }
-  const oauthSoon=()=>alert("OAuth будет добавлен после регистрации приложений у провайдеров");
+  const oauthSoon=()=>alert("OAuth скоро будет доступен");
   const forgotSoon=()=>alert("Восстановление пароля скоро будет доступно");
+  const fieldStyle={width:"100%",height:48,border:"1px solid #EEF0F4",borderRadius:12,padding:"14px 16px",fontSize:15,fontFamily:FONT,color:"#111318",background:"#fff",boxSizing:"border-box",outline:"none"};
+  // Stylized colored circles (20px) with provider letter — no official SVGs in project.
+  const OAUTH=[["yandex","Я","Войти через Яндекс ID","#FC3F1D","#fff"],["google","G","Войти через Google","#fff","#4285F4"],["mailru","@","Войти через Mail.ru","#005FF9","#fff"]];
   return (
-    <AuthShell>
-      <div style={{width:"100%",maxWidth:360,display:"flex",flexDirection:"column",alignItems:"center"}}>
-        <AocgLogo width={140}/>
-        <h1 style={{fontSize:24,fontWeight:700,color:C.dark,fontFamily:FONT,margin:"22px 0 4px"}}>AI Офис</h1>
-        <div style={{fontSize:13,color:"#636B7D",fontFamily:FONT,marginBottom:22,textAlign:"center"}}>Управление первичными документами</div>
-        <div style={{display:"flex",gap:18,justifyContent:"center",marginBottom:18}}>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-            <button onClick={oauthSoon} type="button" title="Google" style={{width:52,height:52,borderRadius:"50%",border:`1px solid ${C.silver}`,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#4285F4"}}>G</button>
-            <span style={{fontSize:10,color:"#636B7D",fontFamily:FONT}}>Google</span>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-            <button onClick={oauthSoon} type="button" title="Яндекс" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#FC3F1D",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:24,fontWeight:700,color:"#fff"}}>Я</button>
-            <span style={{fontSize:10,color:"#636B7D",fontFamily:FONT}}>Яндекс</span>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-            <button onClick={oauthSoon} type="button" title="Mail.ru" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#005FF9",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#fff"}}>@</button>
-            <span style={{fontSize:10,color:"#636B7D",fontFamily:FONT}}>Mail.ru</span>
-          </div>
+    <div style={{minHeight:"100dvh",background:"#F6F7F9",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",paddingBottom:"calc(24px + env(safe-area-inset-bottom))",boxSizing:"border-box",fontFamily:FONT}}>
+      <div style={{width:"100%",maxWidth:400}}>
+        {/* Header — logo 32px + «AI Офис», без слогана */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:32}}>
+          <AocgLogo height={32}/>
+          <span style={{fontFamily:FONT,fontSize:18,fontWeight:600,color:"#111318"}}>AI Офис</span>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",marginBottom:18}}>
-          <div style={{flex:1,height:1,background:C.silver}}/>
-          <span style={{fontSize:12,color:"#9CA3AF",fontFamily:FONT}}>или</span>
-          <div style={{flex:1,height:1,background:C.silver}}/>
-        </div>
-        <input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Телефон или Email" autoCapitalize="none" autoCorrect="off"
-          style={{...A_INPUT,marginBottom:10}}/>
-        <div style={{position:"relative",width:"100%",marginBottom:6}}>
-          <input value={password} onChange={e=>setPassword(e.target.value)} type={showPw?"text":"password"} placeholder="Пароль"
-            onKeyDown={e=>{if(e.key==="Enter")submit();}} style={{...A_INPUT,paddingRight:44}}/>
-          <button onClick={()=>setShowPw(s=>!s)} type="button"
-            style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#636B7D",display:"flex",padding:6}}>
-            {showPw?<EyeOff size={18}/>:<Eye size={18}/>}
+
+        {/* Card */}
+        <div style={{background:"#FFFFFF",borderRadius:16,padding:32,boxShadow:"0 1px 3px rgba(17,19,24,0.04)"}}>
+          {/* OAuth — приоритетный путь */}
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
+            {OAUTH.map(([key,icon,label,bg,fg])=>(
+              <button key={key} className="aocg-oauth-btn" onClick={oauthSoon} type="button"
+                style={{display:"flex",alignItems:"center",gap:12,height:48,width:"100%",background:"#fff",border:"1px solid #EEF0F4",borderRadius:12,padding:"0 16px",cursor:"pointer",transition:"background 120ms ease,border-color 120ms ease"}}>
+                <span style={{width:20,height:20,borderRadius:"50%",background:bg,color:fg,border:bg==="#fff"?"1px solid #EEF0F4":"none",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:12,fontWeight:700,flexShrink:0}}>{icon}</span>
+                <span style={{fontFamily:FONT,fontSize:15,fontWeight:500,color:"#111318"}}>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+            <div style={{flex:1,height:1,background:"#EEF0F4"}}/>
+            <span style={{fontFamily:FONT,fontSize:13,color:"#636B7D"}}>или</span>
+            <div style={{flex:1,height:1,background:"#EEF0F4"}}/>
+          </div>
+
+          {/* Email / Password */}
+          <input className="aocg-login-input" value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Телефон или Email" autoCapitalize="none" autoCorrect="off" style={{...fieldStyle,marginBottom:12}}/>
+          <div style={{position:"relative"}}>
+            <input className="aocg-login-input" value={password} onChange={e=>setPassword(e.target.value)} type={showPw?"text":"password"} placeholder="Пароль"
+              onKeyDown={e=>{if(e.key==="Enter")submit();}} style={{...fieldStyle,paddingRight:44}}/>
+            <button onClick={()=>setShowPw(s=>!s)} type="button"
+              style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",cursor:"pointer",color:"#636B7D",display:"flex",padding:4}}>
+              {showPw?<EyeOff size={18}/>:<Eye size={18}/>}
+            </button>
+          </div>
+
+          {/* Запомнить + Забыли */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:12,marginBottom:20}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+              <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{width:16,height:16,accentColor:"#A4161A",cursor:"pointer"}}/>
+              <span style={{fontFamily:FONT,fontSize:14,color:"#636B7D"}}>Запомнить меня</span>
+            </label>
+            <button onClick={forgotSoon} type="button" className="aocg-cherry-link" style={{background:"none",border:"none",padding:0,fontFamily:FONT,fontSize:14,fontWeight:500,color:"#A4161A",cursor:"pointer"}}>Забыли пароль?</button>
+          </div>
+
+          {/* Ошибка */}
+          {err&&<div style={{background:"#FEF2F2",color:"#B91C1C",padding:12,borderRadius:8,fontFamily:FONT,fontSize:13,marginBottom:16}}>{err}</div>}
+
+          {/* Войти */}
+          <button onClick={submit} disabled={busy} className="aocg-login-submit"
+            style={{width:"100%",height:48,background:"#A4161A",color:"#fff",border:"none",borderRadius:12,fontFamily:FONT,fontSize:15,fontWeight:600,cursor:busy?"not-allowed":"pointer",opacity:busy?0.5:1,transition:"opacity 100ms ease,background 120ms ease"}}>
+            {busy?"Вход…":"Войти"}
           </button>
         </div>
-        <div style={{width:"100%",textAlign:"right",marginBottom:6}}>
-          <button onClick={forgotSoon} type="button" style={{background:"none",border:"none",color:"#636B7D",fontSize:13,cursor:"pointer",fontFamily:FONT,padding:0}}>Забыли пароль?</button>
+
+        {/* Регистрация */}
+        <div style={{textAlign:"center",marginTop:24,fontFamily:FONT,fontSize:14}}>
+          <span style={{color:"#636B7D"}}>Нет аккаунта? </span>
+          <button onClick={()=>navigate("/register")} type="button" className="aocg-cherry-link" style={{background:"none",border:"none",padding:0,fontFamily:FONT,fontSize:14,fontWeight:500,color:"#A4161A",cursor:"pointer"}}>Зарегистрироваться</button>
         </div>
-        {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT,width:"100%",marginBottom:4}}>{err}</div>}
-        <button onClick={submit} disabled={busy}
-          style={{width:"100%",marginTop:8,padding:"13px",background:C.cherry,color:"#fff",border:"none",borderRadius:10,fontFamily:FONT,fontSize:15,fontWeight:600,cursor:busy?"default":"pointer",opacity:busy?0.7:1}}>
-          {busy?"Вход…":"Войти"}
-        </button>
-        <button onClick={()=>navigate("/register")} type="button"
-          style={{marginTop:18,background:"none",border:"none",color:C.cherry,fontFamily:FONT,fontSize:14,cursor:"pointer"}}>
-          Нет аккаунта? Зарегистрироваться
-        </button>
       </div>
-    </AuthShell>
+    </div>
   );
 }
 
