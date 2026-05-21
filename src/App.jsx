@@ -2357,7 +2357,7 @@ function AocgLogo({width=140}) {
 
 function AuthShell({children}) {
   return (
-    <div style={{position:"fixed",inset:0,background:C.white,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 24px",boxSizing:"border-box",fontFamily:FONT}}>
+    <div style={{minHeight:"100dvh",background:C.white,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"32px 24px",boxSizing:"border-box",fontFamily:FONT}}>
       {children}
     </div>
   );
@@ -2385,16 +2385,26 @@ function LoginScreen({onAuthed, navigate}) {
     finally { setBusy(false); }
   }
   const oauthSoon=()=>alert("OAuth будет добавлен после регистрации приложений у провайдеров");
+  const forgotSoon=()=>alert("Восстановление пароля скоро будет доступно");
   return (
     <AuthShell>
       <div style={{width:"100%",maxWidth:360,display:"flex",flexDirection:"column",alignItems:"center"}}>
         <AocgLogo width={140}/>
         <h1 style={{fontSize:24,fontWeight:700,color:C.dark,fontFamily:FONT,margin:"22px 0 4px"}}>AI Офис</h1>
         <div style={{fontSize:13,color:"#636B7D",fontFamily:FONT,marginBottom:22,textAlign:"center"}}>Управление первичными документами</div>
-        <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:18}}>
-          <button onClick={oauthSoon} type="button" title="Google" style={{width:52,height:52,borderRadius:"50%",border:`1px solid ${C.silver}`,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#4285F4"}}>G</button>
-          <button onClick={oauthSoon} type="button" title="Яндекс" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#FC3F1D",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:24,fontWeight:700,color:"#fff"}}>Я</button>
-          <button onClick={oauthSoon} type="button" title="Mail.ru" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#005FF9",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#fff"}}>@</button>
+        <div style={{display:"flex",gap:18,justifyContent:"center",marginBottom:18}}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+            <button onClick={oauthSoon} type="button" title="Google" style={{width:52,height:52,borderRadius:"50%",border:`1px solid ${C.silver}`,background:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#4285F4"}}>G</button>
+            <span style={{fontSize:10,color:"#636B7D",fontFamily:FONT}}>Google</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+            <button onClick={oauthSoon} type="button" title="Яндекс" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#FC3F1D",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:24,fontWeight:700,color:"#fff"}}>Я</button>
+            <span style={{fontSize:10,color:"#636B7D",fontFamily:FONT}}>Яндекс</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+            <button onClick={oauthSoon} type="button" title="Mail.ru" style={{width:52,height:52,borderRadius:"50%",border:"none",background:"#005FF9",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:22,fontWeight:700,color:"#fff"}}>@</button>
+            <span style={{fontSize:10,color:"#636B7D",fontFamily:FONT}}>Mail.ru</span>
+          </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,width:"100%",marginBottom:18}}>
           <div style={{flex:1,height:1,background:C.silver}}/>
@@ -2411,6 +2421,9 @@ function LoginScreen({onAuthed, navigate}) {
             {showPw?<EyeOff size={18}/>:<Eye size={18}/>}
           </button>
         </div>
+        <div style={{width:"100%",textAlign:"right",marginBottom:6}}>
+          <button onClick={forgotSoon} type="button" style={{background:"none",border:"none",color:"#636B7D",fontSize:13,cursor:"pointer",fontFamily:FONT,padding:0}}>Забыли пароль?</button>
+        </div>
         {err&&<div style={{color:C.cherry,fontSize:13,fontFamily:FONT,width:"100%",marginBottom:4}}>{err}</div>}
         <button onClick={submit} disabled={busy}
           style={{width:"100%",marginTop:8,padding:"13px",background:C.cherry,color:"#fff",border:"none",borderRadius:10,fontFamily:FONT,fontSize:15,fontWeight:600,cursor:busy?"default":"pointer",opacity:busy?0.7:1}}>
@@ -2418,7 +2431,7 @@ function LoginScreen({onAuthed, navigate}) {
         </button>
         <button onClick={()=>navigate("/register")} type="button"
           style={{marginTop:18,background:"none",border:"none",color:C.cherry,fontFamily:FONT,fontSize:14,cursor:"pointer"}}>
-          Зарегистрировать компанию
+          Нет аккаунта? Зарегистрироваться
         </button>
       </div>
     </AuthShell>
