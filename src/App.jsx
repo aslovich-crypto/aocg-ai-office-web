@@ -332,10 +332,72 @@ function CutoutCorners({size, color, len=20, thick=3}) {
   return <><div style={tl}/><div style={tr}/><div style={bl}/><div style={br}/></>;
 }
 
-// Decode a QR from a file via jsQR, with a contrast-boost retry. Returns the
-// decoded text or null. We use this instead of html5-qrcode's scanFile() —
-// jsQR has noticeably better detection on low-contrast thermal receipts.
-async function decodeQrFromFile(file, {maxDim=1600}={}) {
+// Otsu's method: pick the grayscale threshold maximizing between-class
+// variance, then binarize the RGBA buffer in place to pure black/white.
+// Helps jsQR on phone photos with uneven lighting / shadows.
+function binarizeOtsu(data) {
+  const n = data.length / 4;
+  const gray = new Uint8Array(n);
+  const hist = new Array(256).fill(0);
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const g = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) | 0;
+    gray[p] = g; hist[g]++;
+  }
+  let sum = 0;
+  for (let t = 0; t < 256; t++) sum += t * hist[t];
+  let sumB = 0, wB = 0, maxVar = 0, threshold = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t];
+    if (wB === 0) continue;
+    const wF = n - wB;
+    if (wF === 0) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB;
+    const mF = (sum - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > maxVar) { maxVar = between; threshold = t; }
+  }
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const v = gray[p] > threshold ? 255 : 0;
+    data[i] = data[i + 1] = data[i + 2] = v;
+  }
+}
+
+// Contrast stretch: (v - 128) * 2 + 128 per RGB channel, clamped to 0..255.
+function contrast2x(data) {
+  for (let i = 0; i < data.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = (data[i + c] - 128) * 2 + 128;
+      data[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+  }
+}
+
+// Draw img at the requested scale (number, or "fit-N" = cap long side at N px,
+// never upscale) and optionally post-process pixels. Returns ImageData for jsQR.
+function prepareImageData(img, {scale, process}) {
+  let s;
+  if (typeof scale === "number") s = scale;
+  else {
+    const px = parseInt(String(scale).replace("fit-", ""), 10) || 1000;
+    s = Math.min(1, px / Math.max(img.width, img.height));
+  }
+  const w = Math.max(1, Math.round(img.width * s));
+  const h = Math.max(1, Math.round(img.height * s));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", {willReadFrequently: true});
+  ctx.drawImage(img, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h);
+  if (process === "binarize-otsu") binarizeOtsu(data.data);
+  else if (process === "contrast-2x") contrast2x(data.data);
+  return data;
+}
+
+// Decode a QR from a file via jsQR. Cascade of attempts (fast → slow) with
+// different scales and pixel pre-processing; stops on the first success.
+// Used only for the photo-upload path — live camera uses html5-qrcode.
+async function decodeQrFromFile(file) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((resolve, reject) => {
@@ -344,22 +406,34 @@ async function decodeQrFromFile(file, {maxDim=1600}={}) {
       i.onerror = () => reject(new Error("image load failed"));
       i.src = url;
     });
-    const tryDecode = (enhance) => {
-      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-      const w = Math.max(1, Math.round(img.width * scale));
-      const h = Math.max(1, Math.round(img.height * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext("2d", {willReadFrequently: true});
-      if (enhance) ctx.filter = "contrast(1.5) brightness(1.1)";
-      ctx.drawImage(img, 0, 0, w, h);
-      let data;
-      try { data = ctx.getImageData(0, 0, w, h); }
-      catch { return null; }
-      const result = jsQR(data.data, data.width, data.height, {inversionAttempts: "attemptBoth"});
-      return result?.data || null;
-    };
-    return tryDecode(false) || tryDecode(true);
+
+    const attempts = [
+      { scale: 1,          process: "none" },           // native resolution, as-is
+      { scale: "fit-1000", process: "none" },           // medium size — jsQR detects reliably
+      { scale: "fit-1000", process: "binarize-otsu" },  // adaptive black/white
+      { scale: "fit-1500", process: "contrast-2x" },    // bigger + hard contrast
+      { scale: "fit-600",  process: "binarize-otsu" },  // small + binarized (huge photos)
+    ];
+
+    for (let n = 0; n < attempts.length; n++) {
+      const a = attempts[n];
+      // Yield so React can repaint the "(N сек)" timer between these heavy,
+      // synchronous jsQR passes instead of freezing the UI for the whole cascade.
+      await new Promise(r => setTimeout(r, 0));
+      try {
+        const data = prepareImageData(img, a);
+        const code = jsQR(data.data, data.width, data.height, {inversionAttempts: "attemptBoth"});
+        if (code && code.data) {
+          console.log("[QR] decoded:", {attempt: n + 1, ...a, w: data.width, h: data.height, len: code.data.length});
+          return code.data;
+        }
+        console.log("[QR] miss:", {attempt: n + 1, ...a, w: data.width, h: data.height});
+      } catch (e) {
+        console.warn("[QR] attempt failed:", n + 1, a, e);
+      }
+    }
+    console.log("[QR] all attempts failed");
+    return null;
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -384,6 +458,15 @@ async function decodeQrFromFile(file, {maxDim=1600}={}) {
 // Step-by-step progress while a photo is processed (QR → ФНС → OCR). Active
 // step: cherry spinner; completed steps: gray check. Brand v12 §11.
 function ProcessingSteps({step}) {
+  // Variant B: honest elapsed-time readout under "Ищем QR-код" — the QR cascade
+  // can run a beat, so a ticking "(N сек)" reassures the user it's working.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (step !== "qr") return;
+    const start = Date.now();
+    const id = setInterval(() => setElapsed((Date.now() - start) / 1000), 100);
+    return () => clearInterval(id);
+  }, [step]);
   const spinner = (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A4161A" strokeWidth="3" style={{flexShrink:0}}>
       <circle cx="12" cy="12" r="9" strokeOpacity="0.25"/>
@@ -404,7 +487,15 @@ function ProcessingSteps({step}) {
   );
   return (
     <div style={{background:"#FFFFFF",padding:20,borderRadius:12,maxWidth:320,width:"calc(100% - 48px)",display:"flex",flexDirection:"column",gap:12,boxShadow:"0 8px 30px rgba(0,0,0,0.25)"}}>
-      {step === "qr" && active("Ищем QR-код в фото…")}
+      {step === "qr" && (
+        <div style={{display:"flex",alignItems:"center",gap:10,fontFamily:FONT,fontSize:14,color:"#111318"}}>
+          {spinner}
+          <div style={{display:"flex",flexDirection:"column",lineHeight:1.3}}>
+            <span>Ищем QR-код в фото…</span>
+            <span style={{fontSize:12,color:"#9CA3AF",fontVariantNumeric:"tabular-nums"}}>({elapsed.toFixed(1)} сек)</span>
+          </div>
+        </div>
+      )}
       {step === "fns" && <>{done("QR-код найден")}{active("Проверяем чек в базе ФНС…")}</>}
       {step === "ocr_noqr" && <>{done("QR-код не найден")}{active("Распознаём текст чека…")}</>}
       {step === "ocr_fns" && <>{done("ФНС не подтвердила")}{active("Распознаём текст чека…")}</>}
