@@ -878,7 +878,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
             onPointerUp={e => { e.currentTarget.style.opacity = "1"; }}
             onPointerLeave={e => { e.currentTarget.style.opacity = "1"; }}
             style={{width:"100%",height:52,borderRadius:12,background:"#fff",border:"1px solid #EEF0F4",display:"flex",alignItems:"center",justifyContent:"center",gap:10,fontFamily:FONT,fontSize:15,fontWeight:400,color:"#636B7D",cursor:"pointer",transition:"opacity 100ms"}}>
-            <ImageUp size={20} color="#636B7D"/> Загрузить из галереи
+            <ImageUp size={20} color="#636B7D"/> Загрузить
           </button>
           <button type="button" onClick={(e) => { e.preventDefault(); onManual(); }}
             style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"none",border:"none",cursor:"pointer",padding:"4px",fontFamily:FONT,fontSize:13,color:"#9CA3AF"}}>
