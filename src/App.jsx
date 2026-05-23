@@ -639,6 +639,14 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       config,
       (text) => {
         if (!cameraOn.current) return;
+        if (!isFiscalQR(text)) {
+          // TEMP diagnostic (remove after 1–2 real tests): full QR string, to
+          // verify isFiscalQR isn't falsely rejecting a real fiscal QR.
+          console.log("[Camera] non-fiscal QR ignored (full):", text);
+          return; // keep scanning — don't pause on a non-fiscal QR (netmonet/url)
+        }
+        // TEMP diagnostic (remove after 1–2 real tests; fn privacy in shared logs).
+        console.log("[Camera] fiscal QR detected (full):", text);
         cameraOn.current = false;
         try { s.pause(true); } catch { /* not in scanning state */ }
         capture(text);
