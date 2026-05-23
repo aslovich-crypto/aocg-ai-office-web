@@ -394,8 +394,39 @@ function prepareImageData(img, {scale, process}) {
   return data;
 }
 
-// Decode a QR from a file via jsQR. Cascade of attempts (fast → slow) with
-// different scales and pixel pre-processing; stops on the first success.
+// True only for the standard FNS fiscal QR, which carries t= (timestamp),
+// &fn= (fiscal drive number) and &fp= (fiscal sign). Everything else —
+// netmonet/tips, URLs, contacts — lacks these and is rejected.
+function isFiscalQR(text) {
+  return !!text && text.includes("t=") && text.includes("&fn=") && text.includes("&fp=");
+}
+
+const QR_MASK_PADDING = 6; // px of slack around a QR's bounding box when erasing it
+
+// Erase an already-read QR from the ImageData buffer IN PLACE so jsQR can find
+// the next QR on the same canvas. Fills the axis-aligned box covering all four
+// corners (+padding) with white — destroys the finder patterns reliably even
+// if the QR is slightly rotated. Mutates `imageData.data`.
+function maskQrRegion(imageData, location) {
+  const xs = [location.topLeftCorner.x, location.topRightCorner.x, location.bottomLeftCorner.x, location.bottomRightCorner.x];
+  const ys = [location.topLeftCorner.y, location.topRightCorner.y, location.bottomLeftCorner.y, location.bottomRightCorner.y];
+  const w = imageData.width, h = imageData.height, d = imageData.data;
+  const x0 = Math.max(0, Math.floor(Math.min(...xs)) - QR_MASK_PADDING);
+  const y0 = Math.max(0, Math.floor(Math.min(...ys)) - QR_MASK_PADDING);
+  const x1 = Math.min(w, Math.ceil(Math.max(...xs)) + QR_MASK_PADDING);
+  const y1 = Math.min(h, Math.ceil(Math.max(...ys)) + QR_MASK_PADDING);
+  for (let y = y0; y < y1; y++) {
+    let i = (y * w + x0) * 4;
+    for (let x = x0; x < x1; x++, i += 4) {
+      d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = 255; // white = no QR here
+    }
+  }
+}
+
+// Find the FISCAL QR on a receipt photo via jsQR. Cascade of attempts
+// (fast → slow) with different scales + pixel pre-processing; within each
+// attempt, mask-and-retry skips non-fiscal QRs (e.g. the big netmonet/tips QR)
+// until a fiscal one is found. Returns the fiscal QR string or null (→ OCR).
 // Used only for the photo-upload path — live camera uses html5-qrcode.
 async function decodeQrFromFile(file) {
   const url = URL.createObjectURL(file);
@@ -415,24 +446,36 @@ async function decodeQrFromFile(file) {
       { scale: "fit-600",  process: "binarize-otsu" },  // small + binarized (huge photos)
     ];
 
+    const MAX_QRS_PER_ATTEMPT = 5; // safety cap on mask-and-retry within one canvas
+
     for (let n = 0; n < attempts.length; n++) {
       const a = attempts[n];
       // Yield so React can repaint the "(N сек)" timer between these heavy,
       // synchronous jsQR passes instead of freezing the UI for the whole cascade.
       await new Promise(r => setTimeout(r, 0));
       try {
+        // Fresh ImageData per cascade attempt — masking below mutates this
+        // buffer in place, so it must NOT be carried over to the next attempt.
         const data = prepareImageData(img, a);
-        const code = jsQR(data.data, data.width, data.height, {inversionAttempts: "attemptBoth"});
-        if (code && code.data) {
-          console.log("[QR] decoded:", {attempt: n + 1, ...a, w: data.width, h: data.height, len: code.data.length});
-          return code.data;
+        for (let k = 0; k < MAX_QRS_PER_ATTEMPT; k++) {
+          if (k > 0) await new Promise(r => setTimeout(r, 0)); // keep the timer alive between re-scans
+          const code = jsQR(data.data, data.width, data.height, {inversionAttempts: "attemptBoth"});
+          if (!code || !code.data) {
+            console.log("[QR] miss:", {attempt: n + 1, ...a, w: data.width, h: data.height, qrsRead: k});
+            break; // no more QRs on this canvas → next cascade attempt
+          }
+          if (isFiscalQR(code.data)) {
+            console.log("[QR] found fiscal QR:", code.data.slice(0, 60), {attempt: n + 1, ...a});
+            return code.data;
+          }
+          console.log("[QR] found non-fiscal QR (netmonet/url/other), masking and retrying:", code.data.slice(0, 40));
+          maskQrRegion(data, code.location); // erase in place, re-scan the SAME buffer
         }
-        console.log("[QR] miss:", {attempt: n + 1, ...a, w: data.width, h: data.height});
       } catch (e) {
         console.warn("[QR] attempt failed:", n + 1, a, e);
       }
     }
-    console.log("[QR] all attempts failed");
+    console.log("[QR] no fiscal QR found after all attempts, falling back to OCR");
     return null;
   } finally {
     URL.revokeObjectURL(url);
