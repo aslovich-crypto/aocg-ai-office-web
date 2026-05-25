@@ -524,7 +524,7 @@ function ProcessingSteps({step}) {
         <div style={{display:"flex",alignItems:"center",gap:10,fontFamily:FONT,fontSize:14,color:"#111318"}}>
           {spinner}
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.3}}>
-            <span>Ищем QR-код в фото…</span>
+            <span>Ищем QR-код в файле…</span>
             <span style={{fontSize:12,color:"#9CA3AF",fontVariantNumeric:"tabular-nums"}}>({elapsed.toFixed(1)} сек)</span>
           </div>
         </div>
@@ -573,6 +573,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   const [previewNotice, setPreviewNotice] = useState(""); // OCR-failure notice on the preview screen
   const [step, setStep] = useState(null);        // null|'qr'|'fns'|'ocr_noqr'|'ocr_fns'|'done' — photo-processing progress
   const [saveSheet, setSaveSheet] = useState(null); // {title,message,confirmText,cancelText} — FNS-fallback sheet
+  const [fileSource, setFileSource] = useState(null); // 'camera' | 'gallery' | null — where the previewed file came from
   const scannerRef = useRef(null);
   const cameraOn = useRef(false);
   const ocrFileRef = useRef(null);
@@ -748,7 +749,7 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   }
   function clearPreview() {
     revokePreviewUrl();
-    setPreviewUrl(null); setPreviewFile(null); setPreviewNotice(""); setStep(null); setSaveSheet(null);
+    setPreviewUrl(null); setPreviewFile(null); setPreviewNotice(""); setStep(null); setSaveSheet(null); setFileSource(null);
   }
 
   // A source input fired. Stash the file and show the preview screen; QR
@@ -773,11 +774,14 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
     setPhase("scanning");
     cameraOn.current = true;
   }
-  function previewRetake(e) { // Переснять — drop the photo, back to the scanning screen (source buttons + live camera)
+  function previewRetake(e) { // Переснять / Выбрать другое — re-open the SAME source the file came from
     if (e && e.preventDefault) e.preventDefault();
+    const src = fileSource;        // capture before clearPreview() resets it to null
     clearPreview();
-    setPhase("scanning");
-    cameraOn.current = true;
+    setPhase("scanning");          // safety for all branches: if the user cancels the picker,
+    cameraOn.current = true;       // they land on the live scanner, not an empty preview
+    if (src === "camera")       cameraInputRef.current?.click();
+    else if (src === "gallery") galleryInputRef.current?.click();
   }
 
   // "Использовать": QR-first photo processing with a step indicator.
@@ -894,8 +898,8 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
 
       {/* Hidden file inputs. Reset value after each pick so re-selecting the
           same file still fires onChange. */}
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e => { pickFile(e.target.files[0]); e.target.value = ""; }}/>
-      <input ref={galleryInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e => { pickFile(e.target.files[0]); e.target.value = ""; }}/>
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e => { setFileSource("camera"); pickFile(e.target.files[0]); e.target.value = ""; }}/>
+      <input ref={galleryInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e => { setFileSource("gallery"); pickFile(e.target.files[0]); e.target.value = ""; }}/>
       <input ref={ocrFileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e => { handleOcrPick(e.target.files[0]); e.target.value = ""; }}/>
 
       {/* Bottom pill — white, rounded top, contents swap per phase. Hidden in
@@ -1020,14 +1024,14 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
                 </button>
                 <button type="button" onClick={previewRetake}
                   style={{padding:"12px",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:12,fontFamily:FONT,fontSize:13,color:"#fff",cursor:"pointer"}}>
-                  Переснять
+                  {fileSource === "camera" ? "Переснять" : "Выбрать другое"}
                 </button>
               </div>
             ) : (
               <div style={{display:"flex",gap:12}}>
                 <button type="button" onClick={previewRetake}
                   style={{flex:1,padding:"14px",background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:12,fontFamily:FONT,fontSize:14,color:"#fff",cursor:"pointer"}}>
-                  Переснять
+                  {fileSource === "camera" ? "Переснять" : "Выбрать другое"}
                 </button>
                 <button type="button" onClick={usePhoto}
                   style={{flex:1,padding:"14px",background:C.cherry,border:"none",borderRadius:12,fontFamily:FONT,fontSize:14,fontWeight:600,color:C.white,cursor:"pointer"}}>
