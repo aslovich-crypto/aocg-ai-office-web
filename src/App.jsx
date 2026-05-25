@@ -460,22 +460,12 @@ async function decodeQrFromFile(file) {
         for (let k = 0; k < MAX_QRS_PER_ATTEMPT; k++) {
           if (k > 0) await new Promise(r => setTimeout(r, 0)); // keep the timer alive between re-scans
           const code = jsQR(data.data, data.width, data.height, {inversionAttempts: "attemptBoth"});
-          if (!code || !code.data) {
-            console.log("[QR] miss:", {attempt: n + 1, ...a, w: data.width, h: data.height, qrsRead: k});
-            break; // no more QRs on this canvas → next cascade attempt
-          }
-          if (isFiscalQR(code.data)) {
-            console.log("[QR] found fiscal QR:", code.data.slice(0, 60), {attempt: n + 1, ...a});
-            return code.data;
-          }
-          console.log("[QR] found non-fiscal QR (netmonet/url/other), masking and retrying:", code.data.slice(0, 40));
-          maskQrRegion(data, code.location); // erase in place, re-scan the SAME buffer
+          if (!code || !code.data) break;        // no more QRs on this canvas → next cascade attempt
+          if (isFiscalQR(code.data)) return code.data;
+          maskQrRegion(data, code.location);     // non-fiscal QR → erase in place, re-scan the SAME buffer
         }
-      } catch (e) {
-        console.warn("[QR] attempt failed:", n + 1, a, e);
-      }
+      } catch { /* this attempt failed — try the next preprocessing */ }
     }
-    console.log("[QR] no fiscal QR found after all attempts, falling back to OCR");
     return null;
   } finally {
     URL.revokeObjectURL(url);
@@ -640,13 +630,10 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
       (text) => {
         if (!cameraOn.current) return;
         if (!isFiscalQR(text)) {
-          // TEMP diagnostic (remove after 1–2 real tests): full QR string, to
-          // verify isFiscalQR isn't falsely rejecting a real fiscal QR.
-          console.log("[Camera] non-fiscal QR ignored (full):", text);
+          console.log("[Camera] non-fiscal QR ignored:", text.substring(0, 60));
           return; // keep scanning — don't pause on a non-fiscal QR (netmonet/url)
         }
-        // TEMP diagnostic (remove after 1–2 real tests; fn privacy in shared logs).
-        console.log("[Camera] fiscal QR detected (full):", text);
+        console.log("[Camera] fiscal QR detected"); // no QR text in logs (fn privacy)
         cameraOn.current = false;
         try { s.pause(true); } catch { /* not in scanning state */ }
         capture(text);
