@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle } from "lucide-react";
+import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle, Lock, Trash2 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -105,6 +105,15 @@ const ROLES = [
 
 const fmt = n => Number(n).toLocaleString("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₽";
 const fmtDate = s => new Date(s).toLocaleDateString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric"});
+// Русские метки источника чека (как в фильтре «Источник») — для баннера дублей.
+const SRC_LABEL = {fns:"ФНС", qr_scan:"QR", photo_ocr:"Фото", manual:"Вручную"};
+// Склонение существительного по числу: plural(n, ["чек","чека","чеков"]).
+const plural = (n, forms) => {
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return forms[0];
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms[1];
+  return forms[2];
+};
 const monthLabel = s => new Date(s).toLocaleDateString("ru-RU",{month:"long",year:"numeric"}).replace(/^./,c=>c.toUpperCase());
 
 const CATEGORY_COLORS = {
@@ -1607,31 +1616,94 @@ function PeriodPicker({value,onChange}) {
   );
 }
 
-// Мягкое предупреждение о возможном дубле (задача №9, бэк шлёт body.warning).
-// Транзитный инлайн-баннер: появляется после добавления чека, авто-скрытие 7 сек
-// (см. useEffect в OperaciiPage) или по [×]. Янтарь 1-в-1 как fnsStatus "partial".
-// high — «Скорее всего дубль» с названием организации; low — «Возможный дубль» без неё.
-function DuplicateWarningBanner({warning, onView, onDismiss}) {
-  const high = warning.confidence === "high";
-  const sr = warning.similar_receipt || {};
-  const title = high ? "Скорее всего дубль" : "Возможный дубль";
-  const sub = high
-    ? `Похож на чек «${sr.org}» на ${fmt(sr.amount)} от ${fmtDate(sr.date)}`
-    : `Похож на чек на ${fmt(sr.amount)} от ${fmtDate(sr.date)}`;
+// Транзитное уведомление сверху по центру (задача №9 фаза D). type: success
+// (зелёный) / warning (янтарный) / error (красный). Авто-скрытие — в OperaciiPage.
+function Toast({toast}) {
+  if (!toast) return null;
+  const palette = {
+    success: {bg: "#F0FDF4", fg: "#15803D", bd: "#BBF7D0"},
+    warning: {bg: "#FFFBEB", fg: "#B45309", bd: "#FDE68A"},
+    error:   {bg: "#FEF2F2", fg: "#B91C1C", bd: "#FECACA"},
+  }[toast.type] || {bg: "#F0FDF4", fg: "#15803D", bd: "#BBF7D0"};
   return (
-    <div style={{margin:"10px 16px 0",padding:"10px 12px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,fontFamily:FONT,display:"flex",alignItems:"flex-start",gap:8}}>
-      <AlertTriangle size={16} color="#B45309" strokeWidth={2} style={{flexShrink:0,marginTop:1}}/>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:12,fontWeight:600,color:"#B45309"}}>{title}</div>
-        <div style={{fontSize:11,color:"#B45309",marginTop:2,lineHeight:1.4}}>{sub}</div>
-        <button onClick={onView} style={{marginTop:6,background:"none",border:"none",padding:0,color:"#B45309",fontFamily:FONT,fontSize:11,fontWeight:700,textDecoration:"underline",cursor:"pointer"}}>Посмотреть</button>
-      </div>
-      <button onClick={onDismiss} aria-label="Закрыть" style={{background:"none",border:"none",padding:0,color:"#B45309",fontSize:16,lineHeight:1,cursor:"pointer",flexShrink:0}}>×</button>
+    <div style={{position:"fixed",top:"calc(env(safe-area-inset-top) + 8px)",left:"50%",transform:"translateX(-50%)",
+                 zIndex:200,background:palette.bg,border:`1px solid ${palette.bd}`,color:palette.fg,borderRadius:10,
+                 padding:"10px 16px",fontFamily:FONT,fontSize:12,fontWeight:600,maxWidth:"90vw",textAlign:"center",
+                 boxShadow:"0 4px 14px rgba(0,0,0,0.12)"}}>
+      {toast.message}
     </div>
   );
 }
 
-function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, activePeriod, setActivePeriod}) {
+// Интерактивный sticky-баннер дублей (задача №9 фаза D): список всех похожих
+// чеков (warning.duplicates) с чекбоксами и массовым удалением. Умные defaults:
+// отмечены только deletable (kkt_fn IS NULL) и не в отчёте; ФНС/QR (deletable=
+// false) и in_report — disabled с пометкой. force в UI всегда false (бэк защищает).
+function DuplicateWarningBanner({warning, onDelete, onClose}) {
+  const dups = warning.duplicates || [];
+  const high = warning.confidence === "high";
+  const headOrg = (dups.find(d => !d.is_new && d.org) || dups[0] || {}).org || "";
+  const [selected, setSelected] = useState(
+    () => new Set(dups.filter(d => d.deletable && !d.in_report).map(d => d.id)));
+  const [busy, setBusy] = useState(false);
+  const toggle = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const count = selected.size;
+  const submit = async () => {
+    if (count === 0 || busy) return;
+    setBusy(true);
+    const ok = await onDelete([...selected]);   // на успехе баннер размонтируется
+    if (!ok) setBusy(false);                     // на ошибке — остаёмся, кнопка снова активна
+  };
+  const disabledBtn = count === 0 || busy;
+  return (
+    <div style={{position:"sticky",top:0,zIndex:10,margin:"10px 16px 0",padding:"12px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,fontFamily:FONT}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+        <AlertTriangle size={16} color="#B45309" strokeWidth={2} style={{flexShrink:0,marginTop:1}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#B45309"}}>
+            {high && headOrg ? `Возможный дубль чека «${headOrg}»` : "Возможный дубль"}
+          </div>
+          <div style={{fontSize:11,color:"#B45309",marginTop:1}}>
+            Найдено {dups.length} {plural(dups.length, ["похожий чек","похожих чека","похожих чеков"])}
+          </div>
+        </div>
+        <button onClick={onClose} aria-label="Закрыть" style={{background:"none",border:"none",padding:0,color:"#B45309",fontSize:16,lineHeight:1,cursor:"pointer",flexShrink:0}}>×</button>
+      </div>
+      <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+        {dups.map(d => {
+          const locked = !d.deletable || d.in_report;
+          return (
+            <label key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:C.white,border:`1px solid ${C.silver}`,borderRadius:8,cursor:locked?"default":"pointer",opacity:locked?0.7:1}}>
+              <input type="checkbox" disabled={locked} checked={selected.has(d.id)} onChange={()=>toggle(d.id)}
+                     style={{width:16,height:16,accentColor:C.cherry,cursor:locked?"default":"pointer",flexShrink:0}}/>
+              <span style={{fontSize:9,fontWeight:600,letterSpacing:"0.03em",color:C.mid,background:C.lightGray,border:`1px solid ${C.silver}`,borderRadius:5,padding:"1px 6px",flexShrink:0}}>{SRC_LABEL[d.source]||d.source}</span>
+              <span style={{flex:1,minWidth:0,fontSize:12,color:C.dark,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                {(d.org ? d.org + " · " : "") + fmt(d.amount) + " · " + fmtDate(d.date)}
+              </span>
+              {d.is_new && <span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:5,padding:"1px 5px",flexShrink:0}}>новый</span>}
+              {d.in_report && <span style={{fontSize:9,fontWeight:600,color:"#6D28D9",background:"#F5F3FF",border:"1px solid #DDD6FE",borderRadius:5,padding:"1px 5px",flexShrink:0}}>В отчёте</span>}
+              {!d.deletable && <Lock size={13} color={C.gray} strokeWidth={2} style={{flexShrink:0}}/>}
+            </label>
+          );
+        })}
+      </div>
+      <div style={{marginTop:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+        <button onClick={submit} disabled={disabledBtn}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",border:"none",borderRadius:8,fontFamily:FONT,fontSize:12,fontWeight:700,
+                        cursor:disabledBtn?"default":"pointer",background:disabledBtn?C.silver:C.cherry,color:disabledBtn?C.gray:C.white}}>
+          <Trash2 size={14} strokeWidth={2}/> Удалить выбранные ({count})
+        </button>
+        <button onClick={onClose} style={{background:"none",border:"none",padding:"8px 6px",color:C.mid,fontFamily:FONT,fontSize:12,fontWeight:600,cursor:"pointer"}}>Закрыть</button>
+      </div>
+    </div>
+  );
+}
+
+function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, handleBulkDelete, activePeriod, setActivePeriod}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [search,setSearch]=useState("");
   const [sources,setSources]=useState([]);   // [] = «Все»
@@ -1650,14 +1722,15 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [isSubmitting,setIsSubmitting]=useState(false); // POST /receipts in flight — blocks double-submit
   const [addError,setAddError]=useState("");            // red banner above the submit button
   const [dupId,setDupId]=useState(null);                // on 409: id of the receipt that already exists
-  const [dupWarning,setDupWarning]=useState(null);      // on 200+warning: мягкий дубль (задача №9)
-  // Авто-скрытие баннера дубля через 7 сек; cleanup снимает таймер при смене
-  // предупреждения или размонтировании страницы (иначе закрыл бы новый баннер).
+  const [dupWarning,setDupWarning]=useState(null);      // on 200+warning: дубль(и) (задача №9)
+  const [toast,setToast]=useState(null);                // {type,message,duration} — уведомление
+  // Баннер дубля теперь sticky без авто-скрытия (фаза D). Авто-скрываем только
+  // toast; cleanup снимает таймер при смене сообщения/размонтировании страницы.
   useEffect(()=>{
-    if(!dupWarning) return;
-    const t=setTimeout(()=>setDupWarning(null),7000);
+    if(!toast) return;
+    const t=setTimeout(()=>setToast(null), toast.duration||3000);
     return ()=>clearTimeout(t);
-  },[dupWarning]);
+  },[toast]);
   // In-flight FNS prefetch keyed by qrText, started the instant the modal
   // captures a QR (before the user taps "Загрузить чек"). By the time the
   // user confirms, the network round-trip is usually already done.
@@ -1885,28 +1958,33 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     } catch { /* network — leave the banner as is */ }
   }
 
-  // From the soft-duplicate banner: open the similar receipt's detail modal.
-  // warning.similar_receipt несёт только {id,org,amount,date} — для полной модалки
-  // дотягиваем чек по id (как openDup). authFetch, не fetch: иначе нет JWT → 401.
-  async function viewSimilar(id) {
-    if(!id){ setDupWarning(null); return; }
-    try {
-      const res=await authFetch(`/api/receipts/${id}`);
-      if(res.ok){
-        const ex=await res.json();
-        setDetail({...ex,amount:Number(ex.amount)});
-      }
-    } catch { /* network — просто закрываем баннер */ }
+  // Клик «Удалить выбранные» в баннере → bulk-delete + toast по результату.
+  // Возвращает true (успех — баннер закрыт) / false (ошибка — баннер остаётся).
+  async function deleteDuplicates(ids) {
+    const body = await handleBulkDelete(ids, false);
+    if(!body){ setToast({type:"error", message:"Не удалось удалить", duration:4000}); return false; }
     setDupWarning(null);
+    const nd = body.deleted.length;
+    const blocked = [];
+    if(body.blocked_in_report.length) blocked.push(`${body.blocked_in_report.length} в отчёте`);
+    if(body.blocked_fns.length) blocked.push(`${body.blocked_fns.length} ФНС`);
+    if(nd === 0)
+      setToast({type:"warning", message:`Ничего не удалено: ${blocked.join(", ")}`, duration:5000});
+    else if(blocked.length)
+      setToast({type:"warning", message:`✓ Удалено ${nd} ${plural(nd,["чек","чека","чеков"])}. Заблокировано: ${blocked.join(", ")}`, duration:5000});
+    else
+      setToast({type:"success", message:`✓ Удалено ${nd} ${plural(nd,["чек","чека","чеков"])}`, duration:3000});
+    return true;
   }
 
   return (
     <div style={{position:"relative"}}>
+      <Toast toast={toast}/>
       {dupWarning && (
         <DuplicateWarningBanner
           warning={dupWarning}
-          onView={()=>viewSimilar(dupWarning.similar_receipt?.id)}
-          onDismiss={()=>setDupWarning(null)}
+          onDelete={deleteDuplicates}
+          onClose={()=>setDupWarning(null)}
         />
       )}
       {/* TODO: ФНС «Мои чеки онлайн» — включить когда будет готова интеграция
@@ -3170,6 +3248,23 @@ export default function App() {
     else alert("Не удалось удалить чек");
   }
 
+  // Массовое удаление дублей из баннера (задача №9 фаза D). Возвращает тело ответа
+  // {deleted, blocked_fns, blocked_in_report} (или null при сбое); на успехе
+  // убирает удалённые id из списка (как handleDelete, но для массива).
+  async function handleBulkDelete(ids, force=false) {
+    try {
+      const res=await authFetch(`/api/receipts/bulk-delete`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ids, force})
+      });
+      if(!res.ok) return null;
+      const body=await res.json();
+      if(body.deleted?.length) setReceipts(prev=>prev.filter(x=>!body.deleted.includes(x.id)));
+      return body;
+    } catch { return null; }
+  }
+
   async function handleUpdate(id, patch) {
     try {
       const res=await authFetch(`/api/receipts/${id}`,{
@@ -3235,7 +3330,7 @@ export default function App() {
       </div>
       <div style={{flex:1,overflow:"auto"}}>
         {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod} users={users} cards={cards}/>}
-        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
+        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} handleBulkDelete={handleBulkDelete} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser}/>}
       </div>
