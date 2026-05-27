@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff, Mail } from "lucide-react";
+import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -1607,6 +1607,30 @@ function PeriodPicker({value,onChange}) {
   );
 }
 
+// Мягкое предупреждение о возможном дубле (задача №9, бэк шлёт body.warning).
+// Транзитный инлайн-баннер: появляется после добавления чека, авто-скрытие 7 сек
+// (см. useEffect в OperaciiPage) или по [×]. Янтарь 1-в-1 как fnsStatus "partial".
+// high — «Скорее всего дубль» с названием организации; low — «Возможный дубль» без неё.
+function DuplicateWarningBanner({warning, onView, onDismiss}) {
+  const high = warning.confidence === "high";
+  const sr = warning.similar_receipt || {};
+  const title = high ? "Скорее всего дубль" : "Возможный дубль";
+  const sub = high
+    ? `Похож на чек «${sr.org}» на ${fmt(sr.amount)} от ${fmtDate(sr.date)}`
+    : `Похож на чек на ${fmt(sr.amount)} от ${fmtDate(sr.date)}`;
+  return (
+    <div style={{margin:"10px 16px 0",padding:"10px 12px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,fontFamily:FONT,display:"flex",alignItems:"flex-start",gap:8}}>
+      <AlertTriangle size={16} color="#B45309" strokeWidth={2} style={{flexShrink:0,marginTop:1}}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:600,color:"#B45309"}}>{title}</div>
+        <div style={{fontSize:11,color:"#B45309",marginTop:2,lineHeight:1.4}}>{sub}</div>
+        <button onClick={onView} style={{marginTop:6,background:"none",border:"none",padding:0,color:"#B45309",fontFamily:FONT,fontSize:11,fontWeight:700,textDecoration:"underline",cursor:"pointer"}}>Посмотреть</button>
+      </div>
+      <button onClick={onDismiss} aria-label="Закрыть" style={{background:"none",border:"none",padding:0,color:"#B45309",fontSize:16,lineHeight:1,cursor:"pointer",flexShrink:0}}>×</button>
+    </div>
+  );
+}
+
 function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, activePeriod, setActivePeriod}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [search,setSearch]=useState("");
@@ -1626,6 +1650,14 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
   const [isSubmitting,setIsSubmitting]=useState(false); // POST /receipts in flight — blocks double-submit
   const [addError,setAddError]=useState("");            // red banner above the submit button
   const [dupId,setDupId]=useState(null);                // on 409: id of the receipt that already exists
+  const [dupWarning,setDupWarning]=useState(null);      // on 200+warning: мягкий дубль (задача №9)
+  // Авто-скрытие баннера дубля через 7 сек; cleanup снимает таймер при смене
+  // предупреждения или размонтировании страницы (иначе закрыл бы новый баннер).
+  useEffect(()=>{
+    if(!dupWarning) return;
+    const t=setTimeout(()=>setDupWarning(null),7000);
+    return ()=>clearTimeout(t);
+  },[dupWarning]);
   // In-flight FNS prefetch keyed by qrText, started the instant the modal
   // captures a QR (before the user taps "Загрузить чек"). By the time the
   // user confirms, the network round-trip is usually already done.
@@ -1821,12 +1853,15 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
         return;
       }
       if(!res.ok){ setAddError("Не удалось добавить чек. Попробуйте ещё раз"); return; }
-      const created=await res.json();
-      handleAdd(created);
+      // warning (мягкий дубль) идёт рядом с полями чека — вынимаем его, чтобы
+      // не осело лишним полем на объекте в списке; чек добавляем без него.
+      const {warning, ...receipt}=await res.json();
+      handleAdd(receipt);
       setShowAdd(false);
       setForm({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
       setFnsStatus(null);
       setAddError(""); setDupId(null);
+      setDupWarning(warning||null);
     } catch {
       setAddError("Не удалось добавить чек. Проверьте интернет");
     } finally {
@@ -1850,8 +1885,30 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, a
     } catch { /* network — leave the banner as is */ }
   }
 
+  // From the soft-duplicate banner: open the similar receipt's detail modal.
+  // warning.similar_receipt несёт только {id,org,amount,date} — для полной модалки
+  // дотягиваем чек по id (как openDup). authFetch, не fetch: иначе нет JWT → 401.
+  async function viewSimilar(id) {
+    if(!id){ setDupWarning(null); return; }
+    try {
+      const res=await authFetch(`/api/receipts/${id}`);
+      if(res.ok){
+        const ex=await res.json();
+        setDetail({...ex,amount:Number(ex.amount)});
+      }
+    } catch { /* network — просто закрываем баннер */ }
+    setDupWarning(null);
+  }
+
   return (
     <div style={{position:"relative"}}>
+      {dupWarning && (
+        <DuplicateWarningBanner
+          warning={dupWarning}
+          onView={()=>viewSimilar(dupWarning.similar_receipt?.id)}
+          onDismiss={()=>setDupWarning(null)}
+        />
+      )}
       {/* TODO: ФНС «Мои чеки онлайн» — включить когда будет готова интеграция
       <TabBar tabs={["Чеки","Онлайн чеки"]} active={tab} onSelect={setTab}/> */}
       <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,padding:"10px 16px",display:"flex",alignItems:"center",gap:8}}>
