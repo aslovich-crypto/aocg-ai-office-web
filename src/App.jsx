@@ -1315,9 +1315,10 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   );
 }
 
-function ReceiptDetailModal({receipt, onClose, onDelete, onChangePayment, paymentOptions=[]}) {
+function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onChangePayment, catalog, paymentOptions=[]}) {
   const [confirm,setConfirm]=useState(false);
   const [showPay,setShowPay]=useState(false);
+  const [showCategorySheet,setShowCategorySheet]=useState(false);   // смена категории чека
   const r=receipt;
   const raw=r.raw_data||{};
 
@@ -1406,10 +1407,17 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangePayment, paymen
           </div>
 
           <div style={{padding:"12px 14px calc(14px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,padding:"2px 2px 2px"}}>
-              <span style={{display:"inline-block",padding:"4px 12px",borderRadius:20,background:catColor(r.category).bg,color:catColor(r.category).fg,fontSize:12,fontWeight:600,fontFamily:FONT,whiteSpace:"nowrap"}}>{r.category||"Не указано"}</span>
-              {groupOf(r.category)&&<span style={{fontSize:11,color:C.gray,fontFamily:FONT}}>{groupOf(r.category)}</span>}
-            </div>
+            <button onClick={()=>{if(catalog&&onChangeCategory)setShowCategorySheet(true);}}
+              disabled={!catalog||!onChangeCategory} title="Сменить категорию"
+              style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",
+                border:`1px solid ${C.silver}`,background:C.white,borderRadius:10,fontFamily:FONT,
+                cursor:(catalog&&onChangeCategory)?"pointer":"default",textAlign:"left",
+                WebkitTapHighlightColor:"rgba(164,22,26,0.08)"}}>
+              <span style={{display:"inline-block",padding:"4px 12px",borderRadius:20,background:catColor(r.category).bg,color:catColor(r.category).fg,fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>{r.category||"Не указано"}</span>
+              {groupOf(r.category)&&<span style={{fontSize:11,color:C.gray}}>{groupOf(r.category)}</span>}
+              <span style={{flex:1}}/>
+              {catalog&&onChangeCategory&&<span style={{color:C.grayL,fontSize:18,flexShrink:0,lineHeight:1}}>›</span>}
+            </button>
             {onChangePayment&&(
               <button onClick={()=>setShowPay(true)} style={{padding:"12px 8px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить карту</button>
             )}
@@ -1452,6 +1460,14 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangePayment, paymen
               </div>
             </div>
           </div>
+        )}
+
+        {showCategorySheet&&(
+          <CategorySheet
+            catalog={catalog}
+            selected={r.category}
+            onPick={onChangeCategory}
+            onClose={()=>setShowCategorySheet(false)}/>
         )}
       </div>
     </div>
@@ -2135,8 +2151,10 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
       {detail&&<ReceiptDetailModal
         receipt={detail}
         paymentOptions={paymentOptions}
+        catalog={catalog}
         onClose={()=>setDetail(null)}
         onDelete={()=>{handleDelete(detail.id);setDetail(null);}}
+        onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}
         onChangePayment={async p=>{const upd=await handleUpdate(detail.id,{payment:p});if(upd) setDetail(upd);}}
       />}
       {showCatSheet&&<CategorySheet
