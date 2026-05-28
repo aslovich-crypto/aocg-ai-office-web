@@ -116,17 +116,33 @@ const plural = (n, forms) => {
 };
 const monthLabel = s => new Date(s).toLocaleDateString("ru-RU",{month:"long",year:"numeric"}).replace(/^./,c=>c.toUpperCase());
 
-const CATEGORY_COLORS = {
-  "Топливо":    {bg:"#FDF2F2", fg:"#A4161A"},
-  "Продукты":   {bg:"#F0FDF4", fg:"#15803D"},
-  "Транспорт":  {bg:"#EFF6FF", fg:"#1D4ED8"},
-  "Питание":    {bg:"#FFFBEB", fg:"#B45309"},
-  "Гостиница":  {bg:"#F5F3FF", fg:"#6D28D9"},
-  "Канцелярия": {bg:"#EEF0F4", fg:"#636B7D"},
-  "Прочее":     {bg:"#EEF0F4", fg:"#636B7D"},
-  "Не указано": {bg:"#EEF0F4", fg:"#636B7D"},
+// D1: цвет статьи определяется её ГРУППОЙ (11 групп справочника). Пастельные bg/fg
+// в гармонии с брендовым #A4161A + Cool Neutrals. Семантика: транспорт синий,
+// питание янтарный, IT фиолетовый, налоги стальной, представительские — вишнёвые.
+const GROUP_COLORS = {
+  "Материалы и расходники":  {bg:"#ECFDF5", fg:"#047857"},
+  "Питание и кейтеринг":     {bg:"#FFFBEB", fg:"#B45309"},
+  "Командировки":            {bg:"#ECFEFF", fg:"#0E7490"},
+  "Представительские":       {bg:"#FDF2F2", fg:"#A4161A"},
+  "Офис и помещения":        {bg:"#F7FEE7", fg:"#4D7C0F"},
+  "Связь":                   {bg:"#EEF2FF", fg:"#4338CA"},
+  "IT и софт":               {bg:"#F5F3FF", fg:"#6D28D9"},
+  "Транспорт":               {bg:"#EFF6FF", fg:"#1D4ED8"},
+  "Реклама и маркетинг":     {bg:"#FDF4FF", fg:"#A21CAF"},
+  "Профессиональные услуги": {bg:"#FFF7ED", fg:"#C2410C"},
+  "Прочее и налоги":         {bg:"#F1F5F9", fg:"#475569"},
 };
-const catColor = c => CATEGORY_COLORS[c] || CATEGORY_COLORS["Не указано"];
+const GROUP_FALLBACK = {bg:"#EEF0F4", fg:"#636B7D"};   // старые/неизвестные строки
+// article name → group name; заполняется из загруженного каталога (setCatalogMaps).
+let ARTICLE_GROUP = {};
+function setCatalogMaps(catalog) {
+  const m = {};
+  (catalog?.groups||[]).forEach(g => (g.categories||[]).forEach(c => { m[c.name] = g.name; }));
+  ARTICLE_GROUP = m;
+}
+const groupOf = name => ARTICLE_GROUP[name] || null;
+const groupColor = group => GROUP_COLORS[group] || GROUP_FALLBACK;
+const catColor = name => groupColor(groupOf(name));   // статья → цвет её группы
 
 // Prefix forms we strip when picking the avatar initial. The `И\s*\.?\s*П\s*\.?`
 // alternative handles separated variants ("И П Иванов", "И. П. Иванов", "И.П.
@@ -1063,8 +1079,10 @@ function ScanReceiptModal({onClose, onCapture, onPrefetch, onOcrFile, onManual})
   );
 }
 
-function Donut({title,data,num}) {
+function Donut({title,data,num,sliceColor}) {
   const pal=[C.cherry,C.cherryM,"#C45558","#E8A0A2","#D4888A"];
+  // sliceColor(d) — раскраска по группе (донат «Категории»); иначе вишнёвая палитра.
+  const colorAt=(d,i)=> sliceColor ? sliceColor(d) : pal[i%pal.length];
   const sectionTotal=data.reduce((s,d)=>s+d.value,0);
   return (
     <SectionCard title={title} num={num}>
@@ -1073,7 +1091,7 @@ function Donut({title,data,num}) {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={54} outerRadius={75} paddingAngle={2} startAngle={90} endAngle={-270}>
-                {data.map((_,i)=><Cell key={i} fill={pal[i%pal.length]}/>)}
+                {data.map((d,i)=><Cell key={i} fill={colorAt(d,i)}/>)}
               </Pie>
               <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:11}}/>
             </PieChart>
@@ -1100,7 +1118,7 @@ function Donut({title,data,num}) {
 
 // ─── PAGES ────────────────────────────────────────────────
 
-function SvodkaPage({receipts, activePeriod, setActivePeriod, users, cards}) {
+function SvodkaPage({receipts, activePeriod, setActivePeriod, users, cards, catalog}) {
   const [showFilters,setShowFilters]=useState(false);
   const [selEmployee,setSelEmployee]=useState(null);
   const [cats,setCats]=useState([]);
@@ -1165,12 +1183,12 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod, users, cards}) {
         </SectionCard>
         <Donut title="Организации" data={Object.entries(orgMap).map(([name,d])=>({name:shortOrg(name),...d}))}/>
         <Donut title="Методы оплаты" data={Object.entries(payMap).map(([name,d])=>({name,...d}))}/>
-        <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))}/>
+        <Donut title="Категории" data={Object.entries(catMap).map(([name,d])=>({name,...d}))} sliceColor={d=>catColor(d.name).fg}/>
       </div>
       {showFilters&&<FiltersModal
         employees={users}
         selectedEmployee={selEmployee}
-        categories={CATEGORIES}
+        catalog={catalog}
         cards={cards}
         selectedCats={cats}
         selectedCards={selCards}
@@ -1297,9 +1315,8 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   );
 }
 
-function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onChangePayment, paymentOptions=[]}) {
+function ReceiptDetailModal({receipt, onClose, onDelete, onChangePayment, paymentOptions=[]}) {
   const [confirm,setConfirm]=useState(false);
-  const [showCat,setShowCat]=useState(false);
   const [showPay,setShowPay]=useState(false);
   const r=receipt;
   const raw=r.raw_data||{};
@@ -1389,12 +1406,13 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
           </div>
 
           <div style={{padding:"12px 14px calc(14px + env(safe-area-inset-bottom))",display:"flex",flexDirection:"column",gap:8}}>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowCat(true)} style={{flex:1,padding:"12px 8px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить категорию</button>
-              {onChangePayment&&(
-                <button onClick={()=>setShowPay(true)} style={{flex:1,padding:"12px 8px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить карту</button>
-              )}
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"2px 2px 2px"}}>
+              <span style={{display:"inline-block",padding:"4px 12px",borderRadius:20,background:catColor(r.category).bg,color:catColor(r.category).fg,fontSize:12,fontWeight:600,fontFamily:FONT,whiteSpace:"nowrap"}}>{r.category||"Не указано"}</span>
+              {groupOf(r.category)&&<span style={{fontSize:11,color:C.gray,fontFamily:FONT}}>{groupOf(r.category)}</span>}
             </div>
+            {onChangePayment&&(
+              <button onClick={()=>setShowPay(true)} style={{padding:"12px 8px",background:C.white,border:`1px solid ${C.silver}`,fontFamily:FONT,fontSize:13,color:C.dark,cursor:"pointer",borderRadius:10,fontWeight:600}}>Изменить карту</button>
+            )}
             {!confirm?(
               <button onClick={()=>setConfirm(true)} style={{padding:"12px",background:"#FEF2F2",border:`1px solid #FECACA`,fontFamily:FONT,fontSize:13,color:"#B91C1C",cursor:"pointer",borderRadius:10,fontWeight:600}}>Удалить чек</button>
             ):(
@@ -1405,27 +1423,6 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
             )}
           </div>
         </div>
-
-        {showCat&&(
-          <div onClick={()=>setShowCat(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:10}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",borderRadius:"14px 14px 0 0",padding:"14px 16px 18px"}}>
-              <div style={{fontSize:13,fontFamily:FONT,color:C.dark,fontWeight:700,marginBottom:10}}>Категория</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                {CATEGORIES.map(c=>{
-                  const col=catColor(c);
-                  const sel=r.category===c;
-                  return (
-                    <button key={c} onClick={()=>{onChangeCategory(c);setShowCat(false);}} style={{
-                      padding:"7px 12px",border:`1px solid ${sel?col.fg:C.silver}`,
-                      background:sel?col.bg:C.white,color:sel?col.fg:C.dark,
-                      fontFamily:FONT,fontSize:12,cursor:"pointer",borderRadius:8,fontWeight:sel?700:500
-                    }}>{c}</button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
         {showPay&&(
           <div onClick={()=>setShowPay(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:10}}>
@@ -1461,9 +1458,9 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
   );
 }
 
-function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories,selectedCats,cards,selectedCards,sources,onApply,onReset,onClose}) {
+function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,catalog,selectedCats,cards,selectedCards,sources,onApply,onReset,onClose}) {
   const hasEmp=employees!==undefined;
-  const hasCats=categories!==undefined;
+  const hasCats=catalog!=null && Array.isArray(catalog.groups);
   const hasCards=cards!==undefined;
   const hasSource=sources!==undefined;
 
@@ -1478,6 +1475,15 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
 
   const toggleIn=(arr,setArr,val)=>{ if(val===null){setArr([]);return;} setArr(prev=>prev.includes(val)?prev.filter(x=>x!==val):[...prev,val]); };
   const isOn=(arr,val)=>val===null?arr.length===0:arr.includes(val);
+
+  // D1: двухуровневый фильтр категорий — группа разворачивается, чекбоксы на статьях,
+  // «вся группа» одним тапом (вкл/выкл все имена статей группы). selCats = имена статей.
+  const [expandedGroups,setExpandedGroups]=useState([]);
+  const toggleExpand=id=>setExpandedGroups(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+  const toggleGroupAll=names=>{
+    const allOn=names.length>0&&names.every(n=>selCats.includes(n));
+    setSelCats(prev=>allOn?prev.filter(n=>!names.includes(n)):[...new Set([...prev,...names])]);
+  };
 
   const inputStyle={width:"100%",padding:"10px 12px",border:`1px solid ${C.silver}`,borderRadius:8,fontSize:13,fontFamily:FONT,color:C.dark,background:C.white,boxSizing:"border-box"};
   const labelStyle={fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,letterSpacing:"0.05em",textTransform:"uppercase"};
@@ -1532,13 +1538,33 @@ function FiltersModal({dateBuilder,from,to,employees,selectedEmployee,categories
           {hasCats&&(
             <div>
               <div style={labelStyle}>Категория</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                {[["Все",null],...categories.map(c=>[c,c])].map(([label,val])=>(
-                  <button key={label} onClick={()=>toggleIn(selCats,setSelCats,val)} style={chip(isOn(selCats,val))}>
-                    {val&&<span style={{width:8,height:8,borderRadius:"50%",background:catColor(val).fg,flexShrink:0}}/>}
-                    {label}
-                  </button>
-                ))}
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <div><button onClick={()=>setSelCats([])} style={chip(selCats.length===0)}>Все</button></div>
+                {catalog.groups.map(g=>{
+                  const names=(g.categories||[]).map(c=>c.name);
+                  const allOn=names.length>0&&names.every(n=>selCats.includes(n));
+                  const someOn=!allOn&&names.some(n=>selCats.includes(n));
+                  const col=groupColor(g.name);
+                  const expanded=expandedGroups.includes(g.id);
+                  return (
+                    <div key={g.id} style={{border:`1px solid ${C.silver}`,borderRadius:10,overflow:"hidden"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px"}}>
+                        <button onClick={()=>toggleGroupAll(names)} style={{display:"flex",alignItems:"center",gap:8,flex:1,border:"none",background:"none",cursor:"pointer",textAlign:"left",padding:0}}>
+                          <span style={{width:18,height:18,borderRadius:5,border:`1.5px solid ${(allOn||someOn)?col.fg:C.silver}`,background:allOn?col.fg:someOn?col.bg:C.white,color:allOn?"#fff":col.fg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:12,fontWeight:700}}>{allOn?"✓":someOn?"–":""}</span>
+                          <span style={{fontSize:13,fontFamily:FONT,color:C.dark,fontWeight:600}}>{g.name}</span>
+                        </button>
+                        <button onClick={()=>toggleExpand(g.id)} style={{border:"none",background:"none",cursor:"pointer",color:C.gray,fontSize:16,padding:"2px 6px",transform:expanded?"rotate(90deg)":"none",transition:"transform 0.15s"}}>›</button>
+                      </div>
+                      {expanded&&(
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"0 10px 10px 36px"}}>
+                          {(g.categories||[]).map(c=>(
+                            <button key={c.id} onClick={()=>toggleIn(selCats,setSelCats,c.name)} style={chip(selCats.includes(c.name))}>{c.name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1703,7 +1729,60 @@ function DuplicateWarningBanner({warning, onDelete, onClose}) {
   );
 }
 
-function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, handleBulkDelete, activePeriod, setActivePeriod}) {
+// D1: bottom-sheet выбора статьи — группы (цвет+подпись) + статьи + поиск.
+// Single-select: возвращает ИМЯ выбранной статьи (бэк резолвит в category_id).
+function CategorySheet({catalog, selected, onPick, onClose}) {
+  const [shown,setShown]=useState(false);
+  const [q,setQ]=useState("");
+  useEffect(()=>{ const id=requestAnimationFrame(()=>setShown(true)); return ()=>cancelAnimationFrame(id); },[]);
+  const EASE="cubic-bezier(0.32, 0.72, 0, 1)";
+  const close=()=>{ setShown(false); setTimeout(onClose,220); };
+  const pick=name=>{ onPick(name); close(); };
+  const ql=q.trim().toLowerCase();
+  const visGroups=(catalog?.groups||[]).map(g=>({
+    ...g,
+    cats:(g.categories||[]).filter(c=>c.is_visible!==false && (!ql || c.name.toLowerCase().includes(ql))),
+  })).filter(g=>g.cats.length>0);
+  return (
+    <div onClick={close} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.3)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:160,opacity:shown?1:0,transition:`opacity ${shown?280:220}ms ease`}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",maxHeight:"88dvh",paddingBottom:"env(safe-area-inset-bottom)",transform:shown?"translateY(0)":"translateY(100%)",transition:`transform ${shown?280:220}ms ${EASE}`}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px",flexShrink:0}}><div style={{width:36,height:4,borderRadius:2,background:"#D5D7DD"}}/></div>
+        <div style={{padding:"4px 16px 12px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+          <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:600}}>Категория</span>
+          <button onClick={close} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{padding:"10px 16px 6px",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",border:`1px solid #EEF0F4`,padding:"8px 12px",gap:8,background:"#F6F7F9",borderRadius:10}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.grayL} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Поиск статьи…" style={{border:"none",outline:"none",flex:1,minWidth:0,fontSize:13,background:"none",fontFamily:FONT,color:C.dark}}/>
+          </div>
+        </div>
+        <div style={{padding:"6px 0 12px",overflow:"auto",flex:1}}>
+          {visGroups.map(g=>{
+            const col=groupColor(g.name);
+            return (
+              <div key={g.id} style={{marginBottom:4}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px 4px"}}>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:col.fg,flexShrink:0}}/>
+                  <span style={{fontSize:11,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{g.name}</span>
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,padding:"2px 16px 6px"}}>
+                  {g.cats.map(c=>{
+                    const sel=selected===c.name;
+                    return <button key={c.id} onClick={()=>pick(c.name)} style={{padding:"7px 12px",border:`1px solid ${sel?col.fg:C.silver}`,background:sel?col.bg:C.white,color:sel?col.fg:C.dark,fontFamily:FONT,fontSize:12,cursor:"pointer",borderRadius:8,fontWeight:sel?700:500}}>{c.name}</button>;
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {visGroups.length===0&&<div style={{padding:"24px 16px",textAlign:"center",fontSize:13,color:C.grayL,fontFamily:FONT}}>Ничего не найдено</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handleUpdate, handleBulkDelete, activePeriod, setActivePeriod}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [search,setSearch]=useState("");
   const [sources,setSources]=useState([]);   // [] = «Все»
@@ -1716,6 +1795,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, h
   const [limit,setLimit]=useState(30);
   const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
+  const [showCatSheet,setShowCatSheet]=useState(false);   // D1: bottom-sheet выбора статьи
   const [detail,setDetail]=useState(null);
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
   const [fnsStatus,setFnsStatus]=useState(null); // null | "loading" | "ok" | "partial"
@@ -2044,7 +2124,7 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, h
       {showFilters&&<FiltersModal
         dateBuilder
         from={dateFrom} to={dateTo}
-        categories={CATEGORIES}
+        catalog={catalog}
         cards={cards}
         sources={sources}
         selectedCats={cats}
@@ -2057,9 +2137,12 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, h
         paymentOptions={paymentOptions}
         onClose={()=>setDetail(null)}
         onDelete={()=>{handleDelete(detail.id);setDetail(null);}}
-        onChangeCategory={async c=>{const upd=await handleUpdate(detail.id,{category:c});if(upd) setDetail(upd);}}
         onChangePayment={async p=>{const upd=await handleUpdate(detail.id,{payment:p});if(upd) setDetail(upd);}}
       />}
+      {showCatSheet&&<CategorySheet
+        catalog={catalog} selected={form.category}
+        onPick={c=>setForm(p=>({...p,category:c}))}
+        onClose={()=>setShowCatSheet(false)}/>}
       {showAdd&&(
         <Modal title="Добавить чек" onClose={()=>{setShowAdd(false);setFnsStatus(null);setAddError("");setDupId(null);}} footer={<>
           {addError&&<div style={{marginBottom:8,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,fontFamily:FONT,fontSize:12,color:"#B91C1C",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
@@ -2093,7 +2176,20 @@ function OperaciiPage({receipts, cards, handleAdd, handleDelete, handleUpdate, h
             <RuleInput label="Организация" value={form.org} onChange={v=>setForm(p=>({...p,org:v}))} placeholder="Яндекс.Такси"/>
             <RuleInput label="Сумма (₽)" value={form.amount} onChange={v=>setForm(p=>({...p,amount:v}))} type="number" placeholder="0.00"/>
             <RuleInput label="Дата" value={form.date} onChange={v=>setForm(p=>({...p,date:v}))} type="date"/>
-            <div style={{marginBottom:12}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Категория</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{CATEGORIES.map(c=><button key={c} onClick={()=>setForm(p=>({...p,category:c}))} style={{padding:"4px 10px",border:`1px solid ${form.category===c?C.cherry:C.silver}`,background:form.category===c?C.cherry:C.white,color:form.category===c?C.white:C.mid,fontFamily:FONT,fontSize:11,cursor:"pointer",borderRadius:6}}>{c}</button>)}</div></div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Категория</div>
+              <button onClick={()=>setShowCatSheet(true)} style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",border:`1px solid ${C.silver}`,background:C.white,borderRadius:10,cursor:"pointer",fontFamily:FONT}}>
+                <span style={{width:10,height:10,borderRadius:"50%",background:catColor(form.category).fg,flexShrink:0}}/>
+                <span style={{flex:1,textAlign:"left",minWidth:0}}>
+                  <span style={{display:"block",fontSize:13,color:C.dark,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{form.category||"Не указано"}</span>
+                  {groupOf(form.category)&&<span style={{display:"block",fontSize:10,color:C.gray}}>{groupOf(form.category)}</span>}
+                </span>
+                <span style={{color:C.grayL,fontSize:18,flexShrink:0}}>›</span>
+              </button>
+              {(!form.category||form.category==="Не указано"||form.category==="Прочие хозрасходы")&&(
+                <div style={{marginTop:6,padding:"6px 10px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,fontFamily:FONT,fontSize:11,color:"#B45309"}}>Проверьте категорию</div>
+              )}
+            </div>
             <div style={{marginBottom:8}}><div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:C.gray,marginBottom:6,fontFamily:FONT}}>Метод оплаты</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{paymentOptions.map(m=><button key={m} onClick={()=>setForm(p=>({...p,payment:m}))} style={{padding:"4px 10px",border:`1px solid ${form.payment===m?C.cherry:C.silver}`,background:form.payment===m?C.cherryL:C.white,color:form.payment===m?C.cherry:C.mid,fontFamily:FONT,fontSize:11,cursor:"pointer",borderRadius:6}}>{m}</button>)}</div></div>
           </div>
         </Modal>
@@ -3153,6 +3249,7 @@ export default function App() {
   const [receipts,setReceipts]=useState([]);
   const [cards,setCards]=useState([]);
   const [users,setUsers]=useState([]);
+  const [catalog,setCatalog]=useState(null);   // D1: справочник категорий (группы+статьи)
   const [activePeriod,setActivePeriod]=useState("month");
 
   // ─── Auth & lightweight routing ───
@@ -3183,6 +3280,10 @@ export default function App() {
     authFetch(`/api/users/`)
       .then(r=>r.json())
       .then(data=>setUsers(Array.isArray(data)?data:[]))
+      .catch(()=>{});
+    authFetch(`/api/categories/`)            // D1: каталог категорий (группы+статьи)
+      .then(r=>r.json())
+      .then(data=>{ setCatalogMaps(data); setCatalog(data&&Array.isArray(data.groups)?data:{groups:[]}); })
       .catch(()=>{});
   },[consentGiven, authed]);
 
@@ -3329,8 +3430,8 @@ export default function App() {
         </div>
       </div>
       <div style={{flex:1,overflow:"auto"}}>
-        {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod} users={users} cards={cards}/>}
-        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} handleBulkDelete={handleBulkDelete} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
+        {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod} users={users} cards={cards} catalog={catalog}/>}
+        {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} catalog={catalog} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} handleBulkDelete={handleBulkDelete} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
         {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser}/>}
       </div>
