@@ -94,7 +94,18 @@ const C = {
 };
 
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-const CATEGORIES = ["Питание", "Транспорт", "Топливо", "Продукты", "Гостиница", "Канцелярия", "Прочее"];
+// D2: 9 видов расхода в налоговом учёте — зеркало CHECK-констрейнта categories.tax_kind на бэке.
+const TAX_KINDS = [
+  "Материальные расходы",
+  "Прочие расходы",
+  "Командировочные расходы",
+  "Представительские расходы",
+  "Расходы на рекламу (нормируемые)",
+  "Транспортные расходы",
+  "Оплата труда",
+  "Налоги и сборы",
+  "Не учитываемые в целях налогообложения",
+];
 
 const ROLES = [
   { id:"admin",      label:"Администратор", desc:"Заводит кабинет компании, регистрирует сотрудников, управляет лицензией." },
@@ -2646,7 +2657,189 @@ function InviteSheet({onClose}) {
   );
 }
 
-function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard,users,onAddUser,onDeleteUser}) {
+// ─── D2: управление справочником категорий (Настройки → Общие) ───
+const FIELD_LBL = {display:"block",fontSize:11,color:C.gray,fontFamily:FONT,letterSpacing:"0.04em",textTransform:"uppercase",margin:"12px 0 4px"};
+const FIELD_INP = {width:"100%",boxSizing:"border-box",border:`1px solid ${C.silver}`,borderRadius:8,padding:"9px 11px",fontSize:14,fontFamily:FONT,color:C.dark,background:C.white,outline:"none"};
+
+// Переиспользуемая нижняя шторка — тот же паттерн анимации, что у CategorySheet (D1).
+function BottomSheet({title, onClose, children}) {
+  const [shown,setShown]=useState(false);
+  useEffect(()=>{ const id=requestAnimationFrame(()=>setShown(true)); return ()=>cancelAnimationFrame(id); },[]);
+  const EASE="cubic-bezier(0.32, 0.72, 0, 1)";
+  const close=()=>{ setShown(false); setTimeout(onClose,220); };
+  return (
+    <div onClick={close} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.3)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:170,opacity:shown?1:0,transition:`opacity ${shown?280:220}ms ease`}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,borderRadius:"16px 16px 0 0",display:"flex",flexDirection:"column",maxHeight:"88dvh",paddingBottom:"env(safe-area-inset-bottom)",transform:shown?"translateY(0)":"translateY(100%)",transition:`transform ${shown?280:220}ms ${EASE}`}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"8px 0 2px",flexShrink:0}}><div style={{width:36,height:4,borderRadius:2,background:"#D5D7DD"}}/></div>
+        <div style={{padding:"4px 16px 12px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+          <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:600}}>{title}</span>
+          <button onClick={close} style={{border:"none",background:"none",color:C.gray,fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{padding:"12px 16px 20px",overflow:"auto",flex:1}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({children, onClick, danger}) {
+  return <button onClick={onClick} style={{display:"block",width:"100%",textAlign:"left",padding:"14px 6px",border:"none",borderBottom:`1px solid ${C.silver}`,background:"none",fontFamily:FONT,fontSize:14,color:danger?C.cherry:C.dark,cursor:"pointer"}}>{children}</button>;
+}
+
+// Форма добавления/переименования статьи. Сама делает POST/PATCH; ошибки бэка
+// (409 дубль, 400 tax_kind) показывает инлайн; при успехе → onSaved(msg)+закрытие.
+function CategoryFormSheet({mode, group, groups, cat, onClose, onSaved}) {
+  const [name,setName]=useState(mode==="edit"?cat.name:"");
+  const [groupId,setGroupId]=useState(mode==="create"?(group?group.id:(groups[0]&&groups[0].id)):null);
+  const [taxKind,setTaxKind]=useState(mode==="edit"?(cat.tax_kind||"Прочие расходы"):"Прочие расходы");
+  const [advOpen,setAdvOpen]=useState(false);
+  const [err,setErr]=useState("");
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    const nm=name.trim();
+    if(!nm){ setErr("Введите название"); return; }
+    setSaving(true); setErr("");
+    let res;
+    if(mode==="edit") res=await authFetch(`/api/categories/${cat.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:nm,tax_kind:taxKind})});
+    else res=await authFetch(`/api/categories/`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:nm,group_id:groupId,tax_kind:taxKind})});
+    setSaving(false);
+    if(res.ok){ onSaved(mode==="edit"?"Статья сохранена":"Статья добавлена"); return; }
+    if(res.status===409){ setErr("Статья с таким названием уже существует"); return; }
+    if(res.status===400){ setErr("Недопустимый вид расхода"); return; }
+    setErr("Не удалось сохранить, попробуйте ещё раз");
+  };
+  return (
+    <BottomSheet title={mode==="edit"?"Переименовать статью":"Новая статья"} onClose={onClose}>
+      <label style={FIELD_LBL}>Название</label>
+      <input autoFocus={mode==="create"} value={name} onChange={e=>setName(e.target.value)} placeholder="Например: Подписки на сервисы" style={FIELD_INP}/>
+      <label style={FIELD_LBL}>Группа</label>
+      {mode==="edit"
+        ? <div style={{...FIELD_INP,color:C.gray,background:C.lightGray}}>{group?group.name:"—"}</div>
+        : <select value={groupId} onChange={e=>setGroupId(Number(e.target.value))} style={FIELD_INP}>{groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select>}
+      <button onClick={()=>setAdvOpen(o=>!o)} style={{border:"none",background:"none",color:C.gray,fontSize:12,fontFamily:FONT,cursor:"pointer",padding:"12px 0 2px",display:"flex",alignItems:"center",gap:6}}>
+        <span style={{transform:advOpen?"rotate(90deg)":"none",transition:"transform 0.15s",display:"inline-block"}}>›</span> Расширенные настройки
+      </button>
+      {advOpen&&(
+        <div>
+          <label style={FIELD_LBL}>Вид расхода для налогов</label>
+          <select value={taxKind} onChange={e=>setTaxKind(e.target.value)} style={FIELD_INP}>{TAX_KINDS.map(t=><option key={t} value={t}>{t}</option>)}</select>
+          <div style={{fontSize:11,color:C.grayL,fontFamily:FONT,marginTop:5,lineHeight:1.4}}>Это поле для бухгалтера. Если не уверены — оставьте «Прочие расходы».</div>
+        </div>
+      )}
+      {err&&<div style={{fontSize:12,color:C.cherry,fontFamily:FONT,marginTop:10}}>{err}</div>}
+      <div style={{display:"flex",gap:8,marginTop:18}}>
+        <Btn full loading={saving} onClick={save}>Сохранить</Btn>
+        <Btn full outline onClick={onClose}>Отменить</Btn>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Аккордеон 11 групп со статьями; CRUD над статьёй — через шторки действий/формы.
+function CategoriesSection({catalog, onCatalogRefresh}) {
+  const [expanded,setExpanded]=useState({});
+  const [actionCat,setActionCat]=useState(null);   // {cat, group}
+  const [form,setForm]=useState(null);             // {mode, group, cat?}
+  const [blocked,setBlocked]=useState(null);       // {cat, count}
+  const [toast,setToast]=useState("");
+  const groups=catalog?.groups||[];
+  const refresh=()=>{ if(onCatalogRefresh) onCatalogRefresh(); };
+  const showToast=msg=>{ setToast(msg); setTimeout(()=>setToast(""),2200); };
+
+  const toggleVisibility=async cat=>{
+    const next=!(cat.is_visible!==false);   // сейчас видимая → скрываем
+    const res=await authFetch(`/api/categories/${cat.id}/visibility`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_visible:next})});
+    setActionCat(null);
+    if(res.ok){ refresh(); showToast(next?"Статья показана":"Статья скрыта"); }
+    else showToast("Не удалось изменить видимость");
+  };
+  const doDelete=async cat=>{
+    const res=await authFetch(`/api/categories/${cat.id}`,{method:"DELETE"});
+    if(res.ok){ setActionCat(null); refresh(); showToast("Статья удалена"); return; }
+    if(res.status===409){
+      const body=await res.json().catch(()=>null);
+      const detail=body&&body.detail;
+      if(detail&&detail.code==="category_has_receipts"){ setActionCat(null); setBlocked({cat,count:detail.count}); return; }
+    }
+    showToast("Не удалось удалить");
+  };
+  const hideFromBlocked=async cat=>{
+    const res=await authFetch(`/api/categories/${cat.id}/visibility`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_visible:false})});
+    setBlocked(null);
+    if(res.ok){ refresh(); showToast("Статья скрыта"); }
+    else showToast("Не удалось скрыть");
+  };
+
+  return (
+    <div>
+      {groups.map(g=>{
+        const col=groupColor(g.name);
+        const open=!!expanded[g.id];
+        const cats=g.categories||[];
+        return (
+          <div key={g.id} style={{marginBottom:8,border:`1px solid ${C.silver}`,borderRadius:10,overflow:"hidden"}}>
+            <div onClick={()=>setExpanded(e=>({...e,[g.id]:!e[g.id]}))} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 12px",cursor:"pointer",background:C.white}}>
+              <span style={{width:9,height:9,borderRadius:"50%",background:col.fg,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:13,fontWeight:600,color:C.dark,fontFamily:FONT}}>{g.name}</span>
+              <span style={{fontSize:11,color:C.grayL,fontFamily:FONT}}>{cats.length}</span>
+              <span style={{fontSize:14,color:C.gray,transform:open?"rotate(90deg)":"none",transition:"transform 0.15s",display:"inline-block"}}>›</span>
+            </div>
+            {open&&(
+              <div style={{background:C.lightGray,padding:"2px 0 8px"}}>
+                {cats.map(c=>{
+                  const hidden=c.is_visible===false;
+                  return (
+                    <div key={c.id} onClick={()=>setActionCat({cat:c,group:g})} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",cursor:"pointer",opacity:hidden?0.5:1}}>
+                      <span style={{flex:1,fontSize:13,color:C.dark,fontFamily:FONT,textDecoration:hidden?"line-through":"none"}}>{c.name}</span>
+                      {c.is_default&&<span title="Системная статья" style={{fontSize:11,flexShrink:0}}>🔒</span>}
+                      <span style={{fontSize:13,color:C.grayL,flexShrink:0}}>›</span>
+                    </div>
+                  );
+                })}
+                <div style={{padding:"8px 14px 2px"}}><Btn small outline onClick={()=>setForm({mode:"create",group:g})}>+ Добавить статью</Btn></div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {actionCat&&(
+        <BottomSheet title={actionCat.cat.name} onClose={()=>setActionCat(null)}>
+          {actionCat.cat.is_default ? (
+            <ActionRow onClick={()=>toggleVisibility(actionCat.cat)}>{actionCat.cat.is_visible===false?"Показать":"Скрыть"}</ActionRow>
+          ) : (
+            <>
+              <ActionRow onClick={()=>{ const g=actionCat.group, c=actionCat.cat; setActionCat(null); setForm({mode:"edit",group:g,cat:c}); }}>Переименовать</ActionRow>
+              <ActionRow onClick={()=>toggleVisibility(actionCat.cat)}>{actionCat.cat.is_visible===false?"Показать":"Скрыть"}</ActionRow>
+              <ActionRow danger onClick={()=>doDelete(actionCat.cat)}>Удалить</ActionRow>
+            </>
+          )}
+        </BottomSheet>
+      )}
+
+      {form&&(
+        <CategoryFormSheet mode={form.mode} group={form.group} groups={groups} cat={form.cat}
+          onClose={()=>setForm(null)}
+          onSaved={msg=>{ setForm(null); refresh(); showToast(msg); }}/>
+      )}
+
+      {blocked&&(
+        <BottomSheet title="Нельзя удалить" onClose={()=>setBlocked(null)}>
+          <div style={{fontSize:14,color:C.dark,fontFamily:FONT,lineHeight:1.5}}>
+            К статье «{blocked.cat.name}» привязано {blocked.count} {plural(blocked.count,["чек","чека","чеков"])}. Их категория не будет потеряна — но если статья вам больше не нужна, её можно скрыть.
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:18}}>
+            <Btn full onClick={()=>hideFromBlocked(blocked.cat)}>Скрыть статью</Btn>
+            <Btn full outline onClick={()=>setBlocked(null)}>Отменить</Btn>
+          </div>
+        </BottomSheet>
+      )}
+
+      {toast&&<div style={{position:"fixed",left:"50%",bottom:90,transform:"translateX(-50%)",background:C.dark,color:C.white,padding:"10px 16px",borderRadius:8,fontSize:13,fontFamily:FONT,zIndex:200,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",maxWidth:"90%",textAlign:"center"}}>{toast}</div>}
+    </div>
+  );
+}
+
+function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCard,users,onAddUser,onDeleteUser,role,catalog,onCatalogRefresh}) {
   const [tab,setTab]=useState("Аккаунт");
   const [newCard,setNewCard]=useState("");
   const [showAddEmp,setShowAddEmp]=useState(false);
@@ -2709,9 +2902,10 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
       )}
       {tab==="Общие"&&(
         <div style={{padding:"12px 16px 80px"}}>
-          <SectionHead title="Категории расходов"/>
-          {CATEGORIES.map((c,i)=><div key={c} style={{background:i%2===0?C.white:C.lightGray,padding:"9px 14px",borderBottom:`1px solid ${C.silver}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontFamily:FONT,fontSize:13,color:C.dark}}>{c}</span><span style={{color:C.cherryM,fontSize:11,cursor:"pointer"}}>✎</span></div>)}
-          <div style={{marginTop:12}}><Btn>+ Добавить категорию</Btn></div>
+          <SectionHead title="Управление категориями"/>
+          {(role==="admin"||role==="accountant")
+            ? <CategoriesSection catalog={catalog} onCatalogRefresh={onCatalogRefresh}/>
+            : <div style={{padding:"12px 2px",color:C.gray,fontSize:13,fontFamily:FONT,lineHeight:1.5}}>Управление категориями доступно администратору и бухгалтеру</div>}
           <SectionHead title="Мои карты"/>
           <div style={{fontSize:11,color:C.gray,fontFamily:FONT,marginBottom:8,lineHeight:1.5}}>При сканировании чека карта подставляется по истории трат в той же организации. Если истории нет — подставляется карта по умолчанию (отмечена ★).</div>
           {cards.map((c,i)=>(
@@ -3268,6 +3462,7 @@ export default function App() {
   const [cards,setCards]=useState([]);
   const [users,setUsers]=useState([]);
   const [catalog,setCatalog]=useState(null);   // D1: справочник категорий (группы+статьи)
+  const [role,setRole]=useState(null);         // D2: роль текущего юзера для гейта управления категориями
   const [activePeriod,setActivePeriod]=useState("month");
 
   // ─── Auth & lightweight routing ───
@@ -3282,6 +3477,15 @@ export default function App() {
     window.addEventListener("auth:logout", onLogout);
     return () => { window.removeEventListener("popstate", onPop); window.removeEventListener("auth:logout", onLogout); };
   }, []);
+
+  // D1/D2: загрузка каталога вынесена в callback — используется и при первичной
+  // загрузке, и как onCatalogRefresh после CRUD в управлении категориями (Настройки).
+  const loadCatalog = useCallback(()=>{
+    authFetch(`/api/categories/`)
+      .then(r=>r.json())
+      .then(data=>{ setCatalogMaps(data); setCatalog(data&&Array.isArray(data.groups)?data:{groups:[]}); })
+      .catch(()=>{});
+  },[]);
 
   // Don't fetch receipts/cards until the user has consented — keeps the
   // consent screen network-quiet, and re-runs the moment they accept.
@@ -3299,11 +3503,12 @@ export default function App() {
       .then(r=>r.json())
       .then(data=>setUsers(Array.isArray(data)?data:[]))
       .catch(()=>{});
-    authFetch(`/api/categories/`)            // D1: каталог категорий (группы+статьи)
-      .then(r=>r.json())
-      .then(data=>{ setCatalogMaps(data); setCatalog(data&&Array.isArray(data.groups)?data:{groups:[]}); })
+    loadCatalog();                           // D1: каталог категорий (группы+статьи)
+    authFetch(`/api/users/me`)               // D2: роль текущего юзера для гейта управления категориями
+      .then(r=>r.ok?r.json():null)
+      .then(data=>{ if(data&&data.role) setRole(data.role); })
       .catch(()=>{});
-  },[consentGiven, authed]);
+  },[consentGiven, authed, loadCatalog]);
 
   async function addCard(name) {
     const res=await authFetch(`/api/cards/`,{
@@ -3451,7 +3656,7 @@ export default function App() {
         {page==="svodka"&&<SvodkaPage receipts={receipts} activePeriod={activePeriod} setActivePeriod={setActivePeriod} users={users} cards={cards} catalog={catalog}/>}
         {page==="operacii"&&<OperaciiPage receipts={receipts} cards={cards} catalog={catalog} handleAdd={handleAdd} handleDelete={handleDelete} handleUpdate={handleUpdate} handleBulkDelete={handleBulkDelete} activePeriod={activePeriod} setActivePeriod={setActivePeriod}/>}
         {page==="otchety"&&<OtchetyPage receipts={receipts}/>}
-        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser}/>}
+        {page==="nastroyki"&&<NastroykiPage cards={cards} onAddCard={addCard} onUpdateCard={updateCard} onDeleteCard={deleteCard} onSetDefaultCard={setDefaultCard} users={users} onAddUser={addUser} onUpdateUser={updateUser} onDeleteUser={deleteUser} role={role} catalog={catalog} onCatalogRefresh={loadCatalog}/>}
       </div>
       <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {NAV.map(n=>{
