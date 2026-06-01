@@ -1348,7 +1348,7 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
   const ndsSum10=raw.nds10?raw.nds10/100:null;
   const taxKind=raw.appliedTaxationType!==undefined?["Общая","УСН доход","УСН доход-расход","ЕНВД","ЕСХН","Патент"][raw.appliedTaxationType]||String(raw.appliedTaxationType):"";
   const kktReg=raw.kktRegId||"";
-  const fnNum=raw.fiscalDriveNumber||r.fn||"";
+  const fnNum=raw.fiscalDriveNumber||r.kkt_fn||"";
   const fpd=raw.fiscalSign||r.fpd||"";
 
   const dashed={borderTop:`1px dashed ${C.silver}`,margin:"8px 0"};
@@ -2019,7 +2019,7 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
         payment:form.payment, amount:Number(form.amount),
         source:form.source||"manual",
       };
-      if(form.fn) payload.fn=form.fn;
+      if(form.fn) payload.kkt_fn=form.fn;   // form.fn — внутреннее имя инпута; шлём как kkt_fn (канон)
       if(form.raw_data) payload.raw_data=form.raw_data;
       const res=await authFetch(`/api/receipts/`,{
         method:"POST",
