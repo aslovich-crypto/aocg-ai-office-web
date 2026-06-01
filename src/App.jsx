@@ -209,6 +209,17 @@ function parseQRString(qr) {
   return {date,amount:p.s?String(parseFloat(p.s)):"",fn:p.fn||"",fd:p.i||"",fpd:p.fp||"",type:p.n||""};
 }
 
+// Обратная к parseQRString: собирает QR-строку чека из ручных реквизитов, чтобы
+// проверить чек тем же эндпоинтом /api/fns/check, что и скан. Формат как в QR на
+// чеке: t=ГГГГММДДTЧЧММ (дата+время до минуты, ФНС сверяет по ней) & s=рубли.копейки
+// & fn=ФН & i=ФД № & fp=ФПД & n=тип операции (1 приход / 2 возврат прихода / 3 расход
+// / 4 возврат расхода). Поля fn/fd/fpd НЕ логируем (фискальные данные).
+function buildQRString({date, time, amount, fn, fd, fpd, opType}) {
+  const t=`${(date||"").replace(/-/g,"")}T${(time||"").replace(":","")}`;
+  const s=Number(String(amount).replace(",",".")).toFixed(2);
+  return `t=${t}&s=${s}&fn=${fn}&i=${fd}&fp=${fpd}&n=${opType}`;
+}
+
 const toLocalISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const todayISO = () => toLocalISO(new Date());
 const daysAgoISO = d => { const x=new Date(); x.setDate(x.getDate()-d); return toLocalISO(x); };
@@ -1821,6 +1832,109 @@ function CategorySheet({catalog, selected, onPick, onClose}) {
   );
 }
 
+// Виды операции для поля n= в QR-строке (как в приложении ФНС).
+const OP_TYPES = [
+  {n:"1", label:"Приход"},
+  {n:"2", label:"Возврат прихода"},
+  {n:"3", label:"Расход"},
+  {n:"4", label:"Возврат расхода"},
+];
+
+// Ручной ввод реквизитов чека (ФН/ФД/ФПД + сумма/дата+время/тип) с проверкой
+// через ФНС. Собирает QR-строку (buildQRString) и прогоняет через тот же
+// onVerify=handleCapture, что и скан: 'ok' → форма уже заполнена и открыта;
+// иначе — фолбэк «записать без проверки» (source=manual).
+function RequisitesSheet({prefill, onClose, onVerify, onManualFallback}) {
+  const now = new Date();
+  const pad = x => String(x).padStart(2,"0");
+  const [date,setDate]   = useState(prefill?.date || `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`);
+  const [time,setTime]   = useState(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
+  const [opType,setOpType] = useState(prefill?.type || "1");
+  const [amount,setAmount] = useState(prefill?.amount || "");
+  const [fn,setFn]   = useState(prefill?.fn || "");
+  const [fd,setFd]   = useState(prefill?.fd || "");
+  const [fpd,setFpd] = useState(prefill?.fpd || "");
+  const [checking,setChecking] = useState(false);
+  const [errMsg,setErrMsg]     = useState("");      // сообщение фолбэка после неуспешной проверки
+  const [showInfo,setShowInfo] = useState(false);   // тултип ⓘ (молчит до тапа)
+
+  const num = v => /^\d+([.,]\d+)?$/.test(String(v).trim());
+  const fnDigits = fn.replace(/\D/g,"");
+  const fnHint = fn && fnDigits.length!==16;                 // не блокирует, только подсказка
+  const future = (date && time) ? new Date(`${date}T${time}`).getTime() > Date.now() : false;
+  const canCheck = !!(date && time && num(amount) && /^\d+$/.test(fn.trim()) &&
+                      /^\d+$/.test(fd.trim()) && /^\d+$/.test(fpd.trim()) && !future);
+
+  async function check() {
+    if (checking || !canCheck) return;
+    setErrMsg(""); setChecking(true);
+    const qr = buildQRString({date, time, amount, fn, fd, fpd, opType});  // fn/fd/fpd НЕ логируем
+    let result;
+    try { result = await onVerify(qr); }
+    catch { result = "partial"; }
+    setChecking(false);
+    if (result === "ok") { onClose(); return; }   // handleCapture уже открыл форму
+    if (result === "not_found")        setErrMsg("Чек не найден в базе ФНС. Проверьте реквизиты или запишите без проверки.");
+    else if (result === "unavailable") setErrMsg("Сервис ФНС временно недоступен. Попробуйте позже или запишите без проверки.");
+    else                               setErrMsg("Не удалось проверить чек. Попробуйте снова или запишите без проверки.");
+  }
+
+  const lbl = {fontSize:9,letterSpacing:"0.18em",textTransform:"uppercase",color:C.gray,fontFamily:FONT};
+  const inp = {width:"100%",border:"none",borderBottom:`1.5px solid ${C.silver}`,outline:"none",
+    padding:"7px 0",fontSize:13,fontFamily:FONT,color:C.dark,background:"transparent",boxSizing:"border-box"};
+  const amber = {marginTop:6,padding:"6px 10px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,fontFamily:FONT,fontSize:11,color:"#B45309"};
+  const fallbackBtn = {width:"100%",marginTop:8,padding:"10px",background:"none",border:"none",fontFamily:FONT,fontSize:12,color:C.gray,cursor:"pointer",textDecoration:"underline"};
+
+  return (
+    <Modal title="Ввести реквизиты" onClose={onClose} footer={<>
+      {errMsg && <div style={{marginBottom:8,padding:"8px 12px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,fontFamily:FONT,fontSize:12,color:"#B91C1C"}}>{errMsg}</div>}
+      <Btn full onClick={check} disabled={!canCheck} loading={checking}>{checking?"Проверяем…":"Проверить чек"}</Btn>
+      <button onClick={()=>onManualFallback({date, amount})} style={fallbackBtn}>
+        {errMsg ? "Записать без проверки" : "Чека нет в базе ФНС? Записать без проверки"}
+      </button>
+    </>}>
+      <div style={{paddingTop:12}}>
+        <div style={{display:"flex",gap:12,marginBottom:14}}>
+          <div style={{flex:1}}>
+            <div style={{...lbl,marginBottom:4}}>Дата</div>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={inp}/>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{...lbl,marginBottom:4}}>Время</div>
+            <input type="time" value={time} onChange={e=>setTime(e.target.value)} style={inp}/>
+          </div>
+        </div>
+        {future && <div style={{...amber,marginTop:-8,marginBottom:12}}>Дата и время чека не могут быть в будущем</div>}
+
+        <div style={{marginBottom:14}}>
+          <div style={{...lbl,marginBottom:4}}>Тип операции</div>
+          <select value={opType} onChange={e=>setOpType(e.target.value)} style={{...inp,appearance:"none",cursor:"pointer"}}>
+            {OP_TYPES.map(o=><option key={o.n} value={o.n}>{o.label}</option>)}
+          </select>
+        </div>
+
+        <RuleInput label="Итого, ₽" value={amount} onChange={setAmount} type="number" placeholder="0.00"/>
+
+        <div style={{marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+            <span style={lbl}>ФН (фискальный накопитель)</span>
+            <button onClick={()=>setShowInfo(s=>!s)} aria-label="Подсказка"
+              style={{width:16,height:16,borderRadius:"50%",border:`1px solid ${C.grayL}`,background:"none",color:C.gray,fontSize:11,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>i</button>
+          </div>
+          <input value={fn} onChange={e=>setFn(e.target.value)} inputMode="numeric" placeholder="16 цифр" style={inp}/>
+          {showInfo && <div style={{marginTop:6,padding:"8px 10px",background:C.lightGray,borderRadius:8,fontFamily:FONT,fontSize:11,color:C.mid,lineHeight:1.5}}>
+            Эти числа напечатаны внизу чека, рядом с QR-кодом. ФН — фискальный накопитель (16 цифр), ФД — номер документа, ФПД — фискальный признак.
+          </div>}
+          {fnHint && <div style={amber}>Обычно ФН — 16 цифр, проверьте</div>}
+        </div>
+
+        <RuleInput label="ФД № (фискальный документ)" value={fd} onChange={setFd} type="text" placeholder="например 12345"/>
+        <RuleInput label="ФПД (фискальный признак)" value={fpd} onChange={setFpd} type="text" placeholder="например 1234567890"/>
+      </div>
+    </Modal>
+  );
+}
+
 function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handleUpdate, handleBulkDelete, activePeriod, setActivePeriod}) {
   const paymentOptions=[...cards.map(c=>c.name),"Наличные","Не указано"];
   const [search,setSearch]=useState("");
@@ -1834,6 +1948,8 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
   const [limit,setLimit]=useState(30);
   const [showScan,setShowScan]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
+  const [showReq,setShowReq]=useState(false);             // экран ручного ввода реквизитов (проверка ФНС)
+  const [reqPrefill,setReqPrefill]=useState(null);        // парсинг QR при заходе с неудачного скана
   const [showCatSheet,setShowCatSheet]=useState(false);   // D1: bottom-sheet выбора статьи
   const [detail,setDetail]=useState(null);
   const [form,setForm]=useState({org:"",amount:"",category:"Не указано",payment:"Не указано",date:todayISO(),fn:"",raw_data:null,source:"manual"});
@@ -1985,20 +2101,22 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
     return "ok";
   }
 
-  // qrText is optional — passed in from the modal's 'fnsError' screen so the user
-  // doesn't have to retype date/amount/fn they already scanned.
+  // «Ввести вручную» / «Заполнить вручную» → экран ввода реквизитов с проверкой ФНС.
+  // qrText (опц.) — из фазы fnsError скана: префиллим реквизиты распарсенным QR,
+  // чтобы пользователь дозаполнил только время и перепроверил.
   function handleManual(qrText) {
     setShowScan(false);
-    if (qrText) {
-      const parsed = parseQRString(qrText);
-      // Came through the QR scanner (FNS just failed) — still a QR-sourced receipt.
-      setForm(p => ({...p, date: parsed.date||p.date, amount: parsed.amount||"",
-                     org: "", category: "Не указано", fn: parsed.fn||"", raw_data: null, source: "qr_scan"}));
-      setFnsStatus("partial");  // show the yellow banner so the user knows why fields are empty
-    } else {
-      setForm(p => ({...p, source: "manual"}));
-      setFnsStatus(null);
-    }
+    setReqPrefill(qrText ? parseQRString(qrText) : null);
+    setShowReq(true);
+  }
+
+  // Фолбэк «записать без проверки» из RequisitesSheet → старая форма «Добавить чек»,
+  // source=manual, переносим введённые дату/сумму.
+  function openManualForm(prefill) {
+    setShowReq(false);
+    setForm(p => ({...p, date: prefill?.date || p.date, amount: prefill?.amount || "",
+                   org: "", category: "Не указано", fn: "", raw_data: null, source: "manual"}));
+    setFnsStatus(null);
     setShowAdd(true);
   }
 
@@ -2160,6 +2278,11 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
         onPrefetch={prefetchFns}
         onOcrFile={handleOcrFile}
         onManual={handleManual}/>}
+      {showReq&&<RequisitesSheet
+        prefill={reqPrefill}
+        onClose={()=>setShowReq(false)}
+        onVerify={handleCapture}
+        onManualFallback={openManualForm}/>}
       {showFilters&&<FiltersModal
         dateBuilder
         from={dateFrom} to={dateTo}
