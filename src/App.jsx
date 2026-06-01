@@ -144,16 +144,28 @@ const GROUP_COLORS = {
   "Прочее и налоги":         {bg:"#F1F5F9", fg:"#475569"},
 };
 const GROUP_FALLBACK = {bg:"#EEF0F4", fg:"#636B7D"};   // старые/неизвестные строки
-// article name → group name; заполняется из загруженного каталога (setCatalogMaps).
+// article name → group name; category_id → {name, group}. Оба заполняются из
+// загруженного каталога (setCatalogMaps). CAT_BY_ID — для резолва категории чека
+// по category_id (вариант B: бэк больше не отдаёт строку category).
 let ARTICLE_GROUP = {};
+let CAT_BY_ID = {};
 function setCatalogMaps(catalog) {
-  const m = {};
-  (catalog?.groups||[]).forEach(g => (g.categories||[]).forEach(c => { m[c.name] = g.name; }));
+  const m = {}, byId = {};
+  (catalog?.groups||[]).forEach(g => (g.categories||[]).forEach(c => {
+    m[c.name] = g.name;
+    byId[c.id] = {name: c.name, group: g.name};
+  }));
   ARTICLE_GROUP = m;
+  CAT_BY_ID = byId;
 }
 const groupOf = name => ARTICLE_GROUP[name] || null;
 const groupColor = group => GROUP_COLORS[group] || GROUP_FALLBACK;
 const catColor = name => groupColor(groupOf(name));   // статья → цвет её группы
+// Резолв категории чека по category_id (вариант B). Мягкий фолбэк B1: каталог не
+// загружен / id не найден → нейтральная заглушка «Без категории» + серый цвет.
+const catName = r => CAT_BY_ID[r?.category_id]?.name || "Без категории";
+const catGroupById = r => CAT_BY_ID[r?.category_id]?.group || null;
+const catColorById = r => groupColor(catGroupById(r));
 
 // Prefix forms we strip when picking the avatar initial. The `И\s*\.?\s*П\s*\.?`
 // alternative handles separated variants ("И П Иванов", "И. П. Иванов", "И.П.
@@ -1139,7 +1151,7 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod, users, cards, cata
   const filtered=receipts.filter(r=>{
     if(!inPeriod(r.date, activePeriod)) return false;
     if(selEmployee && (r.employee||"Алексей Шукалович")!==selEmployee) return false;
-    if(cats.length>0 && !cats.includes(r.category)) return false;
+    if(cats.length>0 && !cats.includes(catName(r))) return false;
     if(selCards.length>0 && !selCards.includes(r.payment)) return false;
     return true;
   });
@@ -1149,7 +1161,7 @@ function SvodkaPage({receipts, activePeriod, setActivePeriod, users, cards, cata
   filtered.forEach(r=>{
     if(!orgMap[r.org])orgMap[r.org]={value:0,count:0}; orgMap[r.org].value+=Number(r.amount); orgMap[r.org].count++;
     if(!payMap[r.payment])payMap[r.payment]={value:0,count:0}; payMap[r.payment].value+=Number(r.amount); payMap[r.payment].count++;
-    if(!catMap[r.category])catMap[r.category]={value:0,count:0}; catMap[r.category].value+=Number(r.amount); catMap[r.category].count++;
+    const cn=catName(r); if(!catMap[cn])catMap[cn]={value:0,count:0}; catMap[cn].value+=Number(r.amount); catMap[cn].count++;
     const e=r.employee||"Алексей Шукалович";
     if(!empMap[e])empMap[e]={value:0,count:0}; empMap[e].value+=Number(r.amount); empMap[e].count++;
   });
@@ -1247,7 +1259,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   const locked=useRef(null);
 
   const r=receipt;
-  const col=catColor(r.category);
+  const col=catColorById(r);
   const REVEAL=72;
   const card4=getCardLast4(r.raw_data);
   const payment=shortPayment(r.payment);
@@ -1311,7 +1323,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
             <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:700,flexShrink:0}}>{fmt(r.amount)}</span>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#636B7D",fontFamily:FONT,minWidth:0}}>
-            <span style={{display:"inline-block",padding:"2px 8px",borderRadius:20,background:col.bg,color:col.fg,fontSize:10,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{r.category||"Не указано"}</span>
+            <span style={{display:"inline-block",padding:"2px 8px",borderRadius:20,background:col.bg,color:col.fg,fontSize:10,fontWeight:600,whiteSpace:"nowrap",flexShrink:0}}>{catName(r)}</span>
             <span style={{flexShrink:0}}>·</span>
             <span style={{whiteSpace:"nowrap",flexShrink:0}}>{fmtDate(r.date)}</span>
             {sourceLabel(r.source)&&<span style={{fontSize:10,color:"#636B7D",whiteSpace:"nowrap",flexShrink:0}}>· {sourceLabel(r.source)}</span>}
@@ -1424,8 +1436,8 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
                 border:`1px solid ${C.silver}`,background:C.white,borderRadius:10,fontFamily:FONT,
                 cursor:(catalog&&onChangeCategory)?"pointer":"default",textAlign:"left",
                 WebkitTapHighlightColor:"rgba(164,22,26,0.08)"}}>
-              <span style={{display:"inline-block",padding:"4px 12px",borderRadius:20,background:catColor(r.category).bg,color:catColor(r.category).fg,fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>{r.category||"Не указано"}</span>
-              {groupOf(r.category)&&<span style={{fontSize:11,color:C.gray}}>{groupOf(r.category)}</span>}
+              <span style={{display:"inline-block",padding:"4px 12px",borderRadius:20,background:catColorById(r).bg,color:catColorById(r).fg,fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>{catName(r)}</span>
+              {catGroupById(r)&&<span style={{fontSize:11,color:C.gray}}>{catGroupById(r)}</span>}
               <span style={{flex:1}}/>
               {catalog&&onChangeCategory&&<span style={{color:C.grayL,fontSize:18,flexShrink:0,lineHeight:1}}>›</span>}
             </button>
@@ -1476,7 +1488,7 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
         {showCategorySheet&&(
           <CategorySheet
             catalog={catalog}
-            selected={r.category}
+            selected={catName(r)}
             onPick={onChangeCategory}
             onClose={()=>setShowCategorySheet(false)}/>
         )}
@@ -1996,7 +2008,7 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
     return inPeriod(r.date, activePeriod);
   };
   const filtered=receipts.filter(r=>{
-    if(cats.length>0 && !cats.includes(r.category)) return false;
+    if(cats.length>0 && !cats.includes(catName(r))) return false;
     if(selCards.length>0 && !selCards.includes(r.payment)) return false;
     if(sources.length>0 && !sources.includes(r.source)) return false;
     if(!search) return inDate(r);
@@ -2309,7 +2321,7 @@ function OtchetyPage({receipts}) {
             {free.map(r=>{const sel=selected.includes(r.id);return(
               <div key={r.id} onClick={()=>setSelected(prev=>sel?prev.filter(x=>x!==r.id):[...prev,r.id])} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",marginBottom:4,border:`1px solid ${sel?C.cherry:C.silver}`,background:sel?C.cherryL:C.white,cursor:"pointer"}}>
                 <div style={{width:12,height:12,border:`1.5px solid ${sel?C.cherry:C.silver}`,background:sel?C.cherry:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:C.white,fontSize:10,flexShrink:0,borderRadius:3}}>{sel&&"✓"}</div>
-                <div style={{flex:1}}><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>{shortOrg(r.org)}</div><div style={{fontFamily:FONT,fontSize:10,color:C.gray}}>{fmtDate(r.date)} · {r.category}</div></div>
+                <div style={{flex:1}}><div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700}}>{shortOrg(r.org)}</div><div style={{fontFamily:FONT,fontSize:10,color:C.gray}}>{fmtDate(r.date)} · {catName(r)}</div></div>
                 <span style={{fontFamily:FONT,fontSize:13,color:C.cherry,fontWeight:700}}>{fmt(r.amount)}</span>
               </div>
             );})}
