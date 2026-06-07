@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine, LayoutDashboard, Receipt, FileText, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle, Lock, Trash2 } from "lucide-react";
+import { Camera, ImageUp, PenLine, ChartColumn, ClipboardList, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle, Lock, Trash2, User, Bell, ChevronDown, Check } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -83,13 +83,14 @@ const C = {
   cherryD:   "#7a1014",
   cherryL:   "#F2E0E0",
   cherryM:   "#D4888A",
-  dark:      "#161A1D",
+  dark:      "#161A1D",   // mark field / neutral-900 (text uses #111318)
   mid:       "#404040",
-  gray:      "#6B7280",
-  grayL:     "#9CA3AF",
-  silver:    "#E8E4E0",
-  lightGray: "#F0EDEA",
-  light:     "#f5f3f0",
+  gray:      "#636B7D",   // secondary text / labels (cool)
+  grayL:     "#9CA3AF",   // tertiary / placeholder
+  silver:    "#EEF0F4",   // hairline borders & dividers (cool)
+  lightGray: "#EEF0F4",   // sunk fills — search field, table headers, chips (cool)
+  light:     "#F6F7F9",   // default page background (cool)
+  borderD:   "#E2E5EB",   // in-card divider, one step darker than --border
   white:     "#ffffff",
 };
 
@@ -339,16 +340,17 @@ function Modal({title,onClose,children,footer}) {
 
 function SegmentedControl({segments,active,onChange}) {
   return (
-    <div style={{display:"flex",background:"#EEF0F4",borderRadius:10,padding:2,gap:2}}>
+    <div style={{display:"flex",background:"#E6E9EF",borderRadius:8,padding:2,gap:2}}>
       {segments.map(s=>{
         const on=s===active;
         return (
           <div key={s} onClick={()=>onChange(s)}
             style={{
-              flex:1,textAlign:"center",padding:"6px 2px",borderRadius:8,cursor:"pointer",userSelect:"none",
+              flex:1,textAlign:"center",padding:"6px 2px",borderRadius:6,cursor:"pointer",userSelect:"none",
               background:on?C.white:"transparent",
               color:on?"#A4161A":"#636B7D",
-              boxShadow:on?"0 1px 3px rgba(0,0,0,0.12)":"none",
+              border:on?"1px solid #EEF0F4":"1px solid transparent",
+              boxShadow:on?"0 1px 3px rgba(17,19,24,0.12)":"none",
               fontSize:11,fontFamily:FONT,fontWeight:on?600:500,
               transition:"background 180ms ease, color 180ms ease, box-shadow 180ms ease"
             }}>{s}</div>
@@ -578,7 +580,7 @@ function ProcessingSteps({step}) {
     </div>
   );
   return (
-    <div style={{background:"#FFFFFF",padding:20,borderRadius:12,maxWidth:320,width:"calc(100% - 48px)",display:"flex",flexDirection:"column",gap:12,boxShadow:"0 8px 30px rgba(0,0,0,0.25)"}}>
+    <div style={{background:"#FFFFFF",padding:20,borderRadius:12,maxWidth:320,width:"calc(100% - 48px)",display:"flex",flexDirection:"column",gap:12,boxShadow:"0 8px 30px rgba(17,19,24,0.25)"}}>
       {step === "qr" && (
         <div style={{display:"flex",alignItems:"center",gap:10,fontFamily:FONT,fontSize:14,color:"#111318"}}>
           {spinner}
@@ -2238,7 +2240,7 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
         {groups.map(([key,group])=>(
           <div key={key} style={{marginTop:6}}>
             <div style={{padding:"10px 16px 6px",display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:3,height:12,background:"#D1D5DB",borderRadius:2}}/><span style={{fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
+              <div style={{width:3,height:12,background:C.borderD,borderRadius:2}}/><span style={{fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:C.gray,fontFamily:FONT}}>{group.label}</span>
             </div>
             <div style={{margin:"0 12px",borderRadius:12,overflow:"hidden",background:C.white,border:`1px solid ${C.silver}`}}>
               {group.items.map((r,i)=>(
@@ -2271,7 +2273,7 @@ function OperaciiPage({receipts, cards, catalog, handleAdd, handleDelete, handle
           </div>
         )}
       </div>
-      <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(164,22,26,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
+      <button onClick={()=>setShowScan(true)} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",right:20,width:44,height:44,background:C.cherry,color:C.white,border:"none",fontSize:20,cursor:"pointer",boxShadow:`0 4px 12px rgba(17,19,24,0.18)`,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%"}}>+</button>
       {showScan&&<ScanReceiptModal
         onClose={()=>setShowScan(false)}
         onCapture={handleCapture}
@@ -2637,7 +2639,6 @@ function AccountTab() {
     authFetch("/api/users/me").then(r=>r.json()).then(d=>{
       if(d&&d.id){ setMe(d); setAcc(fromApi(d)); }
     }).catch(()=>{});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   const set=(k,v)=>setAcc(p=>({...p,[k]:v}));
@@ -2990,7 +2991,6 @@ function NastroykiPage({cards,onAddCard,onUpdateCard,onDeleteCard,onSetDefaultCa
   useEffect(()=>{
     authFetch(`/api/services/`).then(r=>r.json()).then(d=>setServicesList(Array.isArray(d)?d:[])).catch(()=>{});
     loadInvites();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   return (
@@ -3210,7 +3210,7 @@ function ConsentScreen({onAccept}) {
                  padding:"calc(env(safe-area-inset-top) + 48px) 24px calc(env(safe-area-inset-bottom) + 24px)"}}>
       {/* Logo */}
       <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
-        <div style={{width:72,height:72,background:"#fff",border:"1px solid #E8E4E0",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{width:72,height:72,background:"#fff",border:`1px solid ${C.silver}`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>
           <svg width="60" height="14" viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M286.511 0C304.22 2.1117e-07 321.53 5.25113 336.254 15.0893C350.978 24.9276 362.454 38.911 369.231 55.2714C376.008 71.6317 377.781 89.6342 374.326 107.002C370.871 124.37 362.344 140.324 349.822 152.846C337.3 165.367 321.347 173.895 303.979 177.349C286.611 180.804 268.608 179.031 252.248 172.254C235.888 165.478 221.904 154.002 212.066 139.278C202.228 124.554 196.977 107.243 196.977 89.5349H230.233C230.233 100.666 233.534 111.546 239.718 120.801C245.902 130.056 254.691 137.269 264.975 141.529C275.258 145.788 286.574 146.903 297.491 144.731C308.408 142.56 318.435 137.2 326.306 129.329C334.177 121.459 339.537 111.431 341.708 100.514C343.88 89.5973 342.765 78.2817 338.506 67.9982C334.246 57.7147 327.033 48.9253 317.778 42.7414C308.523 36.5575 297.642 33.2569 286.511 33.2569V0Z" fill="#161A1D"/>
             <path d="M483.489 179.07C465.78 179.07 448.47 173.819 433.746 163.98C419.022 154.142 407.546 140.159 400.769 123.798C393.992 107.438 392.219 89.4357 395.674 72.0676C399.129 54.6995 407.656 38.7459 420.178 26.2243C432.7 13.7026 448.653 5.17523 466.021 1.7205C483.389 -1.73421 501.392 0.0388551 517.752 6.81554C534.112 13.5922 548.096 25.0681 557.934 39.7921C567.772 54.516 573.023 71.8266 573.023 89.535L539.767 89.535C539.767 78.4042 536.466 67.5235 530.282 58.2686C524.098 49.0137 515.309 41.8004 505.025 37.5409C494.742 33.2813 483.426 32.1668 472.509 34.3383C461.592 36.5098 451.565 41.8698 443.694 49.7404C435.823 57.611 430.463 67.6388 428.292 78.5557C426.12 89.4725 427.235 100.788 431.494 111.072C435.754 121.355 442.967 130.145 452.222 136.328C461.477 142.512 472.358 145.813 483.489 145.813L483.489 179.07Z" fill="#161A1D"/>
@@ -3273,6 +3273,51 @@ function AocgLogo({width, height}) {
   );
 }
 
+// In-app brand mark (source of truth 2026-06-07): white Λ on a cherry plate,
+// rounded square radius 8. Used everywhere a mark appears inside the app
+// (Тип 2 header). The full «ΛOCG» wordmark (AocgLogo) is login/splash only.
+function MarkPlate({size=40, radius=8}) {
+  const glyph = Math.round(size*0.52);
+  return (
+    <div style={{width:size,height:size,borderRadius:radius,background:C.cherry,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <svg width={glyph} height={glyph} viewBox="0 0 179.07 179.07" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M71.6279 0L0 179.07H35.814L89.5349 44.7674L143.256 179.07H179.07L107.442 0H71.6279Z" fill="#ffffff"/>
+      </svg>
+    </div>
+  );
+}
+
+// Тип 2 header — left-block app switcher. Switches PLATFORM APPLICATIONS
+// (Документы / Финансы / Инструменты), never «модули». «Финансы» is the
+// current product (Чеки live inside it); the others are placeholders.
+function AppSwitcher({onClose, onPick}) {
+  const apps = [
+    {id:"documents",  label:"Документы",   sub:"Прима · документооборот", soon:true},
+    {id:"finance",    label:"Финансы",      sub:"Чеки, ДДС, ОПУ",          active:true},
+    {id:"tools",      label:"Инструменты",  sub:"Сервисы и интеграции",    soon:true},
+  ];
+  return (
+    <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:40}}/>
+      <div role="menu" style={{position:"absolute",top:"calc(100% + 2px)",left:8,zIndex:41,width:256,background:C.white,border:`1px solid ${C.silver}`,borderRadius:12,boxShadow:"0 8px 30px rgba(17,19,24,0.16)",padding:6,boxSizing:"border-box"}}>
+        <div style={{padding:"8px 10px 6px",fontFamily:FONT,fontSize:10,fontWeight:600,letterSpacing:"0.12em",textTransform:"uppercase",color:C.gray}}>Приложения</div>
+        {apps.map(a=>(
+          <button key={a.id} disabled={a.soon} onClick={()=>{ if(a.active){ onPick&&onPick(a.id); } onClose(); }}
+            style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 10px",border:"none",borderRadius:8,cursor:a.soon?"default":"pointer",background:a.active?"#FDF2F2":"transparent",textAlign:"left"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:FONT,fontSize:14,fontWeight:a.active?600:500,color:a.soon?C.grayL:"#111318"}}>
+                {a.label}{a.soon&&<span style={{fontWeight:400,fontSize:12,color:C.grayL}}> · Скоро</span>}
+              </div>
+              <div style={{fontFamily:FONT,fontSize:12,color:C.gray,marginTop:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.sub}</div>
+            </div>
+            {a.active&&<Check size={16} color={C.cherry} strokeWidth={2.5}/>}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function AuthShell({children}) {
   return (
     <div style={{minHeight:"100dvh",background:C.white,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"32px 24px",boxSizing:"border-box",fontFamily:FONT}}>
@@ -3289,7 +3334,6 @@ function LoginScreen({onAuthed, navigate}) {
   const [showPw,setShowPw]=useState(false);
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState(false);
-  const [remember,setRemember]=useState(true);   // UI-only — token storage logic unchanged
   async function submit() {
     if(!ident.trim()||!password||busy) return;
     setBusy(true); setErr("");
@@ -3349,12 +3393,8 @@ function LoginScreen({onAuthed, navigate}) {
             </button>
           </div>
 
-          {/* Запомнить + Забыли */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:12,marginBottom:20}}>
-            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-              <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{width:16,height:16,accentColor:"#A4161A",cursor:"pointer"}}/>
-              <span style={{fontFamily:FONT,fontSize:14,color:"#636B7D"}}>Запомнить меня</span>
-            </label>
+          {/* Забыли пароль? */}
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:12,marginBottom:20}}>
             <button onClick={forgotSoon} type="button" className="aocg-cherry-link" style={{background:"none",border:"none",padding:0,fontFamily:FONT,fontSize:14,fontWeight:500,color:"#A4161A",cursor:"pointer"}}>Забыли пароль?</button>
           </div>
 
@@ -3593,6 +3633,7 @@ export default function App() {
     catch { return false; }
   });
   const [page,setPage]=useState("svodka");
+  const [appMenu,setAppMenu]=useState(false);   // Тип 2 header — app switcher dropdown
   const [receipts,setReceipts]=useState([]);
   const [cards,setCards]=useState([]);
   const [users,setUsers]=useState([]);
@@ -3758,33 +3799,31 @@ export default function App() {
     return <ConsentScreen onAccept={() => setConsentGiven(true)}/>;
   }
 
-  const NAV=[{id:"svodka",Icon:LayoutDashboard,label:"Сводка"},{id:"operacii",Icon:Receipt,label:"Операции"},{id:"otchety",Icon:FileText,label:"Отчёты"},{id:"nastroyki",Icon:Settings,label:"Настройки"}];
-  const PT={svodka:"Сводка",operacii:"Операции",otchety:"Отчёты",nastroyki:"Настройки"};
+  const NAV=[{id:"svodka",Icon:ChartColumn,label:"Сводка"},{id:"operacii",Icon:ReceiptText,label:"Чеки"},{id:"otchety",Icon:ClipboardList,label:"Отчёты"},{id:"nastroyki",Icon:Settings,label:"Настройки"}];
   return (
     <div style={{maxWidth:480,margin:"0 auto",height:"100dvh",display:"flex",flexDirection:"column",background:C.light,fontFamily:FONT,overflow:"hidden"}}>
-      <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,flexShrink:0}}>
-        <div style={{padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:38,height:38,background:"#ffffff",border:"1.5px solid #D1D5DB",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <svg width="32" height="7.5" viewBox="0 0 770 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M286.511 0C304.22 2.1117e-07 321.53 5.25113 336.254 15.0893C350.978 24.9276 362.454 38.911 369.231 55.2714C376.008 71.6317 377.781 89.6342 374.326 107.002C370.871 124.37 362.344 140.324 349.822 152.846C337.3 165.367 321.347 173.895 303.979 177.349C286.611 180.804 268.608 179.031 252.248 172.254C235.888 165.478 221.904 154.002 212.066 139.278C202.228 124.554 196.977 107.243 196.977 89.5349H230.233C230.233 100.666 233.534 111.546 239.718 120.801C245.902 130.056 254.691 137.269 264.975 141.529C275.258 145.788 286.574 146.903 297.491 144.731C308.408 142.56 318.435 137.2 326.306 129.329C334.177 121.459 339.537 111.431 341.708 100.514C343.88 89.5973 342.765 78.2817 338.506 67.9982C334.246 57.7147 327.033 48.9253 317.778 42.7414C308.523 36.5575 297.642 33.2569 286.511 33.2569V0Z" fill="#161A1D"/>
-                <path d="M483.489 179.07C465.78 179.07 448.47 173.819 433.746 163.98C419.022 154.142 407.546 140.159 400.769 123.798C393.992 107.438 392.219 89.4357 395.674 72.0676C399.129 54.6995 407.656 38.7459 420.178 26.2243C432.7 13.7026 448.653 5.17523 466.021 1.7205C483.389 -1.73421 501.392 0.0388551 517.752 6.81554C534.112 13.5922 548.096 25.0681 557.934 39.7921C567.772 54.516 573.023 71.8266 573.023 89.535L539.767 89.535C539.767 78.4042 536.466 67.5235 530.282 58.2686C524.098 49.0137 515.309 41.8004 505.025 37.5409C494.742 33.2813 483.426 32.1668 472.509 34.3383C461.592 36.5098 451.565 41.8698 443.694 49.7404C435.823 57.611 430.463 67.6388 428.292 78.5557C426.12 89.4725 427.235 100.788 431.494 111.072C435.754 121.355 442.967 130.145 452.222 136.328C461.477 142.512 472.358 145.813 483.489 145.813L483.489 179.07Z" fill="#161A1D"/>
-                <path d="M770 89.5349C770 107.243 764.749 124.554 754.911 139.278C745.072 154.002 731.089 165.478 714.729 172.254C698.368 179.031 680.366 180.804 662.998 177.349C645.63 173.895 629.676 165.367 617.154 152.846C604.633 140.324 596.105 124.37 592.651 107.002C589.196 89.6342 590.969 71.6317 597.746 55.2713C604.522 38.911 615.998 24.9276 630.722 15.0893C645.446 5.25112 662.757 -5.11009e-06 680.465 -3.91369e-06L680.465 33.2569C669.334 33.2569 658.454 36.5575 649.199 42.7414C639.944 48.9253 632.731 57.7147 628.471 67.9982C624.211 78.2817 623.097 89.5973 625.269 100.514C627.44 111.431 632.8 121.459 640.671 129.329C648.541 137.2 658.569 142.56 669.486 144.731C680.403 146.903 691.718 145.788 702.002 141.529C712.285 137.269 721.075 130.056 727.259 120.801C733.442 111.546 736.743 100.666 736.743 89.5349L770 89.5349Z" fill="#161A1D"/>
-                <path d="M71.6279 0L0 179.07H35.814L89.5349 44.7674L143.256 179.07H179.07L107.442 0H71.6279Z" fill="#A4161A"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{lineHeight:1.1}}>
-                <span style={{fontSize:15,fontFamily:FONT,color:C.dark,fontWeight:500}}>AI Офис</span>
-                <span style={{fontSize:15,fontFamily:FONT,color:C.grayL,fontWeight:400}}> | </span>
-                <span style={{fontSize:15,fontFamily:FONT,color:C.cherry,fontWeight:600}}>Чеки</span>
-              </div>
-            </div>
+      <div style={{background:C.white,borderBottom:`1px solid ${C.silver}`,flexShrink:0,paddingTop:"env(safe-area-inset-top)"}}>
+        <div style={{padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative"}}>
+          {/* LEFT — plate Λ + chevron + org name; taps open the app switcher */}
+          <button onClick={()=>setAppMenu(o=>!o)} aria-label="Переключить приложение"
+            style={{display:"flex",alignItems:"center",gap:8,border:"none",background:"none",cursor:"pointer",padding:"2px 4px",borderRadius:8,minWidth:0}}>
+            <MarkPlate size={40}/>
+            <ChevronDown size={16} color={C.gray} strokeWidth={2} style={{flexShrink:0,transition:"transform 150ms ease",transform:appMenu?"rotate(180deg)":"none"}}/>
+            <span style={{fontSize:16,fontFamily:FONT,fontWeight:600,color:"#111318",whiteSpace:"nowrap"}}>АОЦГ</span>
+          </button>
+          {appMenu&&<AppSwitcher onClose={()=>setAppMenu(false)}/>}
+          {/* RIGHT — account (человечек) then bell (rightmost, cherry unread dot) */}
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            <button onClick={()=>setPage("nastroyki")} aria-label="Аккаунт"
+              style={{width:40,height:40,borderRadius:"50%",background:"#FFFFFF",border:"none",boxShadow:"0 1px 3px rgba(17,19,24,0.10)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"opacity 120ms ease"}}>
+              <User size={20} color="#111318" strokeWidth={1.75}/>
+            </button>
+            <button onClick={()=>alert("Уведомления — скоро")} aria-label="Уведомления"
+              style={{position:"relative",width:40,height:40,borderRadius:"50%",background:"#FFFFFF",border:"none",boxShadow:"0 1px 3px rgba(17,19,24,0.10)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"opacity 120ms ease"}}>
+              <Bell size={20} color="#111318" strokeWidth={1.75}/>
+              <span style={{position:"absolute",top:8,right:9,width:7,height:7,borderRadius:"50%",background:C.cherry,border:"1.5px solid #fff"}}/>
+            </button>
           </div>
-          <div style={{width:30,height:30,background:C.lightGray,border:`1px solid ${C.silver}`,color:C.cherry,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:10,fontWeight:700,borderRadius:"50%"}}>АШ</div>
-        </div>
-        <div style={{padding:"4px 16px 8px",display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:2,height:12,background:C.cherryM}}/><span style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:C.mid,fontFamily:FONT}}>{PT[page]}</span><div style={{flex:1,height:"0.5px",background:C.silver}}/>
         </div>
       </div>
       <div style={{flex:1,overflow:"auto"}}>
@@ -3796,11 +3835,12 @@ export default function App() {
       <div style={{background:C.white,borderTop:`1px solid ${C.silver}`,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {NAV.map(n=>{
           const Icon=n.Icon;
-          const color=page===n.id?C.cherry:"#636B7D";
+          const active=page===n.id;
+          const color=active?C.cherry:"#636B7D";
           return (
-            <button key={n.id} onClick={()=>setPage(n.id)} style={{flex:1,padding:"9px 0",border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",transition:"opacity 100ms ease",borderRight:`1px solid ${C.silver}`}}>
-              <Icon size={20} color={color} strokeWidth={2}/>
-              <span style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:FONT,color}}>{n.label}</span>
+            <button key={n.id} onClick={()=>setPage(n.id)} style={{flex:1,padding:"8px 0 7px",border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",transition:"opacity 100ms ease"}}>
+              <Icon size={22} color={color} strokeWidth={1.25}/>
+              <span style={{fontSize:11,fontWeight:active?600:500,fontFamily:FONT,color}}>{n.label}</span>
             </button>
           );
         })}
