@@ -1265,6 +1265,7 @@ const sourceLabel = s => SOURCE_LABELS[s] || null;
 
 function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   const [tx,setTx]=useState(0);
+  const [drag,setDrag]=useState(false);   // render-safe mirror of dragging.current (no transition while dragging)
   const startX=useRef(0);
   const startY=useRef(0);
   const dragging=useRef(false);
@@ -1279,6 +1280,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
 
   function onPointerDown(e) {
     dragging.current=true;
+    setDrag(true);
     moved.current=false;
     locked.current=null;
     startX.current=e.clientX;
@@ -1303,6 +1305,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
   function onPointerUp() {
     if(!dragging.current) return;
     dragging.current=false;
+    setDrag(false);
     if(locked.current==="x") {
       setTx(tx<-REVEAL/2?-REVEAL:0);
     }
@@ -1326,7 +1329,7 @@ function SwipeableReceiptCard({receipt, onClick, onDelete}) {
         onClick={handleTap}
         style={{
           background:C.white,padding:"11px 14px",display:"flex",alignItems:"center",gap:12,
-          transform:`translateX(${tx}px)`,transition:dragging.current?"none":"transform 0.2s ease",
+          transform:`translateX(${tx}px)`,transition:drag?"none":"transform 0.2s ease",
           cursor:"pointer",userSelect:"none",touchAction:"pan-y"
         }}>
         <div style={{width:38,height:38,borderRadius:"50%",background:col.bg,color:col.fg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:15,fontWeight:700,flexShrink:0}}>{orgInitial(r.org)}</div>
@@ -1859,11 +1862,12 @@ function RequisitesSheet({prefill, onClose, onVerify, onManualFallback}) {
   const [checking,setChecking] = useState(false);
   const [errMsg,setErrMsg]     = useState("");      // сообщение фолбэка после неуспешной проверки
   const [showInfo,setShowInfo] = useState(false);   // тултип ⓘ (молчит до тапа)
+  const [nowMs] = useState(() => Date.now());        // «сейчас» на момент открытия формы — стабильно между рендерами
 
   const num = v => /^\d+([.,]\d+)?$/.test(String(v).trim());
   const fnDigits = fn.replace(/\D/g,"");
   const fnHint = fn && fnDigits.length!==16;                 // не блокирует, только подсказка
-  const future = (date && time) ? new Date(`${date}T${time}`).getTime() > Date.now() : false;
+  const future = (date && time) ? new Date(`${date}T${time}`).getTime() > nowMs : false;
   const canCheck = !!(date && time && num(amount) && /^\d+$/.test(fn.trim()) &&
                       /^\d+$/.test(fd.trim()) && /^\d+$/.test(fpd.trim()) && !future);
 
@@ -2496,18 +2500,19 @@ function ServiceCard({svc}) {
 // Swipe-left to reveal "Удалить" — mirrors SwipeableReceiptCard's pointer logic.
 function SwipeableUserRow({user,onDelete,deletable=true}) {
   const [tx,setTx]=useState(0);
+  const [drag,setDrag]=useState(false);   // render-safe mirror of dragging.current
   const startX=useRef(0), startY=useRef(0), dragging=useRef(false), locked=useRef(null);
   const REVEAL=72;
   const u=user;
   const name=[u.last_name,u.first_name,u.patronymic].filter(Boolean).join(" ")||u.email||"Без имени";
-  function down(e){if(!deletable)return;dragging.current=true;locked.current=null;startX.current=e.clientX;startY.current=e.clientY;e.currentTarget.setPointerCapture?.(e.pointerId);}
+  function down(e){if(!deletable)return;dragging.current=true;setDrag(true);locked.current=null;startX.current=e.clientX;startY.current=e.clientY;e.currentTarget.setPointerCapture?.(e.pointerId);}
   function move(e){if(!dragging.current)return;const dx=e.clientX-startX.current,dy=e.clientY-startY.current;if(locked.current===null){if(Math.abs(dx)>6||Math.abs(dy)>6)locked.current=Math.abs(dx)>Math.abs(dy)?"x":"y";else return;}if(locked.current!=="x")return;const base=tx<0?-REVEAL:0;setTx(Math.min(0,Math.max(-REVEAL,base+dx)));}
-  function up(){if(!dragging.current)return;dragging.current=false;if(locked.current==="x")setTx(tx<-REVEAL/2?-REVEAL:0);}
+  function up(){if(!dragging.current)return;dragging.current=false;setDrag(false);if(locked.current==="x")setTx(tx<-REVEAL/2?-REVEAL:0);}
   return (
     <div style={{position:"relative",background:"#B91C1C",borderBottom:`1px solid ${C.silver}`,overflow:"hidden"}}>
       {deletable&&<div onClick={onDelete} style={{position:"absolute",top:0,right:0,bottom:0,width:REVEAL,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#fff",fontFamily:FONT,fontSize:12,fontWeight:600}}>Удалить</div>}
       <div onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-        style={{background:C.white,padding:"11px 14px",display:"flex",alignItems:"center",gap:12,transform:`translateX(${tx}px)`,transition:dragging.current?"none":"transform 0.2s ease",userSelect:"none",touchAction:"pan-y",borderLeft:`3px solid ${u.is_active!==false?C.cherry:C.silver}`}}>
+        style={{background:C.white,padding:"11px 14px",display:"flex",alignItems:"center",gap:12,transform:`translateX(${tx}px)`,transition:drag?"none":"transform 0.2s ease",userSelect:"none",touchAction:"pan-y",borderLeft:`3px solid ${u.is_active!==false?C.cherry:C.silver}`}}>
         <div style={{width:34,height:34,borderRadius:"50%",background:C.cherry,color:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT,fontSize:11,fontWeight:700,flexShrink:0}}>{userInitials(u)}</div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:FONT,fontSize:13,color:C.dark,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
