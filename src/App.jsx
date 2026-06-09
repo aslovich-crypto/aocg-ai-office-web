@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
-import { Camera, ImageUp, PenLine, ChartColumn, ClipboardList, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle, Lock, Trash2, User, Bell, ChevronDown, Check } from "lucide-react";
+import { Camera, ImageUp, PenLine, ChartColumn, ClipboardList, Settings, ReceiptText, Eye, EyeOff, Mail, AlertTriangle, Lock, Trash2, User, Bell, ChevronDown, Check, Share2 } from "lucide-react";
+import { snapdom } from "@zumer/snapdom";
 
 const API = import.meta.env.VITE_API_URL || "https://aocg-ai-office-production.up.railway.app";
 
@@ -1387,17 +1388,62 @@ function ReceiptDetailModal({receipt, onClose, onDelete, onChangeCategory, onCha
     </div>
   ):null;
 
+  // Снимок карточки чека (контейнер receiptCardRef) в PNG через snapdom и
+  // отправка системным «Поделиться». Захватывается только сама карточка —
+  // блок кнопок (категория/карта/удаление) лежит вне ref, в кадр не попадает.
+  const receiptCardRef=useRef(null);
+  const [sharing,setSharing]=useState(false);
+  async function handleShare(){
+    const node=receiptCardRef.current;
+    if(!node||sharing) return;
+    setSharing(true);
+    try{
+      const scale=Math.min(window.devicePixelRatio||1,2);   // не *2: бережём память на retina-мобильных
+      const snap=await snapdom(node,{scale,backgroundColor:"#FFFEFB",embedFonts:true});
+      const canvas=await snap.toCanvas();                    // через canvas — гарантированный PNG, без угадывания ключа опции snapdom
+      const blob=await new Promise(res=>canvas.toBlob(res,"image/png"));
+      const d=raw.dateTime?new Date(raw.dateTime*1000):(r.date?new Date(r.date):new Date());
+      const pad=n=>String(n).padStart(2,"0");
+      const datePart=`${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}`;
+      const amountPart=String(Math.round(totalSum||0)).replace(/[^0-9]/g,"");
+      const filename=`receipt-${amountPart}-${datePart}.png`;   // без кириллицы/спецсимволов
+      const file=new File([blob],filename,{type:"image/png"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file]});
+      }else{
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url; a.download=filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      }
+    }catch(e){
+      if(!(e&&e.name==="AbortError")){   // AbortError = пользователь сам закрыл системный диалог
+        console.error("receipt share failed",e);
+        alert("Не удалось подготовить изображение чека");
+      }
+    }finally{
+      setSharing(false);
+    }
+  }
+
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(22,26,29,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:150}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:"100%",maxWidth:480,maxHeight:"calc(100dvh - env(safe-area-inset-top) - 8px)",display:"flex",flexDirection:"column",borderRadius:"16px 16px 0 0",overflow:"hidden"}}>
         <div style={{padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.silver}`,background:C.white,flexShrink:0}}>
           <button onClick={onClose} style={{border:"none",background:"none",color:C.dark,cursor:"pointer",fontSize:20,padding:4}}>‹</button>
           <span style={{fontSize:14,fontFamily:FONT,color:C.dark,fontWeight:600}}>Детали документа</span>
-          <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,cursor:"pointer",fontSize:18,padding:4}}>✕</button>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button onClick={handleShare} disabled={sharing} title="Поделиться" aria-label="Поделиться"
+              style={{border:"none",background:"none",color:sharing?C.grayL:C.dark,cursor:sharing?"default":"pointer",padding:4,display:"flex",alignItems:"center"}}>
+              <Share2 size={19}/>
+            </button>
+            <button onClick={onClose} style={{border:"none",background:"none",color:C.gray,cursor:"pointer",fontSize:18,padding:4}}>✕</button>
+          </div>
         </div>
 
         <div style={{flex:1,overflow:"auto",background:"#FAF9F6"}}>
-          <div style={{margin:"14px 14px 8px",background:"#FFFEFB",border:`1px solid ${C.silver}`,padding:"18px 16px",fontFamily:"'Courier New', Courier, monospace",color:C.dark,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",borderRadius:8}}>
+          <div ref={receiptCardRef} style={{margin:"14px 14px 8px",background:"#FFFEFB",border:`1px solid ${C.silver}`,padding:"18px 16px",fontFamily:"'Courier New', Courier, monospace",color:C.dark,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",borderRadius:8}}>
             <div style={{textAlign:"center",fontSize:13,fontWeight:700,letterSpacing:"0.15em",marginBottom:8}}>КАССОВЫЙ ЧЕК</div>
             {r.org&&<div style={{textAlign:"center",fontSize:13,fontWeight:700,marginBottom:6}}>{shortOrg(r.org)}</div>}
             {address&&<div style={{textAlign:"center",fontSize:11,color:C.mid,marginBottom:2}}>{address}</div>}

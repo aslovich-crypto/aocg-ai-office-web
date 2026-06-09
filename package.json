@@ -11,6 +11,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@zumer/snapdom": "^2.12.8",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "html5-qrcode": "^2.3.8",
