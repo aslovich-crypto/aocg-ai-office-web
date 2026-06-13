@@ -1,16 +1,44 @@
-# React + Vite
+# AOCG AI Офис — фронтенд
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Фронтенд платформы AOCG AI Офис: B2B SaaS для российского малого и среднего бизнеса. Управление первичными финансовыми документами и управленческим учётом. Мобильно-ориентированный интерфейс по образцу банковских приложений.
 
-Currently, two official plugins are available:
+## Стек
+- React + Vite
+- lucide-react (иконки), recharts (графики), jsqr (QR)
+- Inter Variable (self-hosted)
+- Railway (хостинг, auto-deploy из main)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Запуск локально
+```bash
+npm run dev
+```
+Открывается на `http://localhost:5173` с hot-reload.
 
-## React Compiler
+## Сборка
+```bash
+npm run build
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Структура
+```
+src/App.jsx        весь UI, компоненты, роутинг (state-based)
+index.html         Inter, viewport-fit=cover
+vite.config.js     allowedHosts
+```
 
-## Expanding the ESLint configuration
+## Дизайн-система
+- Бренд: вишнёвый `#A4161A`
+- Cool Neutrals, шрифт Inter
+- Финансовые числа: tabular-nums
+- Полные правила — в `CLAUDE.md` и проектной документации (дизайн-система)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Переменные окружения
+Список — в `.env.example`. Реальные значения в Railway → Variables, в репозиторий не коммитятся.
+
+## Документация
+- `docs/development-workflow.md` — цикл разработки
+- `docs/prompting-guide.md` — постановка задач агенту
+- `CLAUDE.md` — постоянные правила для AI-агента
+
+## Деплой
+Push в `main` → Railway пересобирает и деплоит автоматически за 1–2 минуты.
