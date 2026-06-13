@@ -16,4 +16,6 @@ app.use(express.static(dist));
 // /login, /register, /verify-email and /join/:token load the app (no 404).
 app.use((req, res) => res.sendFile(path.join(dist, "index.html")));
 
-app.listen(port, "0.0.0.0", () => console.log(`[web] serving ${dist} on :${port}`));
+app.listen(port, "0.0.0.0", () =>
+  console.log(`[web] serving ${dist} on :${port}`),
+);
