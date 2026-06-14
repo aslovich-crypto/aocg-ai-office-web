@@ -9,6 +9,14 @@ import { useEffect, useRef } from "react";
 // Возвращает ref — повесить на корневой контейнер диалога (даём ему tabIndex={-1}).
 export function useModalA11y(onClose) {
   const ref = useRef(null);
+  // onClose часто пересоздаётся родителем на каждый рендер. Держим его в ref,
+  // чтобы основной эффект ниже запускался ОДИН раз на монтирование (deps []),
+  // а не перезапускался на каждый рендер (иначе фокус крадётся из полей ввода,
+  // слушатель снимается/вешается в цикле, prev.focus() дёргает во время анимации).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
   useEffect(() => {
     const node = ref.current;
     const prev =
@@ -31,7 +39,7 @@ export function useModalA11y(onClose) {
     const onKey = (e) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       if (e.key !== "Tab") return;
@@ -56,7 +64,9 @@ export function useModalA11y(onClose) {
       document.removeEventListener("keydown", onKey, true);
       if (prev && typeof prev.focus === "function") prev.focus();
     };
-  }, [onClose]);
+    // Один раз на монтирование: onClose читаем из onCloseRef (см. выше).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return ref;
 }
