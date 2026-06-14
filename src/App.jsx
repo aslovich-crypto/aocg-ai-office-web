@@ -1403,16 +1403,13 @@ function ScanReceiptModal({
         }
       })
       .catch((err) => {
-        const name = err && err.name;
-        if (name === "NotAllowedError" || name === "PermissionDeniedError")
-          setNotice(
-            "Нет доступа к камере. Разрешите доступ в настройках браузера.",
-          );
-        else if (name === "NotReadableError" || name === "TrackStartError")
-          setNotice(
-            "Камера занята другим приложением. Закройте его и попробуйте снова.",
-          );
-        else setNotice("Не удалось включить камеру. Попробуйте ещё раз.");
+        // ВРЕМЕННАЯ ДИАГНОСТИКА — откатить после (вернуть маппинг по err.name).
+        console.error("CAM_FAIL", err);
+        setNotice(
+          `DEBUG: ${(err && err.name) || typeof err} | ${
+            (err && err.message) || String(err)
+          }`,
+        );
         setPhase("cameraError");
       });
   }, [capture]);
