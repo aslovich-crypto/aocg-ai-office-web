@@ -1290,6 +1290,7 @@ function ScanReceiptModal({
   const [saveSheet, setSaveSheet] = useState(null); // {title,message,confirmText,cancelText} — FNS-fallback sheet
   const [fileSource, setFileSource] = useState(null); // 'camera' | 'gallery' | null — where the previewed file came from
   const scannerRef = useRef(null);
+  const streamRef = useRef(null); // реальный MediaStream — освобождение без зависимости от DOM
   const cameraOn = useRef(false);
   const ocrFileRef = useRef(null);
   const cameraInputRef = useRef(null); // <input capture="environment"> — take a photo
@@ -1382,6 +1383,10 @@ function ScanReceiptModal({
     )
       .then(() => {
         cameraOn.current = true;
+        const vEl = document
+          .getElementById("qr-reader")
+          ?.querySelector("video");
+        streamRef.current = vEl && vEl.srcObject ? vEl.srcObject : null;
         try {
           const caps = s.getRunningTrackCapabilities?.() || {};
           if (caps.torch) setTorchSupported(true);
@@ -1397,21 +1402,52 @@ function ScanReceiptModal({
           /* capabilities unavailable */
         }
       })
-      .catch(() => {
-        setNotice("Нет доступа к камере");
+      .catch((err) => {
+        const name = err && err.name;
+        if (name === "NotAllowedError" || name === "PermissionDeniedError")
+          setNotice(
+            "Нет доступа к камере. Разрешите доступ в настройках браузера.",
+          );
+        else if (name === "NotReadableError" || name === "TrackStartError")
+          setNotice(
+            "Камера занята другим приложением. Закройте его и попробуйте снова.",
+          );
+        else setNotice("Не удалось включить камеру. Попробуйте ещё раз.");
         setPhase("cameraError");
       });
   }, [capture]);
 
+  // Освобождение камеры: синхронно глушим треки (железно, без гонки с DOM),
+  // фоном добиваем html5-qrcode (stop → clear). Идемпотентно: повтор → no-op.
+  const releaseCamera = useCallback(() => {
+    cameraOn.current = false;
+    try {
+      streamRef.current &&
+        streamRef.current.getTracks().forEach((t) => t.stop());
+    } catch {
+      /* ignored */
+    }
+    const s = scannerRef.current;
+    if (s)
+      Promise.resolve()
+        .then(() => s.stop())
+        .catch(() => {})
+        .then(() => {
+          try {
+            s.clear();
+          } catch {
+            /* ignored */
+          }
+        })
+        .catch(() => {});
+    streamRef.current = null;
+    scannerRef.current = null;
+  }, []);
+
   useEffect(() => {
     startCamera();
-    return () => {
-      const s = scannerRef.current;
-      if (!s) return;
-      cameraOn.current = false;
-      s.stop().catch(() => {});
-    };
-  }, [startCamera]);
+    return () => releaseCamera();
+  }, [startCamera, releaseCamera]);
 
   async function toggleTorch() {
     if (!scannerRef.current || !cameraOn.current) return;
@@ -1467,8 +1503,10 @@ function ScanReceiptModal({
       result = "partial";
     }
     if (!mountedRef.current || cancelledRef.current) return; // cancelled mid-flight → keep scanning
-    if (result === "ok") cbRef.current.onClose();
-    else setPhase("fnsError");
+    if (result === "ok") {
+      releaseCamera();
+      cbRef.current.onClose();
+    } else setPhase("fnsError");
   }, []);
 
   // Auto-load: 1s after a QR is captured, kick off the FNS lookup with no
@@ -1510,8 +1548,10 @@ function ScanReceiptModal({
       result = "partial";
     }
     if (!mountedRef.current || cancelledRef.current) return;
-    if (result === "ok") onClose();
-    else setPhase("fnsError");
+    if (result === "ok") {
+      releaseCamera();
+      onClose();
+    } else setPhase("fnsError");
   }
 
   // ─── Photo upload: source sheet → preview → use ────────────────
@@ -1607,6 +1647,7 @@ function ScanReceiptModal({
     if (result === "ok") {
       setStep("done");
       clearPreview();
+      releaseCamera();
       onClose();
       return;
     }
@@ -1642,6 +1683,7 @@ function ScanReceiptModal({
     if (result === "ok") {
       setStep("done");
       clearPreview();
+      releaseCamera();
       onClose();
     } else {
       setStep(null);
@@ -1768,6 +1810,7 @@ function ScanReceiptModal({
             type="button"
             onClick={(e) => {
               e.preventDefault();
+              releaseCamera();
               onClose();
             }}
             aria-label="Назад"
