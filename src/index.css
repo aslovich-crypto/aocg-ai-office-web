@@ -121,6 +121,17 @@ button:not(:disabled):active {
   opacity: 0.7;
 }
 
+/* Видимый фокус ТОЛЬКО для клавиатуры (мышь/тач не затрагивает —
+   :focus-visible не срабатывает на клик). Цвет бренда, вид не меняется. */
+:focus-visible {
+  outline: 2px solid #a4161a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+[role="dialog"]:focus-visible {
+  outline: none;
+}
+
 /* Login screen — hover/focus states (inline styles can't express :hover/:focus) */
 .aocg-oauth-btn:hover {
   border-color: #c94f52 !important;

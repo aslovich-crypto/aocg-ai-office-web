@@ -1,5 +1,6 @@
 /* global __BUILD_TIME__ */
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useModalA11y } from "./hooks/useModalA11y";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
@@ -510,6 +511,7 @@ function RuleInput({ label, value, onChange, type = "text", placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={label}
         onFocus={() => setF(true)}
         onBlur={() => setF(false)}
         style={{
@@ -585,6 +587,7 @@ function Block({ children, style: s }) {
 }
 
 function Modal({ title, onClose, children, footer }) {
+  const dialogRef = useModalA11y(onClose);
   return (
     <div
       style={{
@@ -598,6 +601,11 @@ function Modal({ title, onClose, children, footer }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         style={{
           background: C.white,
           width: "100%",
@@ -608,6 +616,7 @@ function Modal({ title, onClose, children, footer }) {
           flexDirection: "column",
           borderRadius: "12px 12px 0 0",
           overflow: "hidden",
+          outline: "none",
         }}
       >
         <div
@@ -636,7 +645,9 @@ function Modal({ title, onClose, children, footer }) {
             </span>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -645,7 +656,7 @@ function Modal({ title, onClose, children, footer }) {
               fontSize: 16,
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div style={{ overflow: "auto", flex: 1, padding: "4px 16px 8px" }}>
@@ -682,9 +693,11 @@ function SegmentedControl({ segments, active, onChange }) {
       {segments.map((s) => {
         const on = s === active;
         return (
-          <div
+          <button
             key={s}
+            type="button"
             onClick={() => onChange(s)}
+            aria-pressed={on}
             style={{
               flex: 1,
               textAlign: "center",
@@ -704,7 +717,7 @@ function SegmentedControl({ segments, active, onChange }) {
             }}
           >
             {s}
-          </div>
+          </button>
         );
       })}
     </div>
@@ -1640,8 +1653,15 @@ function ScanReceiptModal({
   const dimmed =
     phase === "loading" || phase === "fnsError" || phase === "cameraError";
 
+  const dialogRef = useModalA11y(onClose);
+
   return (
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Сканировать чек"
+      tabIndex={-1}
       style={{
         position: "fixed",
         inset: 0,
@@ -1650,6 +1670,7 @@ function ScanReceiptModal({
         overflow: "hidden",
         width: "100vw",
         height: "100dvh",
+        outline: "none",
       }}
     >
       {/* Force html5-qrcode's nested <video> to cover the whole viewport. */}
@@ -1856,6 +1877,7 @@ function ScanReceiptModal({
         type="file"
         accept="image/*"
         capture="environment"
+        aria-label="Снять фото чека камерой"
         style={{ display: "none" }}
         onChange={(e) => {
           setFileSource("camera");
@@ -1867,6 +1889,7 @@ function ScanReceiptModal({
         ref={galleryInputRef}
         type="file"
         accept="image/*"
+        aria-label="Выбрать фото чека из галереи"
         style={{ display: "none" }}
         onChange={(e) => {
           setFileSource("gallery");
@@ -1878,6 +1901,7 @@ function ScanReceiptModal({
         ref={ocrFileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        aria-label="Файл чека для распознавания"
         style={{ display: "none" }}
         onChange={(e) => {
           handleOcrPick(e.target.files[0]);
@@ -3218,6 +3242,8 @@ function ReceiptDetailModal({
     }
   }
 
+  const dialogRef = useModalA11y(onClose);
+
   return (
     <div
       style={{
@@ -3232,6 +3258,11 @@ function ReceiptDetailModal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Детали документа"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -3242,6 +3273,7 @@ function ReceiptDetailModal({
           flexDirection: "column",
           borderRadius: "16px 16px 0 0",
           overflow: "hidden",
+          outline: "none",
         }}
       >
         <div
@@ -3256,7 +3288,9 @@ function ReceiptDetailModal({
           }}
         >
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Назад"
             style={{
               border: "none",
               background: "none",
@@ -3266,7 +3300,7 @@ function ReceiptDetailModal({
               padding: 4,
             }}
           >
-            ‹
+            <span aria-hidden="true">‹</span>
           </button>
           <span
             style={{
@@ -3297,7 +3331,9 @@ function ReceiptDetailModal({
               <Share2 size={19} />
             </button>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Закрыть"
               style={{
                 border: "none",
                 background: "none",
@@ -3307,7 +3343,7 @@ function ReceiptDetailModal({
                 padding: 4,
               }}
             >
-              ✕
+              <span aria-hidden="true">✕</span>
             </button>
           </div>
         </div>
@@ -3881,6 +3917,8 @@ function FiltersModal({
     close();
   };
 
+  const dialogRef = useModalA11y(close);
+
   return (
     <div
       onClick={close}
@@ -3897,6 +3935,11 @@ function FiltersModal({
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Фильтры"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -3909,6 +3952,7 @@ function FiltersModal({
           paddingBottom: "env(safe-area-inset-bottom)",
           transform: shown ? "translateY(0)" : "translateY(100%)",
           transition: `transform ${shown ? 280 : 220}ms ${EASE}`,
+          outline: "none",
         }}
       >
         <div
@@ -3949,7 +3993,9 @@ function FiltersModal({
             Фильтры
           </span>
           <button
+            type="button"
             onClick={close}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -3958,7 +4004,7 @@ function FiltersModal({
               cursor: "pointer",
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div
@@ -3996,6 +4042,7 @@ function FiltersModal({
                     type="date"
                     value={pFrom}
                     onChange={(e) => setPFrom(e.target.value)}
+                    aria-label="Период: дата от"
                     style={inputStyle}
                   />
                 </div>
@@ -4014,6 +4061,7 @@ function FiltersModal({
                     type="date"
                     value={pTo}
                     onChange={(e) => setPTo(e.target.value)}
+                    aria-label="Период: дата до"
                     style={inputStyle}
                   />
                 </div>
@@ -4128,7 +4176,11 @@ function FiltersModal({
                           </span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => toggleExpand(g.id)}
+                          aria-label={
+                            expanded ? "Свернуть группу" : "Развернуть группу"
+                          }
                           style={{
                             border: "none",
                             background: "none",
@@ -4140,7 +4192,7 @@ function FiltersModal({
                             transition: "transform 0.15s",
                           }}
                         >
-                          ›
+                          <span aria-hidden="true">›</span>
                         </button>
                       </div>
                       {expanded && (
@@ -4225,8 +4277,10 @@ function FiltersModal({
           }}
         >
           <button
+            type="button"
             onClick={reset}
             title="Сбросить"
+            aria-label="Сбросить"
             style={{
               width: 44,
               height: 44,
@@ -4250,6 +4304,7 @@ function FiltersModal({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <polyline points="1 4 1 10 7 10" />
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
@@ -4283,7 +4338,10 @@ function FilterIcon({ active, onClick, size = 38 }) {
   const stroke = active ? C.cherry : "#636B7D";
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-label="Фильтры"
+      aria-pressed={active}
       style={{
         position: "relative",
         width: size,
@@ -4298,7 +4356,13 @@ function FilterIcon({ active, onClick, size = 38 }) {
         flexShrink: 0,
       }}
     >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        aria-hidden="true"
+      >
         <path
           d="M2 4h12M4 8h8M6 12h4"
           stroke={stroke}
@@ -4568,6 +4632,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                 disabled={locked}
                 checked={selected.has(d.id)}
                 onChange={() => toggle(d.id)}
+                aria-label="Выбрать дубликат"
                 style={{
                   width: 16,
                   height: 16,
@@ -4728,6 +4793,7 @@ function CategorySheet({ catalog, selected, onPick, onClose }) {
       ),
     }))
     .filter((g) => g.cats.length > 0);
+  const dialogRef = useModalA11y(close);
   return (
     <div
       onClick={close}
@@ -4744,6 +4810,11 @@ function CategorySheet({ catalog, selected, onPick, onClose }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Категория"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -4756,6 +4827,7 @@ function CategorySheet({ catalog, selected, onPick, onClose }) {
           paddingBottom: "env(safe-area-inset-bottom)",
           transform: shown ? "translateY(0)" : "translateY(100%)",
           transition: `transform ${shown ? 280 : 220}ms ${EASE}`,
+          outline: "none",
         }}
       >
         <div
@@ -4796,7 +4868,9 @@ function CategorySheet({ catalog, selected, onPick, onClose }) {
             Категория
           </span>
           <button
+            type="button"
             onClick={close}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -4805,7 +4879,7 @@ function CategorySheet({ catalog, selected, onPick, onClose }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div style={{ padding: "10px 16px 6px", flexShrink: 0 }}>
@@ -4836,6 +4910,7 @@ function CategorySheet({ catalog, selected, onPick, onClose }) {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Поиск статьи…"
+              aria-label="Поиск статьи"
               style={{
                 border: "none",
                 outline: "none",
@@ -5100,6 +5175,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              aria-label="Дата чека"
               style={inp}
             />
           </div>
@@ -5109,6 +5185,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
+              aria-label="Время чека"
               style={inp}
             />
           </div>
@@ -5180,6 +5257,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
             onChange={(e) => setFn(e.target.value)}
             inputMode="numeric"
             placeholder="16 цифр"
+            aria-label="ФН (фискальный накопитель)"
             style={inp}
           />
           {showInfo && (
@@ -5703,6 +5781,7 @@ function OperaciiPage({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск..."
+            aria-label="Поиск по операциям"
             style={{
               border: "none",
               outline: "none",
@@ -5869,7 +5948,9 @@ function OperaciiPage({
         )}
       </div>
       <button
+        type="button"
         onClick={() => setShowScan(true)}
+        aria-label="Добавить чек"
         style={{
           position: "fixed",
           bottom: "calc(env(safe-area-inset-bottom) + 72px)",
@@ -5888,7 +5969,7 @@ function OperaciiPage({
           borderRadius: "50%",
         }}
       >
-        +
+        <span aria-hidden="true">+</span>
       </button>
       {showScan && (
         <ScanReceiptModal
@@ -6327,6 +6408,7 @@ function OtchetyPage({ receipts }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск..."
+            aria-label="Поиск по отчётам"
             style={{
               border: "none",
               outline: "none",
@@ -6937,6 +7019,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
     setBusy(false);
     onClose();
   }
+  const dialogRef = useModalA11y(onClose);
   return (
     <div
       onClick={onClose}
@@ -6951,6 +7034,11 @@ function AddEmployeeSheet({ onClose, onAdd }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Новый сотрудник"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -6962,6 +7050,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
           flexDirection: "column",
           maxHeight: "88dvh",
           paddingBottom: "env(safe-area-inset-bottom)",
+          outline: "none",
         }}
       >
         <div
@@ -6984,7 +7073,9 @@ function AddEmployeeSheet({ onClose, onAdd }) {
             Новый сотрудник
           </span>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -6995,7 +7086,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
               lineHeight: 1,
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div
@@ -7010,24 +7101,28 @@ function AddEmployeeSheet({ onClose, onAdd }) {
           <input
             style={inp}
             placeholder="Имя"
+            aria-label="Имя"
             value={f.first_name}
             onChange={(e) => set("first_name", e.target.value)}
           />
           <input
             style={inp}
             placeholder="Фамилия"
+            aria-label="Фамилия"
             value={f.last_name}
             onChange={(e) => set("last_name", e.target.value)}
           />
           <input
             style={inp}
             placeholder="Отчество"
+            aria-label="Отчество"
             value={f.patronymic}
             onChange={(e) => set("patronymic", e.target.value)}
           />
           <input
             style={inp}
             placeholder="Email"
+            aria-label="Email"
             type="email"
             value={f.email}
             onChange={(e) => set("email", e.target.value)}
@@ -7155,6 +7250,7 @@ function ChangePasswordModal({ onClose }) {
       setBusy(false);
     }
   }
+  const dialogRef = useModalA11y(onClose);
   return (
     <div
       onClick={onClose}
@@ -7169,6 +7265,11 @@ function ChangePasswordModal({ onClose }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Изменить пароль"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -7178,6 +7279,7 @@ function ChangePasswordModal({ onClose }) {
           display: "flex",
           flexDirection: "column",
           paddingBottom: "env(safe-area-inset-bottom)",
+          outline: "none",
         }}
       >
         <div
@@ -7216,7 +7318,9 @@ function ChangePasswordModal({ onClose }) {
             Изменить пароль
           </span>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -7225,7 +7329,7 @@ function ChangePasswordModal({ onClose }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div
@@ -7255,6 +7359,7 @@ function ChangePasswordModal({ onClose }) {
                 style={inp}
                 type={show ? "text" : "password"}
                 placeholder="Текущий пароль"
+                aria-label="Текущий пароль"
                 value={oldPw}
                 onChange={(e) => setOldPw(e.target.value)}
               />
@@ -7262,6 +7367,7 @@ function ChangePasswordModal({ onClose }) {
                 style={inp}
                 type={show ? "text" : "password"}
                 placeholder="Новый пароль (от 8 символов)"
+                aria-label="Новый пароль"
                 value={newPw}
                 onChange={(e) => setNewPw(e.target.value)}
               />
@@ -7269,6 +7375,7 @@ function ChangePasswordModal({ onClose }) {
                 style={inp}
                 type={show ? "text" : "password"}
                 placeholder="Повторите новый пароль"
+                aria-label="Повторите новый пароль"
                 value={rep}
                 onChange={(e) => setRep(e.target.value)}
               />
@@ -7287,6 +7394,7 @@ function ChangePasswordModal({ onClose }) {
                   type="checkbox"
                   checked={show}
                   onChange={(e) => setShow(e.target.checked)}
+                  aria-label="Показать пароли"
                   style={{ accentColor: C.cherry }}
                 />{" "}
                 Показать пароли
@@ -7446,6 +7554,7 @@ function AccountTab() {
           value={acc.first_name}
           onChange={(e) => set("first_name", e.target.value)}
           placeholder="—"
+          aria-label="Имя"
           style={fin}
         />
       </div>
@@ -7455,6 +7564,7 @@ function AccountTab() {
           value={acc.last_name}
           onChange={(e) => set("last_name", e.target.value)}
           placeholder="—"
+          aria-label="Фамилия"
           style={fin}
         />
       </div>
@@ -7499,6 +7609,7 @@ function AccountTab() {
           onChange={(e) => set("phone", formatPhone(e.target.value))}
           inputMode="tel"
           placeholder="+7 ___ ___ __ __"
+          aria-label="Телефон"
           style={{ ...fin, fontVariantNumeric: "tabular-nums" }}
         />
       </div>
@@ -7508,6 +7619,7 @@ function AccountTab() {
           value={acc.employee_number}
           onChange={(e) => set("employee_number", e.target.value)}
           placeholder="—"
+          aria-label="Табельный номер"
           style={{ ...fin, fontVariantNumeric: "tabular-nums" }}
         />
       </div>
@@ -7848,6 +7960,7 @@ function InviteSheet({ onClose }) {
       /* cancelled */
     }
   }
+  const dialogRef = useModalA11y(onClose);
   return (
     <div
       onClick={onClose}
@@ -7862,6 +7975,11 @@ function InviteSheet({ onClose }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Ссылка-приглашение"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -7872,6 +7990,7 @@ function InviteSheet({ onClose }) {
           flexDirection: "column",
           maxHeight: "88dvh",
           paddingBottom: "env(safe-area-inset-bottom)",
+          outline: "none",
         }}
       >
         <div
@@ -7910,7 +8029,9 @@ function InviteSheet({ onClose }) {
             Ссылка-приглашение
           </span>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -7919,7 +8040,7 @@ function InviteSheet({ onClose }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div style={{ padding: "16px", overflow: "auto" }}>
@@ -8092,6 +8213,7 @@ function BottomSheet({ title, onClose, children }) {
     setShown(false);
     setTimeout(onClose, 220);
   };
+  const dialogRef = useModalA11y(close);
   return (
     <div
       onClick={close}
@@ -8108,12 +8230,18 @@ function BottomSheet({ title, onClose, children }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
+          outline: "none",
           display: "flex",
           flexDirection: "column",
           maxHeight: "88dvh",
@@ -8160,7 +8288,9 @@ function BottomSheet({ title, onClose, children }) {
             {title}
           </span>
           <button
+            type="button"
             onClick={close}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -8169,7 +8299,7 @@ function BottomSheet({ title, onClose, children }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div style={{ padding: "12px 16px 20px", overflow: "auto", flex: 1 }}>
@@ -8267,6 +8397,7 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Например: Подписки на сервисы"
+        aria-label="Название статьи"
         style={FIELD_INP}
       />
       <label style={FIELD_LBL}>Группа</label>
@@ -8787,8 +8918,10 @@ function NastroykiPage({
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => copyInvite(inv)}
                   title="Скопировать"
+                  aria-label="Скопировать ссылку-приглашение"
                   style={{
                     border: "none",
                     background: "none",
@@ -8799,11 +8932,15 @@ function NastroykiPage({
                     color: copiedToken === inv.token ? "#15803D" : C.gray,
                   }}
                 >
-                  {copiedToken === inv.token ? "✓" : "📋"}
+                  <span aria-hidden="true">
+                    {copiedToken === inv.token ? "✓" : "📋"}
+                  </span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => delInvite(inv.token)}
                   title="Удалить"
+                  aria-label="Удалить приглашение"
                   style={{
                     border: "none",
                     background: "none",
@@ -8814,7 +8951,7 @@ function NastroykiPage({
                     padding: 4,
                   }}
                 >
-                  ✕
+                  <span aria-hidden="true">✕</span>
                 </button>
               </div>
             ))}
@@ -8919,6 +9056,7 @@ function NastroykiPage({
               </span>
               <input
                 defaultValue={c.name}
+                aria-label="Название карты"
                 onBlur={(e) => {
                   const v = e.target.value.trim();
                   if (v && v !== c.name) onUpdateCard(c.id, v);
@@ -8935,17 +9073,22 @@ function NastroykiPage({
                   padding: "4px 0",
                 }}
               />
-              <span
+              <button
+                type="button"
                 onClick={() => onDeleteCard(c.id)}
+                aria-label="Удалить карту"
                 style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
                   color: C.cherryM,
                   fontSize: 14,
                   cursor: "pointer",
                   flexShrink: 0,
                 }}
               >
-                ✕
-              </span>
+                <span aria-hidden="true">✕</span>
+              </button>
             </div>
           ))}
           {cards.length === 0 && (
@@ -8965,6 +9108,7 @@ function NastroykiPage({
               value={newCard}
               onChange={(e) => setNewCard(e.target.value)}
               placeholder="Например: Личная Сбер"
+              aria-label="Название новой карты"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newCard.trim()) {
                   onAddCard(newCard.trim());
@@ -9084,6 +9228,7 @@ const CONSENT_TEXT = `Согласие на обработку персонал�
 [PLACEHOLDER — финальная редакция юриста]`;
 
 function ConsentBottomSheet({ title, text, onClose }) {
+  const dialogRef = useModalA11y(onClose);
   return (
     <div
       onClick={onClose}
@@ -9098,6 +9243,11 @@ function ConsentBottomSheet({ title, text, onClose }) {
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: C.white,
@@ -9109,6 +9259,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
           display: "flex",
           flexDirection: "column",
           paddingBottom: "env(safe-area-inset-bottom)",
+          outline: "none",
         }}
       >
         <div
@@ -9131,7 +9282,9 @@ function ConsentBottomSheet({ title, text, onClose }) {
             {title}
           </span>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Закрыть"
             style={{
               border: "none",
               background: "none",
@@ -9142,7 +9295,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
               lineHeight: 1,
             }}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         <div
@@ -9856,6 +10009,7 @@ function LoginScreen({ onAuthed, navigate }) {
             value={ident}
             onChange={(e) => setIdent(e.target.value)}
             placeholder="Телефон или Email"
+            aria-label="Телефон или Email"
             autoCapitalize="none"
             autoCorrect="off"
             style={{ ...fieldStyle, marginBottom: 12 }}
@@ -9867,6 +10021,7 @@ function LoginScreen({ onAuthed, navigate }) {
               onChange={(e) => setPassword(e.target.value)}
               type={showPw ? "text" : "password"}
               placeholder="Пароль"
+              aria-label="Пароль"
               onKeyDown={(e) => {
                 if (e.key === "Enter") submit();
               }}
@@ -9875,6 +10030,7 @@ function LoginScreen({ onAuthed, navigate }) {
             <button
               onClick={() => setShowPw((s) => !s)}
               type="button"
+              aria-label={showPw ? "Скрыть пароль" : "Показать пароль"}
               style={{
                 position: "absolute",
                 right: 10,
@@ -9888,7 +10044,11 @@ function LoginScreen({ onAuthed, navigate }) {
                 padding: 4,
               }}
             >
-              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showPw ? (
+                <EyeOff size={18} aria-hidden="true" />
+              ) : (
+                <Eye size={18} aria-hidden="true" />
+              )}
             </button>
           </div>
 
@@ -10345,12 +10505,14 @@ function RegisterScreen({ onAuthed, navigate }) {
                   onChange={(e) => onInn(e.target.value)}
                   inputMode="numeric"
                   placeholder="ИНН компании"
+                  aria-label="ИНН компании"
                   style={A_INPUT}
                 />
                 <input
                   value={f.org_name}
                   onChange={(e) => set("org_name", e.target.value)}
                   placeholder="Название компании"
+                  aria-label="Название компании"
                   style={A_INPUT}
                 />
               </>
@@ -10359,12 +10521,14 @@ function RegisterScreen({ onAuthed, navigate }) {
               value={f.first_name}
               onChange={(e) => set("first_name", e.target.value)}
               placeholder="Имя"
+              aria-label="Имя"
               style={A_INPUT}
             />
             <input
               value={f.last_name}
               onChange={(e) => set("last_name", e.target.value)}
               placeholder="Фамилия"
+              aria-label="Фамилия"
               style={A_INPUT}
             />
             <input
@@ -10372,6 +10536,7 @@ function RegisterScreen({ onAuthed, navigate }) {
               onChange={(e) => set("phone", e.target.value)}
               inputMode="tel"
               placeholder="Телефон"
+              aria-label="Телефон"
               style={A_INPUT}
             />
             <input
@@ -10380,6 +10545,7 @@ function RegisterScreen({ onAuthed, navigate }) {
               autoCapitalize="none"
               autoCorrect="off"
               placeholder="Email"
+              aria-label="Email"
               style={A_INPUT}
             />
             <div style={{ position: "relative" }}>
@@ -10388,11 +10554,13 @@ function RegisterScreen({ onAuthed, navigate }) {
                 onChange={(e) => set("password", e.target.value)}
                 type={showPw ? "text" : "password"}
                 placeholder="Пароль (от 8 символов)"
+                aria-label="Пароль"
                 style={{ ...A_INPUT, paddingRight: 44 }}
               />
               <button
                 onClick={() => setShowPw((s) => !s)}
                 type="button"
+                aria-label={showPw ? "Скрыть пароль" : "Показать пароль"}
                 style={{
                   position: "absolute",
                   right: 8,
@@ -10406,7 +10574,11 @@ function RegisterScreen({ onAuthed, navigate }) {
                   padding: 6,
                 }}
               >
-                {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPw ? (
+                  <EyeOff size={18} aria-hidden="true" />
+                ) : (
+                  <Eye size={18} aria-hidden="true" />
+                )}
               </button>
             </div>
             <input
@@ -10414,6 +10586,7 @@ function RegisterScreen({ onAuthed, navigate }) {
               onChange={(e) => set("password2", e.target.value)}
               type={showPw ? "text" : "password"}
               placeholder="Повторите пароль"
+              aria-label="Повторите пароль"
               style={A_INPUT}
             />
             {err && (
@@ -10633,12 +10806,14 @@ function JoinScreen({ token, onAuthed, navigate }) {
             value={f.first_name}
             onChange={(e) => set("first_name", e.target.value)}
             placeholder="Имя"
+            aria-label="Имя"
             style={A_INPUT}
           />
           <input
             value={f.last_name}
             onChange={(e) => set("last_name", e.target.value)}
             placeholder="Фамилия"
+            aria-label="Фамилия"
             style={A_INPUT}
           />
           <input
@@ -10646,6 +10821,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
             onChange={(e) => set("phone", e.target.value)}
             inputMode="tel"
             placeholder="Телефон"
+            aria-label="Телефон"
             style={A_INPUT}
           />
           <input
@@ -10654,6 +10830,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
             autoCapitalize="none"
             autoCorrect="off"
             placeholder="Email"
+            aria-label="Email"
             style={A_INPUT}
           />
           <div style={{ position: "relative" }}>
@@ -10662,11 +10839,13 @@ function JoinScreen({ token, onAuthed, navigate }) {
               onChange={(e) => set("password", e.target.value)}
               type={showPw ? "text" : "password"}
               placeholder="Пароль (от 8 символов)"
+              aria-label="Пароль"
               style={{ ...A_INPUT, paddingRight: 44 }}
             />
             <button
               onClick={() => setShowPw((s) => !s)}
               type="button"
+              aria-label={showPw ? "Скрыть пароль" : "Показать пароль"}
               style={{
                 position: "absolute",
                 right: 8,
@@ -10680,7 +10859,11 @@ function JoinScreen({ token, onAuthed, navigate }) {
                 padding: 6,
               }}
             >
-              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showPw ? (
+                <EyeOff size={18} aria-hidden="true" />
+              ) : (
+                <Eye size={18} aria-hidden="true" />
+              )}
             </button>
           </div>
           <input
@@ -10688,6 +10871,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
             onChange={(e) => set("password2", e.target.value)}
             type={showPw ? "text" : "password"}
             placeholder="Повторите пароль"
+            aria-label="Повторите пароль"
             style={A_INPUT}
           />
           {err && (
@@ -11071,7 +11255,12 @@ export default function App() {
                 transition: "opacity 120ms ease",
               }}
             >
-              <User size={20} color="#111318" strokeWidth={1.75} />
+              <User
+                size={20}
+                color="#111318"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
             </button>
             <button
               onClick={() => alert("Уведомления — скоро")}
@@ -11092,7 +11281,12 @@ export default function App() {
                 transition: "opacity 120ms ease",
               }}
             >
-              <Bell size={20} color="#111318" strokeWidth={1.75} />
+              <Bell
+                size={20}
+                color="#111318"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
               <span
                 style={{
                   position: "absolute",
