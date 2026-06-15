@@ -7,6 +7,11 @@ import { useEffect, useRef } from "react";
 //  - закрывает по Escape;
 //  - ловит Tab внутри диалога (фокус-ловушка), чтобы фокус не уходил под оверлей.
 // Возвращает ref — повесить на корневой контейнер диалога (даём ему tabIndex={-1}).
+//
+// Стек открытых диалогов: Escape обрабатывает только ВЕРХНИЙ (последний открытый),
+// иначе при вложенных диалогах один Escape закрыл бы оба (оба слушателя на document).
+const a11yStack = [];
+
 export function useModalA11y(onClose) {
   const ref = useRef(null);
   // onClose часто пересоздаётся родителем на каждый рендер. Держим его в ref,
@@ -21,6 +26,9 @@ export function useModalA11y(onClose) {
     const node = ref.current;
     const prev =
       typeof document !== "undefined" ? document.activeElement : null;
+
+    const me = {}; // токен этого диалога в стеке
+    a11yStack.push(me);
 
     const focusable = () => {
       if (!node) return [];
@@ -38,6 +46,8 @@ export function useModalA11y(onClose) {
 
     const onKey = (e) => {
       if (e.key === "Escape") {
+        // Не верхний диалог в стеке — игнорируем, закроется только верхний.
+        if (a11yStack[a11yStack.length - 1] !== me) return;
         e.stopPropagation();
         onCloseRef.current?.();
         return;
@@ -50,6 +60,13 @@ export function useModalA11y(onClose) {
         return;
       }
       const idx = items.indexOf(document.activeElement);
+      if (idx === -1) {
+        // Фокус не внутри списка (на корне tabIndex=-1 или ушёл наружу) —
+        // возвращаем внутрь, иначе Tab уводит фокус под оверлей.
+        e.preventDefault();
+        (e.shiftKey ? items[items.length - 1] : items[0]).focus();
+        return;
+      }
       if (e.shiftKey && idx <= 0) {
         e.preventDefault();
         items[items.length - 1].focus();
@@ -61,6 +78,8 @@ export function useModalA11y(onClose) {
 
     document.addEventListener("keydown", onKey, true);
     return () => {
+      const i = a11yStack.indexOf(me);
+      if (i >= 0) a11yStack.splice(i, 1);
       document.removeEventListener("keydown", onKey, true);
       if (prev && typeof prev.focus === "function") prev.focus();
     };

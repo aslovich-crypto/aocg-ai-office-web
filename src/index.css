@@ -131,6 +131,16 @@ button:not(:disabled):active {
 [role="dialog"]:focus-visible {
   outline: none;
 }
+/* Поля ввода ставят inline outline:none (гасит контур на тач/клик), что
+   перебивает правило выше. Чтобы клавиатурный фокус всё же был виден — задаём
+   контур с !important, но ТОЛЬКО на :focus-visible (клавиатура) и только для
+   полей. Мышь/тач не затрагиваются (там :focus-visible не срабатывает). */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #a4161a !important;
+  outline-offset: 1px;
+}
 
 /* Login screen — hover/focus states (inline styles can't express :hover/:focus) */
 .aocg-oauth-btn:hover {
