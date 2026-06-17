@@ -23,6 +23,9 @@ import {
   ChevronDown,
   Check,
   Share2,
+  Plus,
+  Flashlight,
+  FileText,
 } from "lucide-react";
 import { snapdom } from "@zumer/snapdom";
 
@@ -1860,7 +1863,7 @@ function ScanReceiptModal({
                 backdropFilter: "blur(8px)",
               }}
             >
-              🔦
+              <Flashlight size={20} />
             </button>
           )}
         </div>
@@ -2238,7 +2241,7 @@ function ScanReceiptModal({
                     gap: 8,
                   }}
                 >
-                  <span style={{ fontSize: 16 }}>📷</span> Распознать фото чека
+                  <Camera size={16} /> Распознать фото чека
                 </button>
               )}
               <button
@@ -2353,7 +2356,7 @@ function ScanReceiptModal({
                   gap: 12,
                 }}
               >
-                <span style={{ fontSize: 52 }}>📄</span>
+                <FileText size={52} strokeWidth={1.25} />
                 <span style={{ opacity: 0.85, wordBreak: "break-all" }}>
                   {previewFile?.name || "Файл выбран"}
                 </span>
@@ -2826,7 +2829,7 @@ function SvodkaPage({
                 style={{
                   fontSize: 14,
                   fontWeight: 600,
-                  color: "#A4161A",
+                  color: "#111318",
                   fontFamily: FONT,
                   fontVariantNumeric: "tabular-nums",
                   flexShrink: 0,
@@ -3088,6 +3091,7 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
                 color: C.dark,
                 fontWeight: 700,
                 flexShrink: 0,
+                fontVariantNumeric: "tabular-nums",
               }}
             >
               {fmt(r.amount)}
@@ -3102,6 +3106,7 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
               color: "#636B7D",
               fontFamily: FONT,
               minWidth: 0,
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             <span
@@ -3498,6 +3503,7 @@ function ReceiptDetailModal({
                         justifyContent: "space-between",
                         color: C.gray,
                         fontSize: 11,
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
                       <span>
@@ -3547,7 +3553,9 @@ function ReceiptDetailModal({
               }}
             >
               <span>ИТОГО:</span>
-              <span style={{ fontSize: 18 }}>
+              <span
+                style={{ fontSize: 18, fontVariantNumeric: "tabular-nums" }}
+              >
                 {totalSum.toLocaleString("ru-RU", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
@@ -6012,7 +6020,7 @@ function OperaciiPage({
           borderRadius: "50%",
         }}
       >
-        <span aria-hidden="true">+</span>
+        <Plus size={22} aria-hidden="true" />
       </button>
       {showScan && (
         <ScanReceiptModal
@@ -6416,7 +6424,7 @@ function OtchetyPage({ receipts }) {
     Личные: { bg: C.lightGray, color: C.mid, b: C.silver },
     "На проверке": { bg: "#FEF3C7", color: "#92400E", b: "#FCD34D" },
     Одобрен: { bg: "#ECFDF5", color: "#065F46", b: "#6EE7B7" },
-    Отклонён: { bg: C.cherryL, color: C.cherry, b: C.cherryM },
+    Отклонён: { bg: "#FCEBEB", color: "#B91C1C", b: "#F5C2C2" },
   };
   return (
     <div>
@@ -6477,20 +6485,7 @@ function OtchetyPage({ receipts }) {
             gap: 16,
           }}
         >
-          <div
-            style={{
-              width: 52,
-              height: 36,
-              border: `1px solid ${C.silver}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: C.grayL,
-              fontSize: 18,
-            }}
-          >
-            ▤
-          </div>
+          <ClipboardList size={44} strokeWidth={1.25} color={C.grayL} />
           {tab === "Личные" ? (
             <Btn onClick={() => setShowC(true)}>Создать первый отчёт</Btn>
           ) : (
@@ -6579,9 +6574,10 @@ function OtchetyPage({ receipts }) {
                     style={{
                       fontFamily: FONT,
                       fontSize: 13,
-                      color: C.cherry,
+                      color: C.dark,
                       fontWeight: 700,
                       textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
                     {fmt(rep.total)}
