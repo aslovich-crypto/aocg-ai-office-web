@@ -369,7 +369,7 @@ const PERIOD_OPTIONS = [
   { key: "month", label: "Месяц" },
   { key: "quarter", label: "Квартал" },
   { key: "year", label: "Год" },
-  { key: "all", label: "Все" },
+  { key: "all", label: "Всё" },
 ];
 const periodLabel = (k) =>
   (PERIOD_OPTIONS.find((o) => o.key === k) || PERIOD_OPTIONS[1]).label;
@@ -727,53 +727,33 @@ function SegmentedControl({ segments, active, onChange }) {
   );
 }
 
-function SectionCard({ title, num, children }) {
+function SectionCard({ title, children }) {
+  // .block из дизайн-системы: белая карточка radius 12, заголовок 15px/600 внутри,
+  // без серой шапки-полоски.
   return (
     <div
       style={{
         background: C.white,
-        border: `1px solid ${C.silver}`,
-        marginBottom: 8,
-        borderRadius: 8,
-        overflow: "hidden",
+        border: `0.5px solid ${C.silver}`,
+        borderRadius: 12,
+        marginBottom: 12,
+        padding: 16,
       }}
     >
-      <div
-        style={{
-          height: 32,
-          background: "#F6F7F9",
-          borderBottom: `1px solid ${C.silver}`,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "0 14px",
-        }}
-      >
-        {num && (
-          <span
-            style={{
-              fontSize: 9,
-              fontFamily: "'Courier New', Courier, monospace",
-              color: "#9CA3AF",
-            }}
-          >
-            {num}
-          </span>
-        )}
-        <span
+      {title && (
+        <div
           style={{
-            fontSize: 11,
+            fontSize: 15,
             fontWeight: 600,
-            letterSpacing: "0.12em",
-            color: "#636B7D",
+            color: "#111318",
             fontFamily: FONT,
-            textTransform: "uppercase",
+            margin: "0 0 14px",
           }}
         >
           {title}
-        </span>
-      </div>
-      <div style={{ padding: "4px 14px 8px" }}>{children}</div>
+        </div>
+      )}
+      {children}
     </div>
   );
 }
@@ -2590,46 +2570,67 @@ function Donut({ title, data, num, sliceColor }) {
           </div>
         </div>
       )}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "6px 14px",
-          padding: "8px 0 2px",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column" }}>
         {data.map((d, i) => (
           <div
             key={i}
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 5,
-              whiteSpace: "nowrap",
+              gap: 10,
+              padding: "7px 0",
+              borderTop: i === 0 ? "none" : `1px solid ${C.silver}`,
             }}
           >
             <div
               style={{
-                width: 8,
-                height: 8,
+                width: 10,
+                height: 10,
                 borderRadius: "50%",
-                background: pal[i % pal.length],
+                background: colorAt(d, i),
                 flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 11, color: C.dark, fontFamily: FONT }}>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 14,
+                color: C.dark,
+                fontFamily: FONT,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
               {d.name}
             </span>
             <span
               style={{
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 500,
-                color: C.gray,
+                color: C.dark,
                 fontFamily: FONT,
                 fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
               }}
             >
               {fmt(d.value)}
+            </span>
+            <span
+              style={{
+                fontSize: 13,
+                color: C.gray,
+                fontFamily: FONT,
+                fontVariantNumeric: "tabular-nums",
+                width: 40,
+                textAlign: "right",
+                flexShrink: 0,
+              }}
+            >
+              {sectionTotal > 0
+                ? Math.round((d.value / sectionTotal) * 100) + "%"
+                : "0%"}
             </span>
           </div>
         ))}
@@ -2666,6 +2667,17 @@ function SvodkaPage({
   const [selCards, setSelCards] = useState([]);
   const filtersActive = !!selEmployee || cats.length > 0 || selCards.length > 0;
 
+  // Налоговый режим орг — для блока «Налоговый учёт» (INT).
+  const [org, setOrg] = useState(null);
+  useEffect(() => {
+    authFetch("/api/organizations/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && d.id) setOrg(d);
+      })
+      .catch(() => {});
+  }, []);
+
   const filtered = receipts.filter((r) => {
     if (!inPeriod(r.date, activePeriod)) return false;
     if (selEmployee && (r.employee || "Алексей Шукалович") !== selEmployee)
@@ -2696,16 +2708,75 @@ function SvodkaPage({
     empMap[e].value += Number(r.amount);
     empMap[e].count++;
   });
-  const catSorted = Object.entries(catMap).sort(
-    (a, b) => b[1].value - a[1].value,
-  );
-  const topCat = catSorted[0];
-  const subLine =
-    topCat && total > 0
-      ? `${Math.round((topCat[1].value / total) * 100)}% · ${topCat[0]}`
-      : "Нет данных за период";
   const empData = Object.entries(empMap).map(([name, d]) => ({ name, ...d }));
-  const pal = [C.cherry, C.cherryM, "#C45558", "#E8A0A2", "#D4888A"];
+
+  // ── Налоговый учёт расходов (INT) ──
+  const TAX_LABELS = {
+    osno: "ОСНО",
+    usn_d: "УСН «Доходы»",
+    usn_dr: "УСН «Доходы−Расходы»",
+    psn: "Патент",
+    npd: "НПД",
+    eshn: "ЕСХН",
+  };
+  const NON_DEDUCTIBLE = "Не учитываемые в целях налогообложения";
+  const taxKindById = {};
+  (catalog?.groups || []).forEach((g) =>
+    (g.categories || []).forEach((c) => {
+      taxKindById[c.id] = c.tax_kind;
+    }),
+  );
+  let deductible = 0,
+    nonDeductible = 0,
+    vatSum = 0,
+    vatCount = 0;
+  filtered.forEach((r) => {
+    if (taxKindById[r.category_id] === NON_DEDUCTIBLE)
+      nonDeductible += Number(r.amount);
+    else deductible += Number(r.amount);
+    const v = Number(r.vat_20 || 0) + Number(r.vat_10 || 0);
+    if (v > 0) {
+      vatSum += v;
+      vatCount++;
+    }
+  });
+  const taxTotal = deductible + nonDeductible;
+  const regime = org && org.tax_system ? org.tax_system : null;
+  const reducesExpenses = ["osno", "usn_dr", "eshn"].includes(regime);
+  const vatPayer = regime === "osno";
+  const taxNote = {
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: C.gray,
+    fontFamily: FONT,
+  };
+  const taxRow = (color, name, value) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <span
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          background: color,
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ flex: 1, fontSize: 14, color: C.dark, fontFamily: FONT }}>
+        {name}
+      </span>
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: C.dark,
+          fontFamily: FONT,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {fmt(value)}
+      </span>
+    </div>
+  );
 
   return (
     <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)" }}>
@@ -2740,21 +2811,19 @@ function SvodkaPage({
         </div>
       </div>
       <div style={{ padding: "12px 16px" }}>
+        {/* 1 · Итого за период */}
         <div
           style={{
             background: C.white,
-            border: `1px solid ${C.silver}`,
-            padding: "12px 16px",
-            marginBottom: 10,
-            borderLeft: "3px solid #A4161A",
-            borderRadius: 6,
+            border: `0.5px solid ${C.silver}`,
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 12,
           }}
         >
           <div
             style={{
-              fontSize: 10,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
+              fontSize: 13,
               color: "#636B7D",
               marginBottom: 6,
               fontFamily: FONT,
@@ -2764,67 +2833,207 @@ function SvodkaPage({
           </div>
           <div
             style={{
-              fontSize: 30,
+              fontSize: 28,
               fontWeight: 700,
               color: "#111318",
               fontFamily: FONT,
               fontVariantNumeric: "tabular-nums",
-              lineHeight: 1.1,
-              marginBottom: 4,
+              lineHeight: 1.05,
+              letterSpacing: "-0.015em",
             }}
           >
             {fmt(total)}
           </div>
-          <div style={{ fontSize: 12, color: "#636B7D", fontFamily: FONT }}>
-            {subLine}
+          <div
+            style={{
+              fontSize: 13,
+              color: "#636B7D",
+              fontFamily: FONT,
+              marginTop: 7,
+            }}
+          >
+            {filtered.length > 0
+              ? `${filtered.length} ${plural(filtered.length, [
+                  "операция",
+                  "операции",
+                  "операций",
+                ])}`
+              : "Нет данных за период"}
           </div>
         </div>
+
+        {/* Налоговый учёт расходов */}
+        {org && (
+          <SectionCard title="Налоговый учёт расходов">
+            {!regime ? (
+              <div style={taxNote}>
+                Укажите налоговый режим в разделе «Организация» — тогда покажем,
+                сколько расходов можно учесть.
+              </div>
+            ) : !reducesExpenses ? (
+              <div style={taxNote}>
+                На режиме «{TAX_LABELS[regime]}» расходы не уменьшают налог.
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    height: 12,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    gap: 2,
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: `0 0 ${
+                        taxTotal > 0 ? (deductible / taxTotal) * 100 : 0
+                      }%`,
+                      background: "#15803D",
+                    }}
+                  />
+                  <span
+                    style={{
+                      flex: `0 0 ${
+                        taxTotal > 0 ? (nonDeductible / taxTotal) * 100 : 0
+                      }%`,
+                      background: "#9CA3AF",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  {taxRow("#15803D", "Можно учесть в расходах", deductible)}
+                  {taxRow("#9CA3AF", "Нельзя учесть", nonDeductible)}
+                </div>
+              </>
+            )}
+            {vatPayer && (
+              <div
+                style={{
+                  marginTop: 14,
+                  paddingTop: 14,
+                  borderTop: `1px solid ${C.silver}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    color: C.dark,
+                    fontFamily: FONT,
+                  }}
+                >
+                  Входящий НДС к вычету
+                </span>
+                <div style={{ textAlign: "right" }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: C.dark,
+                      fontFamily: FONT,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {fmt(vatSum)}
+                  </div>
+                  <div
+                    style={{ fontSize: 12, color: C.gray, fontFamily: FONT }}
+                  >
+                    {vatCount} {plural(vatCount, ["чек", "чека", "чеков"])} с
+                    НДС
+                  </div>
+                </div>
+              </div>
+            )}
+          </SectionCard>
+        )}
+
+        {/* По категориям */}
+        <Donut
+          title="По категориям"
+          data={Object.entries(catMap).map(([name, d]) => ({ name, ...d }))}
+          sliceColor={(d) => catColor(d.name).fg}
+        />
+
+        {/* 3 · Организации */}
+        <Donut
+          title="Организации"
+          data={Object.entries(orgMap).map(([name, d]) => ({
+            name: shortOrg(name),
+            ...d,
+          }))}
+        />
+
+        {/* 4 · Методы оплаты */}
+        <Donut
+          title="Методы оплаты"
+          data={Object.entries(payMap).map(([name, d]) => ({ name, ...d }))}
+        />
+
+        {/* 5 · Сотрудники */}
         <SectionCard title="Сотрудники">
           {empData.map((d, i) => (
             <div
               key={i}
               style={{
-                height: 44,
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                borderBottom:
-                  i < empData.length - 1 ? `0.5px solid ${C.silver}` : "none",
+                gap: 12,
+                padding: "11px 0",
+                borderTop: i === 0 ? "none" : `1px solid ${C.silver}`,
               }}
             >
               <div
                 style={{
-                  width: 8,
-                  height: 8,
-                  background: pal[i % pal.length],
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: C.dark,
-                  fontFamily: FONT,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {d.name}
-              </span>
-              <span
-                style={{
-                  fontSize: 12,
-                  color: "#636B7D",
-                  fontFamily: FONT,
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  background: C.lightGray,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   flexShrink: 0,
                 }}
               >
-                {d.count}
-              </span>
+                <User
+                  size={16}
+                  color="#636B7D"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: C.dark,
+                    fontFamily: FONT,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {d.name}
+                </div>
+                <div
+                  style={{ fontSize: 12, color: "#636B7D", fontFamily: FONT }}
+                >
+                  {`${d.count} ${plural(d.count, ["чек", "чека", "чеков"])}`}
+                </div>
+              </div>
               <span
                 style={{
                   fontSize: 14,
@@ -2852,22 +3061,6 @@ function SvodkaPage({
             </div>
           )}
         </SectionCard>
-        <Donut
-          title="Организации"
-          data={Object.entries(orgMap).map(([name, d]) => ({
-            name: shortOrg(name),
-            ...d,
-          }))}
-        />
-        <Donut
-          title="Методы оплаты"
-          data={Object.entries(payMap).map(([name, d]) => ({ name, ...d }))}
-        />
-        <Donut
-          title="Категории"
-          data={Object.entries(catMap).map(([name, d]) => ({ name, ...d }))}
-          sliceColor={(d) => catColor(d.name).fg}
-        />
       </div>
       {showFilters && (
         <FiltersModal
