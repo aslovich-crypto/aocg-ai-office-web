@@ -11245,23 +11245,30 @@ export default function App() {
             position: "relative",
           }}
         >
-          {/* LEFT — plate Λ (34, no chevron) + current section title; taps open the app switcher (Тип 2) */}
-          <button
-            onClick={() => setAppMenu((o) => !o)}
-            aria-label="Переключить приложение"
+          {/* LEFT — only the plate Λ is clickable (→ app switcher); the section title is a plain label (Тип 2) */}
+          <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 12,
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              padding: "2px 4px",
-              borderRadius: 8,
               minWidth: 0,
             }}
           >
-            <MarkPlate size={34} />
+            <button
+              onClick={() => setAppMenu((o) => !o)}
+              aria-label="Переключить приложение"
+              style={{
+                display: "flex",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                padding: 2,
+                borderRadius: 8,
+                flexShrink: 0,
+              }}
+            >
+              <MarkPlate size={34} />
+            </button>
             <span
               style={{
                 fontSize: 17,
@@ -11273,7 +11280,7 @@ export default function App() {
             >
               {(NAV.find((n) => n.id === page) || {}).label || ""}
             </span>
-          </button>
+          </div>
           {appMenu && <AppSwitcher onClose={() => setAppMenu(false)} />}
           {/* RIGHT — account (человечек) then bell (rightmost, cherry unread dot) */}
           <div
