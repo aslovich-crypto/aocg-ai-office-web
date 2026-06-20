@@ -1,6 +1,7 @@
 /* global __BUILD_TIME__ */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useModalA11y } from "./hooks/useModalA11y";
+import OrganizationTab from "./pages/OrganizationTab";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
@@ -8869,11 +8870,29 @@ function NastroykiPage({
   return (
     <div>
       <TabBar
-        tabs={["Аккаунт", "Лицензии", "Пользователи", "Сервисы", "Общие"]}
+        tabs={[
+          "Аккаунт",
+          "Организация",
+          "Лицензии",
+          "Пользователи",
+          "Сервисы",
+          "Общие",
+        ]}
         active={tab}
         onSelect={setTab}
       />
       {tab === "Аккаунт" && <AccountTab />}
+      {tab === "Организация" && (
+        <OrganizationTab
+          authFetch={authFetch}
+          role={role}
+          C={C}
+          FONT={FONT}
+          Btn={Btn}
+          SectionHead={SectionHead}
+          fmtDate={fmtDate}
+        />
+      )}
       {tab === "Лицензии" && (
         <div style={{ padding: "60px 24px", textAlign: "center" }}>
           <div style={{ fontFamily: FONT, fontSize: 13, color: C.grayL }}>

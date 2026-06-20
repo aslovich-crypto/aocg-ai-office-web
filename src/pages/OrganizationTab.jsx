@@ -1,0 +1,199 @@
+import { useEffect, useState } from "react";
+
+// Вкладка «Организация» в Настройках (задача #1, фронт).
+// Профиль своей орг: показ name/inn/тип/дата; правка name/inn только для admin.
+// Тип и дата — read-only. Бэкенд: GET/PATCH /api/organizations/me.
+// Зависимости (authFetch, палитра C, FONT, Btn, SectionHead, fmtDate) приходят
+// пропсами из NastroykiPage — чтобы не наращивать App.jsx и не плодить дубли.
+
+const TYPE_LABEL = { company: "Компания", person: "ИП" };
+
+// FastAPI отдаёт detail строкой (400) или списком объектов (422) — нормализуем.
+function extractErr(e) {
+  if (!e || !e.detail) return "";
+  if (typeof e.detail === "string") return e.detail;
+  if (Array.isArray(e.detail) && e.detail[0]) {
+    return (e.detail[0].msg || "").replace(/^Value error,\s*/, "");
+  }
+  return "";
+}
+
+export default function OrganizationTab({
+  authFetch,
+  role,
+  C,
+  FONT,
+  Btn,
+  SectionHead,
+  fmtDate,
+}) {
+  const [org, setOrg] = useState(null);
+  const [form, setForm] = useState({ name: "", inn: "" });
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const isAdmin = role === "admin";
+  const fromApi = (d) => ({ name: d.name || "", inn: d.inn || "" });
+
+  useEffect(() => {
+    authFetch("/api/organizations/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && d.id) {
+          setOrg(d);
+          setForm(fromApi(d));
+        }
+      })
+      .catch(() => {});
+  }, [authFetch]);
+
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  async function save() {
+    const name = form.name.trim();
+    const inn = form.inn.trim();
+    if (!name) {
+      setErr("Укажите название организации");
+      return;
+    }
+    setErr("");
+    setLoading(true);
+    try {
+      const res = await authFetch("/api/organizations/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, inn }),
+      });
+      if (res.ok) {
+        const d = await res.json().catch(() => null);
+        if (d && d.id) {
+          setOrg(d);
+          setForm(fromApi(d));
+        }
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        const e = await res.json().catch(() => null);
+        setErr(extractErr(e) || "Не удалось сохранить");
+      }
+    } catch {
+      setErr("Не удалось сохранить");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!org)
+    return (
+      <div
+        style={{
+          padding: "40px 20px",
+          textAlign: "center",
+          color: C.grayL,
+          fontFamily: FONT,
+          fontSize: 13,
+        }}
+      >
+        Загрузка…
+      </div>
+    );
+
+  const rowStyle = (i) => ({
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "3px 12px",
+    borderBottom: `1px solid ${C.silver}`,
+    background: i % 2 === 0 ? C.white : C.lightGray,
+  });
+  const lbl = {
+    fontSize: 11,
+    color: C.gray,
+    fontFamily: FONT,
+    minWidth: 110,
+    flexShrink: 0,
+  };
+  const fin = {
+    flex: 1,
+    textAlign: "right",
+    border: "none",
+    background: "transparent",
+    fontSize: 13,
+    color: C.dark,
+    fontFamily: FONT,
+    outline: "none",
+    padding: "7px 0",
+  };
+  const ro = { ...fin, color: C.gray }; // read-only значение
+
+  // Редактируемое (admin) или статичное поле — единый рендер строки.
+  const field = (i, label, key, opts = {}) => (
+    <div style={rowStyle(i)}>
+      <span style={lbl}>{label}</span>
+      {isAdmin && opts.editable ? (
+        <input
+          value={form[key]}
+          onChange={(e) => set(key, e.target.value)}
+          placeholder={opts.placeholder || ""}
+          inputMode={opts.inputMode}
+          style={fin}
+        />
+      ) : (
+        <span style={ro}>{opts.display ?? (form[key] || "—")}</span>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      style={{ padding: "12px 16px calc(env(safe-area-inset-bottom) + 80px)" }}
+    >
+      <SectionHead title="Организация" />
+      {field(0, "Название", "name", { editable: true, placeholder: "ООО «…»" })}
+      {field(1, "ИНН", "inn", {
+        editable: true,
+        placeholder: "10 или 12 цифр",
+        inputMode: "numeric",
+      })}
+      {field(2, "Тип", "type", {
+        display: TYPE_LABEL[org.type] || org.type || "—",
+      })}
+      {field(3, "Создана", "created", {
+        display: org.created_at ? fmtDate(org.created_at) : "—",
+      })}
+
+      {isAdmin && (
+        <div style={{ marginTop: 16 }}>
+          {err && (
+            <div
+              style={{
+                fontSize: 12,
+                color: C.cherry,
+                fontFamily: FONT,
+                marginBottom: 8,
+              }}
+            >
+              {err}
+            </div>
+          )}
+          {saved && (
+            <div
+              style={{
+                fontSize: 12,
+                color: "#15803D",
+                fontFamily: FONT,
+                marginBottom: 8,
+              }}
+            >
+              Сохранено
+            </div>
+          )}
+          <Btn full onClick={save} loading={loading}>
+            Сохранить
+          </Btn>
+        </div>
+      )}
+    </div>
+  );
+}
