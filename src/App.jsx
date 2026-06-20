@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useModalA11y } from "./hooks/useModalA11y";
 import OrganizationTab from "./pages/OrganizationTab";
+import GlavnayaPage from "./pages/GlavnayaPage";
+import { computeTaxAccounting, regimeFlags, TAX_LABELS } from "./lib/tax";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
@@ -11,7 +13,7 @@ import {
   PenLine,
   ChartColumn,
   ClipboardList,
-  Settings,
+  Home,
   ReceiptText,
   Eye,
   EyeOff,
@@ -2660,23 +2662,13 @@ function SvodkaPage({
   users,
   cards,
   catalog,
+  org,
 }) {
   const [showFilters, setShowFilters] = useState(false);
   const [selEmployee, setSelEmployee] = useState(null);
   const [cats, setCats] = useState([]);
   const [selCards, setSelCards] = useState([]);
   const filtersActive = !!selEmployee || cats.length > 0 || selCards.length > 0;
-
-  // Налоговый режим орг — для блока «Налоговый учёт» (INT).
-  const [org, setOrg] = useState(null);
-  useEffect(() => {
-    authFetch("/api/organizations/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d && d.id) setOrg(d);
-      })
-      .catch(() => {});
-  }, []);
 
   const filtered = receipts.filter((r) => {
     if (!inPeriod(r.date, activePeriod)) return false;
@@ -2710,40 +2702,11 @@ function SvodkaPage({
   });
   const empData = Object.entries(empMap).map(([name, d]) => ({ name, ...d }));
 
-  // ── Налоговый учёт расходов (INT) ──
-  const TAX_LABELS = {
-    osno: "ОСНО",
-    usn_d: "УСН «Доходы»",
-    usn_dr: "УСН «Доходы−Расходы»",
-    psn: "Патент",
-    npd: "НПД",
-    eshn: "ЕСХН",
-  };
-  const NON_DEDUCTIBLE = "Не учитываемые в целях налогообложения";
-  const taxKindById = {};
-  (catalog?.groups || []).forEach((g) =>
-    (g.categories || []).forEach((c) => {
-      taxKindById[c.id] = c.tax_kind;
-    }),
-  );
-  let deductible = 0,
-    nonDeductible = 0,
-    vatSum = 0,
-    vatCount = 0;
-  filtered.forEach((r) => {
-    if (taxKindById[r.category_id] === NON_DEDUCTIBLE)
-      nonDeductible += Number(r.amount);
-    else deductible += Number(r.amount);
-    const v = Number(r.vat_20 || 0) + Number(r.vat_10 || 0);
-    if (v > 0) {
-      vatSum += v;
-      vatCount++;
-    }
-  });
-  const taxTotal = deductible + nonDeductible;
+  // ── Налоговый учёт расходов (INT) — общий расчёт, см. lib/tax.js ──
+  const { deductible, nonDeductible, vatSum, vatCount, taxTotal } =
+    computeTaxAccounting(filtered, catalog);
   const regime = org && org.tax_system ? org.tax_system : null;
-  const reducesExpenses = ["osno", "usn_dr", "eshn"].includes(regime);
-  const vatPayer = regime === "osno";
+  const { reducesExpenses, vatPayer } = regimeFlags(regime);
   const taxNote = {
     fontSize: 13,
     lineHeight: 1.45,
@@ -11165,13 +11128,14 @@ export default function App() {
       return false;
     }
   });
-  const [page, setPage] = useState("svodka");
+  const [page, setPage] = useState("glavnaya");
   const [appMenu, setAppMenu] = useState(false); // Тип 2 header — app switcher dropdown
   const [receipts, setReceipts] = useState([]);
   const [cards, setCards] = useState([]);
   const [users, setUsers] = useState([]);
   const [catalog, setCatalog] = useState(null); // D1: справочник категорий (группы+статьи)
   const [role, setRole] = useState(null); // D2: роль текущего юзера для гейта управления категориями
+  const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
 
   // ─── Auth & lightweight routing ───
@@ -11248,6 +11212,12 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && data.role) setRole(data.role);
+      })
+      .catch(() => {});
+    authFetch(`/api/organizations/me`) // INT: режим налогообложения для Сводки/Главной
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.id) setOrg(data);
       })
       .catch(() => {});
   }, [consentGiven, authed, loadCatalog]);
@@ -11402,11 +11372,13 @@ export default function App() {
     return <ConsentScreen onAccept={() => setConsentGiven(true)} />;
   }
 
+  // Тип 2: нижнее меню — Главная · Сводка · Чеки · Отчёты.
+  // «Настройки» убраны из таб-бара — открываются по иконке аккаунта в шапке.
   const NAV = [
+    { id: "glavnaya", Icon: Home, label: "Главная" },
     { id: "svodka", Icon: ChartColumn, label: "Сводка" },
     { id: "operacii", Icon: ReceiptText, label: "Чеки" },
     { id: "otchety", Icon: ClipboardList, label: "Отчёты" },
-    { id: "nastroyki", Icon: Settings, label: "Настройки" },
   ];
   return (
     <div
@@ -11551,6 +11523,23 @@ export default function App() {
         </div>
       </div>
       <div style={{ flex: 1, overflow: "auto" }}>
+        {page === "glavnaya" && (
+          <GlavnayaPage
+            receipts={receipts}
+            catalog={catalog}
+            org={org}
+            setPage={setPage}
+            authFetch={authFetch}
+            C={C}
+            FONT={FONT}
+            fmt={fmt}
+            fmtDate={fmtDate}
+            plural={plural}
+            inPeriod={inPeriod}
+            catName={catName}
+            catColor={catColor}
+          />
+        )}
         {page === "svodka" && (
           <SvodkaPage
             receipts={receipts}
@@ -11559,6 +11548,7 @@ export default function App() {
             users={users}
             cards={cards}
             catalog={catalog}
+            org={org}
           />
         )}
         {page === "operacii" && (
