@@ -8,6 +8,16 @@ import { useEffect, useState } from "react";
 
 const TYPE_LABEL = { company: "Компания", person: "ИП" };
 
+// Налоговые режимы — зеркало TAX_SYSTEMS на бэке (organizations.py).
+const TAX_LABELS = {
+  osno: "ОСНО",
+  usn_d: "УСН «Доходы»",
+  usn_dr: "УСН «Доходы−Расходы»",
+  psn: "Патент",
+  npd: "НПД",
+  eshn: "ЕСХН",
+};
+
 // FastAPI отдаёт detail строкой (400) или списком объектов (422) — нормализуем.
 function extractErr(e) {
   if (!e || !e.detail) return "";
@@ -28,13 +38,17 @@ export default function OrganizationTab({
   fmtDate,
 }) {
   const [org, setOrg] = useState(null);
-  const [form, setForm] = useState({ name: "", inn: "" });
+  const [form, setForm] = useState({ name: "", inn: "", tax_system: "" });
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
   const isAdmin = role === "admin";
-  const fromApi = (d) => ({ name: d.name || "", inn: d.inn || "" });
+  const fromApi = (d) => ({
+    name: d.name || "",
+    inn: d.inn || "",
+    tax_system: d.tax_system || "",
+  });
 
   useEffect(() => {
     authFetch("/api/organizations/me")
@@ -59,11 +73,14 @@ export default function OrganizationTab({
     }
     setErr("");
     setLoading(true);
+    const payload = { name, inn };
+    // tax_system шлём только если выбран (пустой = «Не указан» → не трогаем).
+    if (form.tax_system) payload.tax_system = form.tax_system;
     try {
       const res = await authFetch("/api/organizations/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, inn }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const d = await res.json().catch(() => null);
@@ -159,7 +176,27 @@ export default function OrganizationTab({
       {field(2, "Тип", "type", {
         display: TYPE_LABEL[org.type] || org.type || "—",
       })}
-      {field(3, "Создана", "created", {
+      {/* Налоговый режим — селектор для admin, иначе read-only подпись */}
+      <div style={rowStyle(3)}>
+        <span style={lbl}>Налоговый режим</span>
+        {isAdmin ? (
+          <select
+            value={form.tax_system}
+            onChange={(e) => set("tax_system", e.target.value)}
+            style={{ ...fin, cursor: "pointer" }}
+          >
+            <option value="">Не указан</option>
+            {Object.entries(TAX_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span style={ro}>{TAX_LABELS[org.tax_system] || "Не указан"}</span>
+        )}
+      </div>
+      {field(4, "Создана", "created", {
         display: org.created_at ? fmtDate(org.created_at) : "—",
       })}
 
