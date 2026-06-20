@@ -21,7 +21,6 @@ import {
   Trash2,
   User,
   Bell,
-  ChevronDown,
   Check,
   Share2,
   Plus,
@@ -11246,14 +11245,14 @@ export default function App() {
             position: "relative",
           }}
         >
-          {/* LEFT — plate Λ + chevron + org name; taps open the app switcher */}
+          {/* LEFT — plate Λ (34, no chevron) + current section title; taps open the app switcher (Тип 2) */}
           <button
             onClick={() => setAppMenu((o) => !o)}
             aria-label="Переключить приложение"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 12,
               border: "none",
               background: "none",
               cursor: "pointer",
@@ -11262,27 +11261,17 @@ export default function App() {
               minWidth: 0,
             }}
           >
-            <MarkPlate size={40} />
-            <ChevronDown
-              size={16}
-              color={C.gray}
-              strokeWidth={2}
-              style={{
-                flexShrink: 0,
-                transition: "transform 150ms ease",
-                transform: appMenu ? "rotate(180deg)" : "none",
-              }}
-            />
+            <MarkPlate size={34} />
             <span
               style={{
-                fontSize: 16,
+                fontSize: 17,
                 fontFamily: FONT,
                 fontWeight: 600,
                 color: "#111318",
                 whiteSpace: "nowrap",
               }}
             >
-              АОЦГ
+              {(NAV.find((n) => n.id === page) || {}).label || ""}
             </span>
           </button>
           {appMenu && <AppSwitcher onClose={() => setAppMenu(false)} />}
