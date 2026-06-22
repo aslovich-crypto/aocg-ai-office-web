@@ -224,10 +224,6 @@ const plural = (n, forms) => {
   if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms[1];
   return forms[2];
 };
-const monthLabel = (s) =>
-  new Date(s)
-    .toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
-    .replace(/^./, (c) => c.toUpperCase());
 
 // D1: цвет статьи определяется её ГРУППОЙ (11 групп справочника). Пастельные bg/fg
 // в гармонии с брендовым #A4161A + Cool Neutrals. Семантика: транспорт синий,
@@ -271,20 +267,6 @@ const catColor = (name) => groupColor(groupOf(name)); // статья → цве
 const catName = (r) => CAT_BY_ID[r?.category_id]?.name || "Без категории";
 const catGroupById = (r) => CAT_BY_ID[r?.category_id]?.group || null;
 const catColorById = (r) => groupColor(catGroupById(r));
-
-// Prefix forms we strip when picking the avatar initial. The `И\s*\.?\s*П\s*\.?`
-// alternative handles separated variants ("И П Иванов", "И. П. Иванов", "И.П.
-// Иванов") in addition to the joined "ИП Иванов".
-const ORG_PREFIX_RE =
-  /^\s*(ООО|ОАО|АО|ИП|ЗАО|ПАО|ПК|И\s*\.?\s*П\s*\.?|ИНДИВИДУАЛЬНЫЙ\s+ПРЕДПРИНИМАТЕЛЬ)\s+/i;
-const QUOTE_RE = /^["«»'«»“”„]+/;
-function orgInitial(org) {
-  if (!org) return "?";
-  let s = String(org).trim();
-  while (ORG_PREFIX_RE.test(s)) s = s.replace(ORG_PREFIX_RE, "").trim();
-  s = s.replace(QUOTE_RE, "").trim();
-  return (s[0] || org[0] || "?").toUpperCase();
-}
 
 const ORG_FULL_FORMS = [
   [/публичное\s+акционерное\s+общество/i, "ПАО"],
@@ -398,16 +380,6 @@ const fmtDateTime = (ts) => {
     minute: "2-digit",
   });
 };
-
-function groupByMonth(items) {
-  const g = {};
-  items.forEach((r) => {
-    const k = r.date.slice(0, 7);
-    if (!g[k]) g[k] = { label: monthLabel(r.date), items: [] };
-    g[k].items.push(r);
-  });
-  return Object.entries(g).sort((a, b) => b[0].localeCompare(a[0]));
-}
 
 // ─── ATOMS ────────────────────────────────────────────────
 
@@ -3097,6 +3069,13 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
   const REVEAL = 72;
   const card4 = getCardLast4(r.raw_data);
   const payment = shortPayment(r.payment);
+  const dot = {
+    width: 3,
+    height: 3,
+    borderRadius: "50%",
+    background: "#9CA3AF",
+    flexShrink: 0,
+  };
 
   function onPointerDown(e) {
     dragging.current = true;
@@ -3145,6 +3124,8 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
         position: "relative",
         background: "#B91C1C",
         overflow: "hidden",
+        borderRadius: 12,
+        boxShadow: "0 1px 3px rgba(17,19,24,.08)",
       }}
     >
       <div
@@ -3185,9 +3166,10 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
         onClick={handleTap}
         style={{
           background: C.white,
-          padding: "11px 14px",
+          padding: "14px 16px",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
           gap: 12,
           transform: `translateX(${tx}px)`,
           transition: drag ? "none" : "transform 0.2s ease",
@@ -3196,110 +3178,52 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
           touchAction: "pan-y",
         }}
       >
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: "50%",
-            background: col.bg,
-            color: col.fg,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: FONT,
-            fontSize: 15,
-            fontWeight: 700,
-            flexShrink: 0,
-          }}
-        >
-          {orgInitial(r.org)}
-        </div>
+        {/* left — название + строка (дата · источник · оплата) */}
         <div
           style={{
             flex: 1,
             minWidth: 0,
             display: "flex",
             flexDirection: "column",
-            justifyContent: "center",
             gap: 4,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: 14,
-                fontFamily: FONT,
-                color: C.dark,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {shortOrg(r.org)}
-            </span>
-            <span
-              style={{
-                fontSize: 15,
-                fontFamily: FONT,
-                color: C.dark,
-                fontWeight: 700,
-                flexShrink: 0,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {fmt(r.amount)}
-            </span>
-          </div>
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 500,
+              fontFamily: FONT,
+              color: C.dark,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {shortOrg(r.org)}
+          </span>
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 6,
-              fontSize: 11,
+              fontSize: 13,
               color: "#636B7D",
               fontFamily: FONT,
-              minWidth: 0,
               fontVariantNumeric: "tabular-nums",
+              minWidth: 0,
+              whiteSpace: "nowrap",
             }}
           >
-            <span
-              style={{
-                display: "inline-block",
-                padding: "2px 8px",
-                borderRadius: 20,
-                background: col.bg,
-                color: col.fg,
-                fontSize: 10,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {catName(r)}
-            </span>
-            <span style={{ flexShrink: 0 }}>·</span>
-            <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
-              {fmtDate(r.date)}
-            </span>
+            <span style={{ flexShrink: 0 }}>{fmtDate(r.date)}</span>
             {sourceLabel(r.source) && (
-              <span
-                style={{
-                  fontSize: 10,
-                  color: "#636B7D",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                }}
-              >
-                · {sourceLabel(r.source)}
-              </span>
+              <>
+                <span style={dot} />
+                <span style={{ flexShrink: 0 }}>{sourceLabel(r.source)}</span>
+              </>
             )}
-            <span style={{ flexShrink: 0 }}>·</span>
+            <span style={dot} />
             <span
               style={{
-                whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 minWidth: 0,
@@ -3308,19 +3232,44 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
               {payment}
               {card4 ? ` •••${card4}` : ""}
             </span>
-            <span style={{ flex: 1 }} />
-            <span
-              style={{
-                color: "#9CA3AF",
-                fontSize: 20,
-                fontWeight: 600,
-                flexShrink: 0,
-                lineHeight: 1,
-              }}
-            >
-              ›
-            </span>
           </div>
+        </div>
+        {/* right — сумма + пилюля категории */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 7,
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              fontFamily: FONT,
+              color: C.dark,
+              fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {fmt(r.amount)}
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: FONT,
+              padding: "5px 10px",
+              borderRadius: 999,
+              background: col.bg,
+              color: col.fg,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {catName(r)}
+          </span>
         </div>
       </div>
     </div>
@@ -4597,101 +4546,6 @@ function FilterIcon({ active, onClick, size = 38 }) {
 
 // Compact period picker pill with a dropdown — Operacii header.
 // Mounts fresh on open, so the rAF flip plays the scale/opacity intro.
-function PeriodMenu({ value, onChange, onClose }) {
-  const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-  return (
-    <>
-      <div
-        onClick={onClose}
-        style={{ position: "fixed", inset: 0, zIndex: 90 }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          top: "calc(100% + 4px)",
-          right: 0,
-          zIndex: 91,
-          background: C.white,
-          border: `1px solid ${C.silver}`,
-          borderRadius: 10,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
-          overflow: "hidden",
-          minWidth: 130,
-          opacity: shown ? 1 : 0,
-          transform: shown ? "scale(1)" : "scale(0.95)",
-          transformOrigin: "top right",
-          transition: "opacity 150ms ease, transform 150ms ease",
-        }}
-      >
-        {PERIOD_OPTIONS.map((o) => (
-          <button
-            key={o.key}
-            onClick={() => onChange(o.key)}
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              padding: "10px 14px",
-              border: "none",
-              background: value === o.key ? C.cherryL : C.white,
-              color: value === o.key ? C.cherry : C.dark,
-              fontFamily: FONT,
-              fontSize: 13,
-              cursor: "pointer",
-              fontWeight: value === o.key ? 600 : 400,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function PeriodPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ position: "relative", flexShrink: 0 }}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "9px 12px",
-          background: "#EEF0F4",
-          border: "none",
-          borderRadius: 8,
-          fontFamily: FONT,
-          fontSize: 13,
-          color: "#111318",
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {periodLabel(value)}
-        <span style={{ fontSize: 9, opacity: 0.55 }}>▾</span>
-      </button>
-      {open && (
-        <PeriodMenu
-          value={value}
-          onChange={(k) => {
-            onChange(k);
-            setOpen(false);
-          }}
-          onClose={() => setOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
 // Транзитное уведомление сверху по центру (задача №9 фаза D). type: success
 // (зелёный) / warning (янтарный) / error (красный). Авто-скрытие — в OperaciiPage.
 function Toast({ toast }) {
@@ -5533,6 +5387,7 @@ function OperaciiPage({
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(defaultTo);
   const [limit, setLimit] = useState(30);
+  const [showSearch, setShowSearch] = useState(false); // поиск-иконка раскрывает поле
   const [showScan, setShowScan] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showReq, setShowReq] = useState(false); // экран ручного ввода реквизитов (проверка ФНС)
@@ -5788,7 +5643,7 @@ function OperaciiPage({
       inDate(r)
     );
   });
-  const groups = groupByMonth(filtered.slice(0, limit));
+  const visible = filtered.slice(0, limit);
   const hiddenCount = filtered.length - limit;
   const filtersActive =
     customFilterActive ||
@@ -5956,127 +5811,127 @@ function OperaciiPage({
           padding: "10px 16px",
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 12,
         }}
       >
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            alignItems: "center",
-            border: `1px solid #EEF0F4`,
-            padding: "8px 12px",
-            gap: 8,
-            background: "#F6F7F9",
-            borderRadius: 10,
-          }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={C.grayL}
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск..."
-            aria-label="Поиск по операциям"
-            style={{
-              border: "none",
-              outline: "none",
-              flex: 1,
-              minWidth: 0,
-              fontSize: 13,
-              background: "none",
-              fontFamily: FONT,
-              color: C.dark,
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <SegmentedControl
+            segments={PERIOD_OPTIONS.map((o) => o.label)}
+            active={periodLabel(activePeriod)}
+            onChange={(l) => {
+              setActivePeriod(periodKey(l));
+              setDateFrom(defaultFrom);
+              setDateTo(defaultTo);
             }}
           />
         </div>
-        <PeriodPicker
-          value={activePeriod}
-          onChange={(k) => {
-            setActivePeriod(k);
-            setDateFrom(defaultFrom);
-            setDateTo(defaultTo);
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            flexShrink: 0,
           }}
-        />
-        <FilterIcon
-          active={filtersActive}
-          onClick={() => setShowFilters(true)}
-        />
+        >
+          <button
+            type="button"
+            onClick={() => setShowSearch((s) => !s)}
+            aria-label="Поиск"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              display: "flex",
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={showSearch ? C.cherry : C.gray}
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+          <FilterIcon
+            active={filtersActive}
+            onClick={() => setShowFilters(true)}
+          />
+        </div>
       </div>
-      <div style={{ paddingBottom: 80 }}>
-        {groups.map(([key, group]) => (
-          <div key={key} style={{ marginTop: 6 }}>
-            <div
-              style={{
-                padding: "10px 16px 6px",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
+      {showSearch && (
+        <div
+          style={{
+            background: C.white,
+            borderBottom: `1px solid ${C.silver}`,
+            padding: "0 16px 10px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              border: `1px solid #EEF0F4`,
+              padding: "8px 12px",
+              gap: 8,
+              background: "#F6F7F9",
+              borderRadius: 10,
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={C.grayL}
+              strokeWidth="2"
+              strokeLinecap="round"
             >
-              <div
-                style={{
-                  width: 3,
-                  height: 12,
-                  background: C.borderD,
-                  borderRadius: 2,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: C.gray,
-                  fontFamily: FONT,
-                }}
-              >
-                {group.label}
-              </span>
-            </div>
-            <div
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск..."
+              aria-label="Поиск по операциям"
+              autoFocus
               style={{
-                margin: "0 12px",
-                borderRadius: 12,
-                overflow: "hidden",
-                background: C.white,
-                border: `1px solid ${C.silver}`,
+                border: "none",
+                outline: "none",
+                flex: 1,
+                minWidth: 0,
+                fontSize: 13,
+                background: "none",
+                fontFamily: FONT,
+                color: C.dark,
               }}
-            >
-              {group.items.map((r, i) => (
-                <div key={r.id}>
-                  <SwipeableReceiptCard
-                    receipt={r}
-                    onClick={() => setDetail(r)}
-                    onDelete={() => handleDelete(r.id)}
-                  />
-                  {i < group.items.length - 1 && (
-                    <div
-                      style={{
-                        height: 1,
-                        background: C.silver,
-                        marginLeft: 62,
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
+            />
           </div>
+        </div>
+      )}
+      <div
+        style={{
+          padding: "12px 16px 88px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        {visible.map((r) => (
+          <SwipeableReceiptCard
+            key={r.id}
+            receipt={r}
+            onClick={() => setDetail(r)}
+            onDelete={() => handleDelete(r.id)}
+          />
         ))}
-        {groups.length === 0 && (
+        {visible.length === 0 && (
           <div
             style={{
               textAlign: "center",
@@ -6160,23 +6015,23 @@ function OperaciiPage({
         aria-label="Добавить чек"
         style={{
           position: "fixed",
-          bottom: "calc(env(safe-area-inset-bottom) + 72px)",
-          right: 20,
-          width: 44,
-          height: 44,
+          bottom: "calc(env(safe-area-inset-bottom) + 88px)",
+          right: 16,
+          width: 56,
+          height: 56,
           background: C.cherry,
           color: C.white,
           border: "none",
           fontSize: 20,
           cursor: "pointer",
-          boxShadow: `0 4px 12px rgba(17,19,24,0.18)`,
+          boxShadow: `0 2px 8px rgba(17,19,24,0.16)`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           borderRadius: "50%",
         }}
       >
-        <Plus size={22} aria-hidden="true" />
+        <Plus size={26} aria-hidden="true" />
       </button>
       {showScan && (
         <ScanReceiptModal
