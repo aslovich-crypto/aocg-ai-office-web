@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { AlertTriangle } from "lucide-react";
 import { C, FONT } from "../lib/theme";
 import { groupColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
@@ -32,6 +33,19 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
       ),
     }))
     .filter((g) => g.cats.length > 0);
+  // UX-3: быстрый вход к «Не учитываемые в НУ» (расход не уменьшает налог).
+  // Ищем по налоговому смыслу (tax_kind), не по имени/id — устойчиво к
+  // переименованию. Прячем при активном поиске (поиск и так её выводит).
+  const SPECIAL_TK = "Не учитываемые в целях налогообложения";
+  // Подпись на быстром чипе — простыми словами (без жаргона «НУ»). Это ТОЛЬКО
+  // витрина: имя категории в каталоге («Не учитываемые в НУ») НЕ меняем, иначе
+  // порвётся связь. pick()/подсветка работают по реальному specialCat.name.
+  const SPECIAL_LABEL = "Не уменьшают налог";
+  const specialCat =
+    !ql &&
+    (catalog?.groups || [])
+      .flatMap((g) => g.categories || [])
+      .find((c) => c.tax_kind === SPECIAL_TK && c.is_visible !== false);
   const dialogRef = useModalA11y(close);
   return (
     <div
@@ -164,6 +178,78 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
           </div>
         </div>
         <div style={{ padding: "6px 0 12px", overflow: "auto", flex: 1 }}>
+          {specialCat && (
+            <div style={{ marginBottom: 4 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 16px 4px",
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: "#B45309",
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: C.gray,
+                    fontFamily: FONT,
+                  }}
+                >
+                  Не списывается в расход
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  padding: "2px 16px 6px",
+                }}
+              >
+                <button
+                  onClick={() => pick(specialCat.name)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "7px 12px",
+                    borderRadius: 8,
+                    fontFamily: FONT,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    background: "#FFFBEB",
+                    color: "#B45309",
+                    border: `1px solid ${
+                      selected === specialCat.name ? "#B45309" : "#FDE68A"
+                    }`,
+                    fontWeight: selected === specialCat.name ? 700 : 600,
+                  }}
+                >
+                  <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                  {SPECIAL_LABEL}
+                </button>
+              </div>
+              <div
+                style={{
+                  height: 1,
+                  background: C.silver,
+                  margin: "2px 16px 6px",
+                }}
+              />
+            </div>
+          )}
           {visGroups.map((g) => {
             const col = groupColor(g.name);
             return (
