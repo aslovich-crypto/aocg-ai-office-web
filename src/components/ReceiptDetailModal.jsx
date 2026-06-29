@@ -280,6 +280,40 @@ export default function ReceiptDetailModal({
       : "";
   const fnsVerified = isFns;
 
+  // ── признак расчёта: тег только когда ≠ «Приход» (D4) ──
+  const OP_LABELS = {
+    purchase: "Приход",
+    refund: "Возврат прихода",
+    expense: "Расход",
+    expense_refund: "Возврат расхода",
+  };
+  const opLabel =
+    r.operation_type && r.operation_type !== "purchase"
+      ? OP_LABELS[r.operation_type] || ""
+      : "";
+  const opTag = /возврат/i.test(opLabel)
+    ? { bg: "#FEF2F2", fg: "#B91C1C" } // возврат → красный
+    : { bg: "#FFFBEB", fg: "#B45309" }; // расход → янтарный
+
+  // ── НДС-итоги: только реальный НДС (vat_20 / vat_10), колонки в рублях.
+  // vat_0 («Без НДС») НЕ показываем — на спецрежимах он равен Итого (шум). ──
+  const vatRows = [
+    ["НДС 20%", r.vat_20],
+    ["НДС 10%", r.vat_10],
+  ].filter(([, v]) => Number(v) > 0);
+  // ── разбивка оплаты — ТОЛЬКО при смешанной (и наличные, и безнал > 0);
+  // при одном способе равна Итого → дублирует, не рисуем. raw_data, ÷100 при isFns. ──
+  const cashSum = isFns ? fromKop(raw.cashTotalSum) : null;
+  const cardSum = isFns ? fromKop(raw.ecashTotalSum) : null;
+  const payRows =
+    cashSum > 0 && cardSum > 0
+      ? [
+          ["Наличными", cashSum],
+          ["Картой", cardSum],
+        ]
+      : [];
+  const totalRows = [...vatRows, ...payRows];
+
   // ── позиции: только из raw_data (receipt_items фронту не отдаётся, D1);
   // единицы — по источнику: ФНС → копейки (÷100), OCR → уже рубли (D2). ──
   const items = Array.isArray(raw.items) ? raw.items : [];
@@ -295,6 +329,7 @@ export default function ReceiptDetailModal({
     ["ФН №", r.kkt_fn, true],
     ["ФД №", r.fd_num, true],
     ["ФПД", r.fpd, true],
+    ["ЗН ККТ", r.kkt_serial, true],
     ["Смена № · Чек №", shiftCheck, true],
     ["Кассир", r.cashier, false], // sans, не моно
   ].filter((x) => x[1]);
@@ -644,6 +679,22 @@ export default function ReceiptDetailModal({
                   >
                     {money(totalSum)}
                   </div>
+                  {opLabel && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        background: opTag.bg,
+                        color: opTag.fg,
+                        borderRadius: 999,
+                        padding: "3px 8px",
+                        font: `600 12px/1 ${FONT}`,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {opLabel}
+                    </span>
+                  )}
                   {fnsVerified && (
                     <button
                       type="button"
@@ -799,6 +850,28 @@ export default function ReceiptDetailModal({
                     {money(totalSum)}
                   </span>
                 </div>
+                {totalRows.map(([k, v]) => (
+                  <div
+                    key={k}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "5px 0",
+                      font: `400 13px/1.3 ${FONT}`,
+                      color: T.fg2,
+                    }}
+                  >
+                    <span>{k}</span>
+                    <span
+                      style={{
+                        color: T.fg1,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {money(v)}
+                    </span>
+                  </div>
+                ))}
               </section>
             )}
 
