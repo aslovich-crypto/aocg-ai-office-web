@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
 import { C, FONT } from "../lib/theme";
 import { groupColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
@@ -37,11 +36,21 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
   // уменьшает налог). Ищем по налоговому смыслу (tax_kind), не по имени/id —
   // устойчиво к переименованию. Прячем при активном поиске (поиск и так её выводит).
   const SPECIAL_TK = "Не учитываемые в целях налогообложения";
+  const specialGroup =
+    ql || !catalog?.groups
+      ? null
+      : catalog.groups.find((g) =>
+          (g.categories || []).some(
+            (c) => c.tax_kind === SPECIAL_TK && c.is_visible !== false,
+          ),
+        );
   const specialCat =
-    !ql &&
-    (catalog?.groups || [])
-      .flatMap((g) => g.categories || [])
-      .find((c) => c.tax_kind === SPECIAL_TK && c.is_visible !== false);
+    specialGroup &&
+    specialGroup.categories.find(
+      (c) => c.tax_kind === SPECIAL_TK && c.is_visible !== false,
+    );
+  // цвет — как у обычного чипа этой группы («Прочее и налоги» → стальной серый)
+  const specialCol = specialGroup ? groupColor(specialGroup.name) : null;
   const dialogRef = useModalA11y(close);
   return (
     <div
@@ -189,7 +198,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: "#B45309",
+                    background: specialCol.fg,
                     flexShrink: 0,
                   }}
                 />
@@ -217,23 +226,21 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                 <button
                   onClick={() => pick(specialCat.name)}
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
                     padding: "7px 12px",
-                    borderRadius: 8,
+                    border: `1px solid ${
+                      selected === specialCat.name ? specialCol.fg : C.silver
+                    }`,
+                    background:
+                      selected === specialCat.name ? specialCol.bg : C.white,
+                    color:
+                      selected === specialCat.name ? specialCol.fg : C.dark,
                     fontFamily: FONT,
                     fontSize: 12,
                     cursor: "pointer",
-                    background: "#FFFBEB",
-                    color: "#B45309",
-                    border: `1px solid ${
-                      selected === specialCat.name ? "#B45309" : "#FDE68A"
-                    }`,
-                    fontWeight: selected === specialCat.name ? 700 : 600,
+                    borderRadius: 8,
+                    fontWeight: selected === specialCat.name ? 700 : 500,
                   }}
                 >
-                  <AlertTriangle size={13} style={{ flexShrink: 0 }} />
                   {specialCat.name}
                 </button>
               </div>
