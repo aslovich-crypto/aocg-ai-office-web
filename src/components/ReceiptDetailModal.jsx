@@ -819,6 +819,7 @@ export default function ReceiptDetailModal({
                           minWidth: 0,
                           display: "flex",
                           flexDirection: "column",
+                          alignItems: "flex-start",
                           gap: 3,
                         }}
                       >
@@ -826,6 +827,7 @@ export default function ReceiptDetailModal({
                           style={{
                             font: `400 14px/1.35 ${FONT}`,
                             color: T.fg1,
+                            textAlign: "left",
                           }}
                         >
                           {it.name || "—"}
