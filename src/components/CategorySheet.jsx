@@ -33,14 +33,10 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
       ),
     }))
     .filter((g) => g.cats.length > 0);
-  // UX-3: быстрый вход к «Не учитываемые в НУ» (расход не уменьшает налог).
-  // Ищем по налоговому смыслу (tax_kind), не по имени/id — устойчиво к
-  // переименованию. Прячем при активном поиске (поиск и так её выводит).
+  // UX-3: быстрый вход к статье «Не учитываемые в налоговом учёте» (расход не
+  // уменьшает налог). Ищем по налоговому смыслу (tax_kind), не по имени/id —
+  // устойчиво к переименованию. Прячем при активном поиске (поиск и так её выводит).
   const SPECIAL_TK = "Не учитываемые в целях налогообложения";
-  // Подпись на быстром чипе — простыми словами (без жаргона «НУ»). Это ТОЛЬКО
-  // витрина: имя категории в каталоге («Не учитываемые в НУ») НЕ меняем, иначе
-  // порвётся связь. pick()/подсветка работают по реальному specialCat.name.
-  const SPECIAL_LABEL = "Не уменьшают налог";
   const specialCat =
     !ql &&
     (catalog?.groups || [])
@@ -238,7 +234,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                   }}
                 >
                   <AlertTriangle size={13} style={{ flexShrink: 0 }} />
-                  {SPECIAL_LABEL}
+                  {specialCat.name}
                 </button>
               </div>
               <div
