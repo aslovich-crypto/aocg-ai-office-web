@@ -62,6 +62,20 @@ function qtyLabel(q) {
   return Number.isInteger(n) ? `${n} шт` : n.toLocaleString("ru-RU");
 }
 
+// Ставка НДС позиции по коду ФНС (tag 1199) ИЛИ строке (OCR). Не падает, если поля нет.
+// D3: только ставка, сумму НДС по строке НЕ вычисляем.
+function vatRateLabel(nds) {
+  if (nds === undefined || nds === null || nds === "") return "";
+  const s = String(nds).trim();
+  if (s === "1" || s === "3") return "НДС 20%"; // 20% и расч. 20/120
+  if (s === "2" || s === "4") return "НДС 10%"; // 10% и расч. 10/110
+  if (s === "5" || s === "6") return "Без НДС"; // 0% / не облагается
+  if (/20/.test(s)) return "НДС 20%"; // OCR-строки "20"/"10"/"0"
+  if (/10/.test(s)) return "НДС 10%";
+  if (/^0/.test(s) || /без/i.test(s)) return "Без НДС";
+  return "";
+}
+
 // Иконка способа оплаты — статический компонент (объявлен вне render, чтобы не
 // плодить «компонент при рендере»): карта по умолчанию, наличные, счёт компании.
 function PayGlyph({ value, size = 16, color, style }) {
@@ -770,6 +784,24 @@ export default function ReceiptDetailModal({
                 </div>
                 {items.map((it, i) => {
                   const lineSum = itemSum(it);
+                  const unitPrice = isFns
+                    ? Number(it.price || 0) / 100
+                    : Number(it.price || 0);
+                  const qNum = Number(it.quantity);
+                  const qStr =
+                    isFinite(qNum) && qNum
+                      ? Number.isInteger(qNum)
+                        ? String(qNum)
+                        : qNum.toLocaleString("ru-RU")
+                      : "";
+                  // ненулевая цена → «кол-во × цена»; нулевая (модификаторы) → просто «N шт»
+                  const meta =
+                    unitPrice > 0
+                      ? `${qStr || "1"} × ${money(unitPrice)}`
+                      : qtyLabel(it.quantity);
+                  // бейдж ставки только для реального НДС (20/10); «Без НДС» = норма, не маркируем
+                  const vat = vatRateLabel(it.nds);
+                  const showVat = vat === "НДС 20%" || vat === "НДС 10%";
                   return (
                     <div
                       key={i}
@@ -782,47 +814,71 @@ export default function ReceiptDetailModal({
                         borderTop: i === 0 ? "none" : `1px solid ${T.border}`,
                       }}
                     >
-                      <span
+                      <div
                         style={{
-                          font: `400 14px/1.35 ${FONT}`,
-                          color: T.fg1,
                           minWidth: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 3,
                         }}
                       >
-                        {it.name || "—"}
-                      </span>
+                        <span
+                          style={{
+                            font: `400 14px/1.35 ${FONT}`,
+                            color: T.fg1,
+                          }}
+                        >
+                          {it.name || "—"}
+                        </span>
+                        {(meta || showVat) && (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {meta && (
+                              <span
+                                style={{
+                                  font: `400 12px/1.2 ${FONT}`,
+                                  color: T.fg2,
+                                  fontVariantNumeric: "tabular-nums",
+                                }}
+                              >
+                                {meta}
+                              </span>
+                            )}
+                            {showVat && (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  background: T.chipBg,
+                                  color: T.fg2,
+                                  borderRadius: 999,
+                                  padding: "1px 7px",
+                                  font: `500 11px/1.5 ${FONT}`,
+                                }}
+                              >
+                                {vat}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <span
                         style={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          gap: 14,
+                          font: `500 14px/1.3 ${FONT}`,
+                          color: T.fg1,
+                          fontVariantNumeric: "tabular-nums",
+                          whiteSpace: "nowrap",
                           flexShrink: 0,
+                          textAlign: "right",
                         }}
                       >
-                        <span
-                          style={{
-                            font: `400 13px/1.3 ${FONT}`,
-                            color: T.fg2,
-                            fontVariantNumeric: "tabular-nums",
-                            whiteSpace: "nowrap",
-                            minWidth: 48,
-                            textAlign: "right",
-                          }}
-                        >
-                          {qtyLabel(it.quantity)}
-                        </span>
-                        <span
-                          style={{
-                            font: `500 14px/1.3 ${FONT}`,
-                            color: T.fg1,
-                            fontVariantNumeric: "tabular-nums",
-                            whiteSpace: "nowrap",
-                            minWidth: 72,
-                            textAlign: "right",
-                          }}
-                        >
-                          {money(lineSum)}
-                        </span>
+                        {money(lineSum)}
                       </span>
                     </div>
                   );
