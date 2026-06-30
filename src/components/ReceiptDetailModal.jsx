@@ -12,6 +12,7 @@ import {
   Banknote,
   Landmark,
   Check,
+  Paperclip,
 } from "lucide-react";
 import { C, FONT } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
@@ -357,6 +358,7 @@ export default function ReceiptDetailModal({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTip, setShowTip] = useState(false);
   const [fiscalOpen, setFiscalOpen] = useState(false);
+  const [soon, setSoon] = useState(false); // «Прикрепить к отчёту» — заглушка «Скоро»
 
   // PNG-шеринг карточки (контейнер контента, без шапки и футера).
   const contentRef = useRef(null);
@@ -608,6 +610,7 @@ export default function ReceiptDetailModal({
                     gap: 5,
                     minWidth: 0,
                     flex: 1,
+                    textAlign: "left",
                   }}
                 >
                   <div
@@ -1128,6 +1131,52 @@ export default function ReceiptDetailModal({
               </button>
             )}
           </div>
+          {/* «Прикрепить к отчёту» — по макету, но НЕактивна (раздел «Отчёты»
+              ещё не готов): тап → мягкое «Скоро», без перехода в никуда. */}
+          <button
+            type="button"
+            onClick={() => {
+              setSoon(true);
+              setTimeout(() => setSoon(false), 1800);
+            }}
+            style={{
+              position: "relative",
+              width: "100%",
+              height: 50,
+              borderRadius: 8,
+              border: `1px solid ${T.borderStrong}`,
+              background: T.white,
+              color: T.fg1,
+              font: `500 15px/1 ${FONT}`,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            <Paperclip size={18} />
+            Прикрепить к отчёту
+            {soon && (
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "calc(100% + 8px)",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  background: T.fg1,
+                  color: "#fff",
+                  font: `500 12px/1 ${FONT}`,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  whiteSpace: "nowrap",
+                  boxShadow: "0 4px 14px rgba(17,19,24,.18)",
+                }}
+              >
+                Скоро — с разделом «Отчёты»
+              </span>
+            )}
+          </button>
         </div>
 
         {/* ── шторки ── */}
