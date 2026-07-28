@@ -345,6 +345,15 @@ export default function ReceiptDetailModal({
         ]
       : [];
   const totalRows = [...vatRows, ...payRows];
+  // Пометка «Без НДС» (без суммы): строго ФНС-чек + ни одной ставки в breakdown +
+  // явное ndsNo (r.vat_0) + в позициях НЕТ реальной ставки (только код 6 / без кода).
+  // «Без НДС» ≠ «НДС 0%»: код 5 = реальная ставка (0% с правом вычета) → пометку НЕ даёт.
+  const hasRealRate = (Array.isArray(raw.items) ? raw.items : []).some((it) => {
+    const v = vatRateLabel(it && it.nds);
+    return v !== "" && v !== "Без НДС";
+  });
+  const noVatMark =
+    isFns && vatRows.length === 0 && r.vat_0 != null && !hasRealRate;
 
   // ── позиции: только из raw_data (receipt_items фронту не отдаётся, D1);
   // единицы — по источнику: ФНС → копейки (÷100), OCR → уже рубли (D2). ──
@@ -928,6 +937,20 @@ export default function ReceiptDetailModal({
                     {money(totalSum)}
                   </span>
                 </div>
+                {noVatMark && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "5px 0",
+                      font: `400 13px/1.3 ${FONT}`,
+                      color: T.fg2,
+                    }}
+                  >
+                    <span>Без НДС</span>
+                    <span style={{ color: T.fg3 }}>—</span>
+                  </div>
+                )}
                 {totalRows.map(([k, v]) => (
                   <div
                     key={k}
