@@ -5366,7 +5366,7 @@ function OperaciiPage({
 }
 
 function OtchetyPage({ receipts }) {
-  const [tab, setTab] = useState("Личные");
+  const [tab, setTab] = useState("Черновик");
   const [reports, setReports] = useState([]);
   const [search, setSearch] = useState("");
   const [showC, setShowC] = useState(false);
@@ -5414,7 +5414,7 @@ function OtchetyPage({ receipts }) {
       (!search || r.title.toLowerCase().includes(search.toLowerCase())),
   );
   const ST = {
-    Личные: { bg: C.lightGray, color: C.mid, b: C.silver },
+    Черновик: { bg: C.lightGray, color: C.mid, b: C.silver },
     "На проверке": { bg: "#FEF3C7", color: "#92400E", b: "#FCD34D" },
     Одобрен: { bg: "#ECFDF5", color: "#065F46", b: "#6EE7B7" },
     Отклонён: { bg: "#FCEBEB", color: "#B91C1C", b: "#F5C2C2" },
@@ -5422,7 +5422,7 @@ function OtchetyPage({ receipts }) {
   return (
     <div>
       <TabBar
-        tabs={["Личные", "На проверке", "Номинальные"]}
+        tabs={["Черновик", "На проверке", "Одобрен", "Отклонён"]}
         active={tab}
         onSelect={setTab}
       />
@@ -5479,7 +5479,7 @@ function OtchetyPage({ receipts }) {
           }}
         >
           <ClipboardList size={44} strokeWidth={1.25} color={C.grayL} />
-          {tab === "Личные" ? (
+          {tab === "Черновик" ? (
             <Btn onClick={() => setShowC(true)}>Создать первый отчёт</Btn>
           ) : (
             <span
@@ -5523,7 +5523,7 @@ function OtchetyPage({ receipts }) {
             ))}
           </div>
           {filtered.map((rep) => {
-            const st = ST[rep.status] || ST["Личные"];
+            const st = ST[rep.status] || ST["Черновик"];
             return (
               <div
                 key={rep.id}
@@ -5531,7 +5531,7 @@ function OtchetyPage({ receipts }) {
                   background: C.white,
                   borderBottom: `1px solid ${C.silver}`,
                   borderLeft: `3px solid ${
-                    rep.status === "Личные" ? C.silver : C.cherry
+                    rep.status === "Черновик" ? C.silver : C.cherry
                   }`,
                 }}
               >
@@ -5559,7 +5559,7 @@ function OtchetyPage({ receipts }) {
                     <div
                       style={{ fontFamily: FONT, fontSize: 10, color: C.gray }}
                     >
-                      {fmtDate(rep.date)} · {(rep.receiptIds || []).length}{" "}
+                      {fmtDate(rep.created)} · {(rep.receiptIds || []).length}{" "}
                       чеков
                     </div>
                   </div>
@@ -5592,7 +5592,7 @@ function OtchetyPage({ receipts }) {
                     {rep.status}
                   </div>
                 </div>
-                {rep.status === "Личные" && (
+                {rep.status === "Черновик" && (
                   <div style={{ padding: "0 14px 10px" }}>
                     <Btn
                       small

@@ -1,12 +1,16 @@
 // Форматтеры дат и нормализация названия организации. Вынесено из App.jsx
 // для переиспользования в выделяемых компонентах. Чистые функции, без состояния.
 
-export const fmtDate = (s) =>
-  new Date(s).toLocaleDateString("ru-RU", {
+export const fmtDate = (s) => {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ru-RU", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
+};
 
 export const fmtDateTime = (ts) => {
   if (!ts) return "";
