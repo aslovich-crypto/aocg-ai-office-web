@@ -8898,9 +8898,20 @@ function LoginScreen({ onAuthed, navigate }) {
         onAuthed(d);
         return;
       } // success flow unchanged
-      if (res.status === 429)
-        setErr("Аккаунт заблокирован на 15 минут. Попробуйте позже");
-      else setErr("Неверный телефон/email или пароль");
+      if (res.status === 429) {
+        // Бэк различает 429 по detail: русское «…через N мин» — реальная
+        // блокировка аккаунта (locked_until, N считается вниз от 15).
+        // «IP temporarily banned»/«Rate limit exceeded» — лимит по IP
+        // (бан до 5 мин), это НЕ блокировка аккаунта. См. S-27.
+        const detail = (d && d.detail) || "";
+        const lock = detail.match(/(\d+)\s*мин/);
+        if (lock)
+          setErr(`Аккаунт заблокирован на ${lock[1]} мин. Попробуйте позже`);
+        else
+          setErr(
+            "Слишком много попыток входа. Подождите до 5 минут и попробуйте снова",
+          );
+      } else setErr("Неверный телефон/email или пароль");
     } catch {
       setErr("Не удалось войти. Проверьте интернет");
     } finally {
