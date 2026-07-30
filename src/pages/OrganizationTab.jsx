@@ -154,6 +154,7 @@ export default function OrganizationTab({
           onChange={(e) => set(key, e.target.value)}
           placeholder={opts.placeholder || ""}
           inputMode={opts.inputMode}
+          pattern={opts.pattern}
           style={fin}
         />
       ) : (
@@ -172,6 +173,7 @@ export default function OrganizationTab({
         editable: true,
         placeholder: "10 или 12 цифр",
         inputMode: "numeric",
+        pattern: "[0-9]*",
       })}
       {field(2, "Тип", "type", {
         display: TYPE_LABEL[org.type] || org.type || "—",

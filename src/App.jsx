@@ -374,7 +374,15 @@ function Btn({ children, onClick, disabled, outline, full, small, loading }) {
   );
 }
 
-function RuleInput({ label, value, onChange, type = "text", placeholder }) {
+function RuleInput({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  inputMode,
+  pattern,
+}) {
   const [f, setF] = useState(false);
   return (
     <div style={{ marginBottom: 14 }}>
@@ -392,6 +400,8 @@ function RuleInput({ label, value, onChange, type = "text", placeholder }) {
       </div>
       <input
         type={type}
+        inputMode={inputMode}
+        pattern={pattern}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -4258,7 +4268,8 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
           label="Итого, ₽"
           value={amount}
           onChange={setAmount}
-          type="number"
+          type="text"
+          inputMode="decimal"
           placeholder="0.00"
         />
 
@@ -4299,6 +4310,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
             value={fn}
             onChange={(e) => setFn(e.target.value)}
             inputMode="numeric"
+            pattern="[0-9]*"
             placeholder="16 цифр"
             aria-label="ФН (фискальный накопитель)"
             style={inp}
@@ -4329,6 +4341,8 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
           value={fd}
           onChange={setFd}
           type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           placeholder="например 12345"
         />
         <RuleInput
@@ -4336,6 +4350,8 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
           value={fpd}
           onChange={setFpd}
           type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           placeholder="например 1234567890"
         />
       </div>
@@ -4656,7 +4672,8 @@ function OperaciiPage({
         org: form.org,
         category: form.category,
         payment: form.payment,
-        amount: Number(form.amount),
+        // iOS ru-клавиатура (inputMode="decimal") даёт запятую — приводим к точке
+        amount: Number(String(form.amount).replace(",", ".")),
         source: form.source || "manual",
       };
       if (form.fn) payload.kkt_fn = form.fn; // form.fn — внутреннее имя инпута; шлём как kkt_fn (канон)
@@ -5231,7 +5248,8 @@ function OperaciiPage({
               label="Сумма (₽)"
               value={form.amount}
               onChange={(v) => setForm((p) => ({ ...p, amount: v }))}
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="0.00"
             />
             <RuleInput
@@ -9565,6 +9583,7 @@ function RegisterScreen({ onAuthed, navigate }) {
                   value={f.inn}
                   onChange={(e) => onInn(e.target.value)}
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder="ИНН компании"
                   aria-label="ИНН компании"
                   style={A_INPUT}
