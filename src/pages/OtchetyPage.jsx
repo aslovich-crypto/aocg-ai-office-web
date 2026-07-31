@@ -114,14 +114,13 @@ export default function OtchetyPage({
 
   async function create() {
     if (isSubmitting) return; // защита от двойного клика
-    const sel = free.filter((r) => selected.includes(r.id));
-    const total = sel.reduce((s, r) => s + Number(r.amount), 0);
     setIsSubmitting(true);
     try {
       const res = await authFetch(`/api/reports/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, total, receiptIds: selected }),
+        // total не шлём: бэк считает его из состава (REP-CRUD ЧП1)
+        body: JSON.stringify({ title, receiptIds: selected }),
       });
       // При ошибке модалку НЕ закрываем и форму НЕ чистим — введённое цело.
       if (!res.ok) {
