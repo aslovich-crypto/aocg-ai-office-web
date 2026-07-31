@@ -1,4 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import jsQR from "jsqr";
 import { Camera, ImageUp, PenLine, Flashlight, FileText } from "lucide-react";
@@ -16,52 +22,46 @@ import { parseQRString } from "../lib/qr";
 // L-shaped corner markers for the cutout. Four absolutely-positioned divs,
 // each drawing the two relevant borders. Color animates between white (idle)
 // and #15803D (just captured) via a 300ms transition on border-color.
-function CutoutCorners({ size, color, len = 20, thick = 3 }) {
-  const off = `calc(50% - ${size / 2}px)`;
+// Уголки прижаты к углам РОДИТЕЛЬСКОЙ коробки выреза (раньше считались от
+// центра вьюпорта) — геометрия рамки теперь задаётся в одном месте, самой
+// коробкой. Размер 38×38 по макету: 20×20 терялись на пёстром фоне (UX-2).
+function CutoutCorners({ color, len = 38, thick = 3 }) {
   const transition = "border-color 300ms ease";
-  const tl = {
+  const base = {
     position: "absolute",
     width: len,
     height: len,
-    top: off,
-    left: off,
-    borderTop: `${thick}px solid ${color}`,
-    borderLeft: `${thick}px solid ${color}`,
+    borderRadius: 4,
     transition,
     pointerEvents: "none",
+  };
+  const tl = {
+    ...base,
+    top: 0,
+    left: 0,
+    borderTop: `${thick}px solid ${color}`,
+    borderLeft: `${thick}px solid ${color}`,
   };
   const tr = {
-    position: "absolute",
-    width: len,
-    height: len,
-    top: off,
-    right: off,
+    ...base,
+    top: 0,
+    right: 0,
     borderTop: `${thick}px solid ${color}`,
     borderRight: `${thick}px solid ${color}`,
-    transition,
-    pointerEvents: "none",
   };
   const bl = {
-    position: "absolute",
-    width: len,
-    height: len,
-    bottom: off,
-    left: off,
+    ...base,
+    bottom: 0,
+    left: 0,
     borderBottom: `${thick}px solid ${color}`,
     borderLeft: `${thick}px solid ${color}`,
-    transition,
-    pointerEvents: "none",
   };
   const br = {
-    position: "absolute",
-    width: len,
-    height: len,
-    bottom: off,
-    right: off,
+    ...base,
+    bottom: 0,
+    right: 0,
     borderBottom: `${thick}px solid ${color}`,
     borderRight: `${thick}px solid ${color}`,
-    transition,
-    pointerEvents: "none",
   };
   return (
     <>
@@ -553,6 +553,48 @@ export default function ScanReceiptModal({
   const cornerColor =
     phase === "captured" || flashGreen ? "#15803D" : "#FFFFFF";
 
+  // ─── Геометрия видоискателя (UX-2) ─────────────────────────────
+  // Рамка центрируется в ВИДИМОЙ полосе между верхней и нижней панелями,
+  // а не по полной высоте вьюпорта. Раньше было calc(50% - 135px) от корня:
+  // высота нижней панели в расчёте не участвовала, и на коротких экранах
+  // (iPhone в Safari с тулбарами) нижние уголки уходили под панель действий.
+  // Верхняя панель структурно постоянна → константа; нижняя меняется по фазам
+  // и safe-area → измеряется. Обе величины включают safe-area, поэтому она
+  // учтена и в рамке, а не только в паддинге панели.
+  // ВНИМАНИЕ: значение завязано на СТРУКТУРУ верхней панели (см. блок «Top bar»
+  // ниже): padding calc(env(safe-area-inset-top) + 12px) сверху + кнопка 44px +
+  // 12px снизу = env + 68px. Меняешь высоту кнопок или паддинги топбара —
+  // обнови и это число, иначе рамка молча съедет вниз/вверх. Нижнюю панель не
+  // хардкодим: её высота зависит от фазы, поэтому измеряется.
+  const TOPBAR_H = "(env(safe-area-inset-top) + 68px)";
+  const panelRef = useRef(null);
+  // Начальное значение — оценка панели фазы scanning (18 + 52 + 12 + 52 + 12 +
+  // ~25 текстовая кнопка + 20 + safe-area). Нужна на случай, если измерение
+  // невозможно; при обычном рендере useLayoutEffect подставляет фактическую
+  // высоту ДО первой отрисовки, поэтому прыжка рамки не бывает.
+  const [panelH, setPanelH] = useState(
+    "calc(191px + env(safe-area-inset-bottom))",
+  );
+  useLayoutEffect(() => {
+    // Измеряем только в фазе scanning: в captured панель становится ниже,
+    // и рамка иначе прыгала бы ровно в момент подтверждения захвата.
+    if (phase !== "scanning") return;
+    const el = panelRef.current;
+    if (!el) return;
+    const measure = () => setPanelH(`${el.offsetHeight}px`);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phase]);
+  // Верх выреза = низ верхней панели + половина свободного места под рамку.
+  // max(0px, …) — страховка для экранов, где полоса уже самой рамки.
+  const HOLE_TOP = `${TOPBAR_H} + max(0px, (100% - ${TOPBAR_H} - ${panelH} - ${CUTOUT}px) / 2)`;
+  const holeTop = `calc(${HOLE_TOP})`;
+  const holeBottomEdge = `calc(${HOLE_TOP} + ${CUTOUT}px)`;
+  const sideWidth = `calc(50% - ${CUTOUT / 2}px)`;
+
   useEffect(
     () => () => {
       mountedRef.current = false;
@@ -968,7 +1010,10 @@ export default function ScanReceiptModal({
       />
 
       {/* Dark overlay with cutout — 4 picture-frame rectangles around a
-          transparent 260×260 square in the center. Hidden during loading /
+          transparent CUTOUT×CUTOUT square. Позиция выреза считается от ВИДИМОЙ
+          полосы (holeTop), поэтому нижние уголки не могут уехать под панель
+          действий ни на одном экране — каркас исключает перекрытие, и поднимать
+          рамку над панелью по z-order не требуется. Hidden during loading /
           error phases (where we use a uniform full-screen dim instead). */}
       {!dimmed && phase !== "preview" && (
         <>
@@ -978,41 +1023,53 @@ export default function ScanReceiptModal({
               top: 0,
               left: 0,
               right: 0,
-              height: `calc(50% - ${CUTOUT / 2}px)`,
+              height: holeTop,
               background: "rgba(0,0,0,0.55)",
             }}
           />
           <div
             style={{
               position: "absolute",
+              top: holeBottomEdge,
+              left: 0,
+              right: 0,
               bottom: 0,
-              left: 0,
-              right: 0,
-              height: `calc(50% - ${CUTOUT / 2}px)`,
               background: "rgba(0,0,0,0.55)",
             }}
           />
           <div
             style={{
               position: "absolute",
-              top: `calc(50% - ${CUTOUT / 2}px)`,
-              bottom: `calc(50% - ${CUTOUT / 2}px)`,
+              top: holeTop,
+              height: CUTOUT,
               left: 0,
-              width: `calc(50% - ${CUTOUT / 2}px)`,
+              width: sideWidth,
               background: "rgba(0,0,0,0.55)",
             }}
           />
           <div
             style={{
               position: "absolute",
-              top: `calc(50% - ${CUTOUT / 2}px)`,
-              bottom: `calc(50% - ${CUTOUT / 2}px)`,
+              top: holeTop,
+              height: CUTOUT,
               right: 0,
-              width: `calc(50% - ${CUTOUT / 2}px)`,
+              width: sideWidth,
               background: "rgba(0,0,0,0.55)",
             }}
           />
-          <CutoutCorners size={CUTOUT} color={cornerColor} />
+          {/* Коробка выреза — единственный источник геометрии рамки */}
+          <div
+            style={{
+              position: "absolute",
+              top: holeTop,
+              left: sideWidth,
+              width: CUTOUT,
+              height: CUTOUT,
+              pointerEvents: "none",
+            }}
+          >
+            <CutoutCorners color={cornerColor} />
+          </div>
         </>
       )}
 
@@ -1132,7 +1189,9 @@ export default function ScanReceiptModal({
         <div
           style={{
             position: "absolute",
-            bottom: `calc(50% + ${CUTOUT / 2}px + 18px)`,
+            // над вырезом: 18px выше его верхней грани (та же модель, что рамка,
+            // — раньше считалось от центра вьюпорта и уезжало под панель)
+            bottom: `calc(100% - (${HOLE_TOP}) + 18px)`,
             left: "50%",
             transform: "translateX(-50%)",
             padding: "10px 14px",
@@ -1144,7 +1203,7 @@ export default function ScanReceiptModal({
             maxWidth: "calc(100vw - 32px)",
             textAlign: "center",
             backdropFilter: "blur(6px)",
-            zIndex: 5,
+            zIndex: 7, // выше панели (6) — раньше 5 и подсказка пряталась под ней
           }}
         >
           {notice}
@@ -1194,6 +1253,7 @@ export default function ScanReceiptModal({
           the preview screen, which has its own controls. */}
       {phase !== "preview" && (
         <div
+          ref={panelRef} // измеряется для центрирования рамки в видимой полосе
           style={{
             position: "absolute",
             bottom: 0,
