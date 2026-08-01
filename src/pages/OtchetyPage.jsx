@@ -52,6 +52,7 @@ export default function OtchetyPage({
   receipts,
   userId,
   authFetch,
+  reloadReceipts, // после удаления отчёта его чеки освободились
   fmt,
   plural,
   Btn,
@@ -67,8 +68,9 @@ export default function OtchetyPage({
   const [showC, setShowC] = useState(false);
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState([]);
-  // Заглушка «Удалить» (ждёт DELETE /{id} из REP-CRUD): id → тост «Скоро».
-  const [soon, setSoon] = useState(null);
+  // Удаление отчёта: подтверждение + защита от двойного тапа.
+  const [confirmDel, setConfirmDel] = useState(null); // отчёт или null
+  const [deletingId, setDeletingId] = useState(null);
   const [toast, setToast] = useState(null); // {type,message,duration}
   // POST /reports in flight — blocks double-submit. Удаления отчётов пока нет
   // (REP-CRUD), поэтому дубль от двойного тапа убрать было бы нечем.
@@ -241,9 +243,34 @@ export default function OtchetyPage({
     setShowC(true);
   }
 
-  function comingSoon(key) {
-    setSoon(key);
-    setTimeout(() => setSoon((s) => (s === key ? null : s)), 1800);
+  // Удалить отчёт. ВНИМАНИЕ: DELETE /api/reports/{id} отвечает 204 БЕЗ ТЕЛА —
+  // res.json() здесь бросил бы SyntaxError, и удалённый на сервере отчёт
+  // выглядел бы как ошибка. (Соседний DELETE /{id}/receipts/{rid} наоборот
+  // возвращает 200 С ТЕЛОМ — обновлённый отчёт; не перепутать.)
+  // Сами чеки не удаляются: уходит только связь (ON DELETE CASCADE на
+  // report_items.report_id), чеки возвращаются в свободный пул.
+  async function deleteReport(rep) {
+    if (deletingId) return; // защита от двойного тапа
+    setDeletingId(rep.id);
+    try {
+      const res = await authFetch(`/api/reports/${rep.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        // 409 замороженного статуса придёт с готовым текстом бэка.
+        await failToast(res);
+        return;
+      }
+      setReports((prev) => prev.filter((r) => r.id !== rep.id));
+      setConfirmDel(null);
+      // Чеки отчёта освободились: у них сменился in_report/report_title,
+      // иначе карточка чека продолжила бы показывать пометку «В отчёте».
+      if (reloadReceipts) reloadReceipts();
+    } catch {
+      failToast();
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const filtered = reports.filter(
@@ -530,22 +557,12 @@ export default function OtchetyPage({
                       На проверку →
                     </Btn>
                     <Pill
-                      onClick={() => comingSoon(`del-${rep.id}`)}
+                      onClick={() => setConfirmDel(rep)}
                       color="#B91C1C"
                       border="1px solid #F5C2C2"
                     >
                       Удалить
                     </Pill>
-                    {soon === `del-${rep.id}` && (
-                      <span
-                        style={{
-                          font: `500 11px/1 ${FONT}`,
-                          color: C.gray,
-                        }}
-                      >
-                        Скоро
-                      </span>
-                    )}
                   </div>
                 )}
                 {rep.status === "На проверке" && (
@@ -602,6 +619,15 @@ export default function OtchetyPage({
                     >
                       Исправить
                     </Pill>
+                    {/* Бэк разрешает удаление и в «Отклонён» (EDITABLE_STATUSES),
+                        а не только в черновике — даём ту же кнопку. */}
+                    <Pill
+                      onClick={() => setConfirmDel(rep)}
+                      color="#B91C1C"
+                      border="1px solid #F5C2C2"
+                    >
+                      Удалить
+                    </Pill>
                   </div>
                 )}
               </div>
@@ -634,6 +660,57 @@ export default function OtchetyPage({
         <Plus size={26} color="#fff" />
       </button>
 
+      {/* Подтверждение удаления. Главное в тексте — что будет с ЧЕКАМИ:
+          они не пропадают, а возвращаются в свободный пул. Без этого
+          удаление отчёта выглядит как потеря первички. */}
+      {confirmDel && (
+        <Modal
+          title="Удалить отчёт?"
+          onClose={() => setConfirmDel(null)}
+          footer={
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn full outline onClick={() => setConfirmDel(null)}>
+                Отмена
+              </Btn>
+              <Btn
+                full
+                onClick={() => deleteReport(confirmDel)}
+                loading={deletingId === confirmDel.id}
+              >
+                {deletingId === confirmDel.id ? "Удаляю…" : "Удалить"}
+              </Btn>
+            </div>
+          }
+        >
+          <div style={{ paddingTop: 12 }}>
+            <div
+              style={{
+                font: `600 15px/1.35 ${FONT}`,
+                color: C.dark,
+                marginBottom: 8,
+              }}
+            >
+              «{confirmDel.title}»
+            </div>
+            <div style={{ font: `400 13px/1.5 ${FONT}`, color: C.mid }}>
+              {(confirmDel.receiptIds || []).length > 0 ? (
+                <>
+                  Чеки не удаляются: {(confirmDel.receiptIds || []).length}{" "}
+                  {plural((confirmDel.receiptIds || []).length, [
+                    "чек вернётся",
+                    "чека вернутся",
+                    "чеков вернутся",
+                  ])}{" "}
+                  в список свободных, их можно будет добавить в другой отчёт.
+                  Удалится только сам отчёт и его состав.
+                </>
+              ) : (
+                <>Отчёт пуст — удалится только он сам.</>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
       {showC && (
         <Modal
           title="Новый отчёт"

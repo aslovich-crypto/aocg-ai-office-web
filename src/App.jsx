@@ -7961,6 +7961,22 @@ export default function App() {
     }
   }
 
+  // Перечитать ВЕСЬ список чеков. Нужен, когда изменение пришло не из самого
+  // списка и затронуло сразу несколько строк: удалили отчёт → все его чеки
+  // освободились, у них сменился in_report/report_title, и карточка чека
+  // должна снова показывать «Прикрепить к отчёту», а не пометку.
+  async function reloadReceipts() {
+    try {
+      const res = await authFetch(`/api/receipts/`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data))
+        setReceipts(data.map((r) => ({ ...r, amount: Number(r.amount) })));
+    } catch {
+      /* офлайн — оставляем текущий список */
+    }
+  }
+
   // Перечитать ОДИН чек канонической формой и обновить строку в списке.
   // Нужен там, где данные могли протухнуть без нашего участия: открытие
   // карточки (список грузится раз за сессию) и прикрепление к отчёту
@@ -8221,6 +8237,7 @@ export default function App() {
             receipts={receipts}
             userId={userId}
             authFetch={authFetch}
+            reloadReceipts={reloadReceipts}
             fmt={fmt}
             plural={plural}
             TabBar={TabBar}
