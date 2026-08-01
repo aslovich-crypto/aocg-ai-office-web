@@ -84,7 +84,6 @@ export function useModalA11y(onClose) {
       if (prev && typeof prev.focus === "function") prev.focus();
     };
     // Один раз на монтирование: onClose читаем из onCloseRef (см. выше).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return ref;

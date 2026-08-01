@@ -27,3 +27,20 @@ repos:
     hooks:
       - id: prettier
         types_or: [javascript, jsx, css, json]
+
+  # --- ESLint (T8) ---
+  # Конфиг (eslint.config.js) существовал давно и включает no-undef, но
+  # линтер нигде не запускался: в хуках был только prettier, CI на фронте
+  # не было. Из-за этого до прода дошёл ReferenceError — setReceipts
+  # вызывался из компонента, где не объявлен. Хук локальный (system):
+  # eslint ставится через npm вместе с проектом, отдельная среда не нужна.
+  # pass_filenames: false — конфиг flat сам определяет, что проверять,
+  # а точечная проверка изменённых файлов пропустила бы поломку связей.
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (no-undef и правила React)
+        entry: npm run lint
+        language: system
+        types_or: [javascript, jsx]
+        pass_filenames: false

@@ -1,0 +1,38 @@
+# Фронтенд: линтер + сборка на каждый push (T8).
+# Зачем при наличии pre-commit: хук ставится вручную (`pre-commit install`)
+# и на чужой машине/в вебе может отсутствовать. CI — страховка, которую
+# нельзя забыть включить. Образец — бэковый workflow с pytest + ruff.
+name: Lint & Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # npm ci — установка строго по package-lock.json (воспроизводимо).
+      - name: Install dependencies
+        run: npm ci
+
+      # Ловит класс «обращение к переменной вне области видимости»
+      # (no-undef) и правила React-хуков.
+      - name: Lint
+        run: npm run lint
+
+      # Сборка ловит то, что линтер пропускает: сломанный JSX,
+      # отсутствующие импорты модулей, ошибки Vite.
+      - name: Build
+        run: npm run build

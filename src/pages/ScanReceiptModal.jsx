@@ -787,6 +787,15 @@ export default function ScanReceiptModal({
       releaseCamera();
       cbRef.current.onClose();
     } else setPhase("fnsError");
+    // НЕ добавлять releaseCamera в зависимости. Пустой массив здесь
+    // намеренный: колбэки живут в cbRef (см. комментарий у объявления
+    // cbRef выше), а новая identity этого useCallback перезапустила бы
+    // эффект камеры → teardown/старт html5-qrcode посреди сканирования →
+    // «Cannot clear while scan is ongoing» и белый экран. Это пункт из
+    // списка рисков ЧП1 (вынос ScanReceiptModal), проверенный на живом
+    // устройстве. Правка зависимостей — только вместе с разбором
+    // жизненного цикла камеры, не «по подсказке линтера».
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-load: 1s after a QR is captured, kick off the FNS lookup with no

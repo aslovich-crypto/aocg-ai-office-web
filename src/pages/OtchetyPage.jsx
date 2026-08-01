@@ -104,12 +104,13 @@ export default function OtchetyPage({
   async function errorMessage(res) {
     if (!res) return FALLBACK_ANY; // сетевой сбой / таймаут — ответа нет
     if (res.status === 404) return FALLBACK_BY_STATUS[404];
-    let detail = null;
+    let detail;
     try {
       const body = await res.json();
       detail = body && body.detail;
     } catch {
-      detail = null; // тело пустое (204) или не JSON — это не ошибка чтения
+      // тело пустое (204) или не JSON — это не ошибка чтения, detail
+      // остаётся undefined и ниже сработает фолбэк по статусу
     }
     if (typeof detail === "string" && detail.trim()) return detail;
     if (
@@ -152,8 +153,12 @@ export default function OtchetyPage({
     }
   }
 
+  // Загрузка на монтировании. Вызов отложен через queueMicrotask, чтобы
+  // setState внутри loadReports не случился синхронно в теле эффекта —
+  // это вызывает каскадный рендер (react-hooks/set-state-in-effect).
+  // Отменять нечего: setReports защищён проверками внутри loadReports.
   useEffect(() => {
-    loadReports();
+    queueMicrotask(loadReports);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
