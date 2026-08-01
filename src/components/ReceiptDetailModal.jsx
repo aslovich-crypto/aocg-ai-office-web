@@ -13,11 +13,13 @@ import {
   Landmark,
   Check,
   Paperclip,
+  Plus,
 } from "lucide-react";
 import { C, FONT } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
+import { authFetch } from "../lib/api";
 import CategorySheet from "./CategorySheet";
 
 // Токены дизайн-системы (colors_and_type.css), смапленные на палитру C +
@@ -229,6 +231,85 @@ function PaymentSheet({ options, selected, onPick, onClose }) {
   );
 }
 
+// Показываем только те отчёты, куда бэк реально пустит: состав можно менять
+// в «Черновике» и «Отклонён», а «На проверке»/«Одобрен» заморожены (409).
+// Замороженные не показываем вовсе — предлагать вариант, который отвергнется,
+// хуже, чем не предлагать.
+const ATTACHABLE_STATUSES = ["Черновик", "Отклонён"];
+
+function ReportPickSheet({
+  reports,
+  loading,
+  error,
+  busy,
+  onPick,
+  onCreate,
+  onClose,
+}) {
+  return (
+    <Sheet title="Прикрепить к отчёту" onClose={onClose}>
+      {/* «+ Новый отчёт» первым пунктом: без него у пользователя без
+          черновиков пустая шторка и тупик. */}
+      <button
+        onClick={onCreate}
+        disabled={busy}
+        style={{
+          ...optStyle(false),
+          color: T.cherry,
+          opacity: busy ? 0.6 : 1,
+          cursor: busy ? "default" : "pointer",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Plus size={18} color={T.cherry} />
+          Новый отчёт
+        </span>
+      </button>
+
+      {loading && <div style={sheetHintStyle}>Загружаем отчёты…</div>}
+      {!loading && error && (
+        <div style={{ ...sheetHintStyle, color: T.errorFg }}>{error}</div>
+      )}
+      {!loading && !error && reports.length === 0 && (
+        <div style={sheetHintStyle}>
+          Нет отчётов, куда можно добавить. Создайте новый — отчёты «На
+          проверке» и «Одобрен» изменять нельзя
+        </div>
+      )}
+      {!loading &&
+        !error &&
+        reports.map((rep) => (
+          <button
+            key={rep.id}
+            onClick={() => onPick(rep)}
+            disabled={busy}
+            style={{
+              ...optStyle(false),
+              opacity: busy ? 0.6 : 1,
+              cursor: busy ? "default" : "pointer",
+            }}
+          >
+            <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <span>{rep.title}</span>
+              <span style={{ font: `400 12px/1 ${FONT}`, color: T.fg3 }}>
+                {rep.status} · {(rep.receiptIds || []).length} чек(ов)
+              </span>
+            </span>
+          </button>
+        ))}
+    </Sheet>
+  );
+}
+
+const sheetHintStyle = {
+  padding: "18px 12px",
+  fontFamily: FONT,
+  fontSize: 13,
+  color: T.fg3,
+  textAlign: "center",
+  lineHeight: 1.4,
+};
+
 function ConfirmDeleteSheet({ onConfirm, onClose }) {
   return (
     <Sheet title="Удалить чек?" onClose={onClose}>
@@ -284,6 +365,7 @@ export default function ReceiptDetailModal({
   onDelete,
   onChangeCategory,
   onChangePayment,
+  onAttached, // чек приложен к отчёту → родитель перечитывает чек и список
   catalog,
   paymentOptions = [],
 }) {
@@ -384,7 +466,21 @@ export default function ReceiptDetailModal({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTip, setShowTip] = useState(false);
   const [fiscalOpen, setFiscalOpen] = useState(false);
-  const [soon, setSoon] = useState(false); // «Прикрепить к отчёту» — заглушка «Скоро»
+  // «Прикрепить к отчёту»: шторка выбора + состояние запроса.
+  const [showAttach, setShowAttach] = useState(false);
+  const [reportsList, setReportsList] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [attachError, setAttachError] = useState("");
+  const [attachBusy, setAttachBusy] = useState(false);
+  // Карточку могут закрыть, пока запрос в полёте — после размонтирования
+  // setState запрещён. Ref сбрасывается в cleanup ниже.
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   // PNG-шеринг карточки (контейнер контента, без шапки и футера).
   const contentRef = useRef(null);
@@ -436,6 +532,101 @@ export default function ReceiptDetailModal({
       }
     } finally {
       setSharing(false);
+    }
+  }
+
+  // Текст ошибки берём из тела ответа: бэк отдаёт готовые русские фразы
+  // («Чек уже в другом отчёте», «Отчёт на проверке — сначала отзовите его»).
+  async function apiError(res) {
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string" && body.detail.trim())
+        return body.detail;
+    } catch {
+      /* пустое или не-JSON тело */
+    }
+    if (res && res.status === 404) return "Отчёт не найден";
+    return "Не удалось прикрепить чек, попробуйте ещё раз";
+  }
+
+  async function openAttach() {
+    setShowAttach(true);
+    setAttachError("");
+    setReportsLoading(true);
+    try {
+      const res = await authFetch(`/api/reports/`);
+      if (!aliveRef.current) return; // карточку закрыли, пока грузили
+      if (!res.ok) {
+        setAttachError(await apiError(res));
+        setReportsList([]);
+        return;
+      }
+      const data = await res.json();
+      if (!aliveRef.current) return;
+      setReportsList(
+        Array.isArray(data)
+          ? data.filter((rep) => ATTACHABLE_STATUSES.includes(rep.status))
+          : [],
+      );
+    } catch {
+      if (aliveRef.current) setAttachError("Нет связи с сервером");
+    } finally {
+      if (aliveRef.current) setReportsLoading(false);
+    }
+  }
+
+  // Приложить чек к существующему отчёту.
+  async function attachTo(rep) {
+    if (attachBusy) return; // защита от двойного тапа
+    setAttachBusy(true);
+    setAttachError("");
+    try {
+      const res = await authFetch(`/api/reports/${rep.id}/receipts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiptIds: [r.id] }),
+      });
+      if (!aliveRef.current) return;
+      if (!res.ok) {
+        setAttachError(await apiError(res));
+        return;
+      }
+      setShowAttach(false);
+      onAttached && onAttached();
+    } catch {
+      if (aliveRef.current) setAttachError("Нет связи с сервером");
+    } finally {
+      if (aliveRef.current) setAttachBusy(false);
+    }
+  }
+
+  // Создать отчёт и сразу положить в него этот чек — один запрос.
+  // Название автоматическое: переименования пока нет, а требовать ввод
+  // прямо в шторке — лишний шаг на пути «приложить чек».
+  async function createAndAttach() {
+    if (attachBusy) return;
+    setAttachBusy(true);
+    setAttachError("");
+    try {
+      const res = await authFetch(`/api/reports/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `Отчёт от ${fmtDate(new Date().toISOString())}`,
+          receiptIds: [r.id],
+        }),
+      });
+      if (!aliveRef.current) return;
+      if (!res.ok) {
+        setAttachError(await apiError(res));
+        return;
+      }
+      setShowAttach(false);
+      onAttached && onAttached();
+    } catch {
+      if (aliveRef.current) setAttachError("Нет связи с сервером");
+    } finally {
+      if (aliveRef.current) setAttachBusy(false);
     }
   }
 
@@ -1171,55 +1362,69 @@ export default function ReceiptDetailModal({
               </button>
             )}
           </div>
-          {/* «Прикрепить к отчёту» — по макету, но НЕактивна (раздел «Отчёты»
-              ещё не готов): тап → мягкое «Скоро», без перехода в никуда. */}
-          <button
-            type="button"
-            onClick={() => {
-              setSoon(true);
-              setTimeout(() => setSoon(false), 1800);
-            }}
-            style={{
-              position: "relative",
-              width: "100%",
-              height: 50,
-              borderRadius: 8,
-              border: `1px solid ${T.borderStrong}`,
-              background: T.white,
-              color: T.fg1,
-              font: `500 15px/1 ${FONT}`,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            <Paperclip size={18} />
-            Прикрепить к отчёту
-            {soon && (
-              <span
-                style={{
-                  position: "absolute",
-                  bottom: "calc(100% + 8px)",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  background: T.fg1,
-                  color: "#fff",
-                  font: `500 12px/1 ${FONT}`,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 4px 14px rgba(17,19,24,.18)",
-                }}
-              >
-                Скоро — с разделом «Отчёты»
-              </span>
-            )}
-          </button>
+          {/* Чек живёт ровно в одном отчёте (uq_report_items_receipt_id).
+              Занят — показываем ГДЕ он (без имени пользователь в тупике:
+              видит «занят», но не знает, куда идти). Отцепить отсюда пока
+              нельзя — это ЧП5в вместе с экраном деталей отчёта, поэтому
+              пометка статичная, а не кнопка в никуда. */}
+          {r.in_report ? (
+            <div
+              style={{
+                width: "100%",
+                minHeight: 50,
+                borderRadius: 8,
+                border: `1px solid ${T.border}`,
+                background: T.chipBg,
+                color: T.fg2,
+                font: `500 15px/1.3 ${FONT}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: "10px 14px",
+                textAlign: "center",
+              }}
+            >
+              <Paperclip size={18} />
+              {r.report_title ? `В отчёте «${r.report_title}»` : "В отчёте"}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openAttach}
+              style={{
+                width: "100%",
+                height: 50,
+                borderRadius: 8,
+                border: `1px solid ${T.borderStrong}`,
+                background: T.white,
+                color: T.fg1,
+                font: `500 15px/1 ${FONT}`,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <Paperclip size={18} />
+              Прикрепить к отчёту
+            </button>
+          )}
         </div>
 
         {/* ── шторки ── */}
+        {showAttach && (
+          <ReportPickSheet
+            reports={reportsList}
+            loading={reportsLoading}
+            error={attachError}
+            busy={attachBusy}
+            onPick={attachTo}
+            onCreate={createAndAttach}
+            onClose={() => setShowAttach(false)}
+          />
+        )}
         {showPay && (
           <PaymentSheet
             options={paymentOptions}

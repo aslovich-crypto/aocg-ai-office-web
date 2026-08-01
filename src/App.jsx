@@ -3221,6 +3221,19 @@ function OperaciiPage({
             const upd = await handleUpdate(detail.id, { payment: p });
             if (upd) setDetail(upd);
           }}
+          onAttached={async () => {
+            // Чек прикреплён к отчёту — перечитываем его каноническую форму
+            // (in_report / report_title считает бэк) и обновляем карточку
+            // вместе со строкой в списке.
+            const res = await authFetch(`/api/receipts/${detail.id}`);
+            if (!res.ok) return;
+            const fresh = await res.json();
+            const norm = { ...fresh, amount: Number(fresh.amount) };
+            setDetail(norm);
+            setReceipts((prev) =>
+              prev.map((x) => (x.id === norm.id ? norm : x)),
+            );
+          }}
         />
       )}
       {showCatSheet && (
