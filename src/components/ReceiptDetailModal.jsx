@@ -239,6 +239,7 @@ const ATTACHABLE_STATUSES = ["Черновик", "Отклонён"];
 
 function ReportPickSheet({
   reports,
+  receiptId,
   loading,
   error,
   busy,
@@ -276,27 +277,49 @@ function ReportPickSheet({
           проверке» и «Одобрен» изменять нельзя
         </div>
       )}
+      {/* Страховка на случай разъехавшегося состояния (чек приложили в другой
+          вкладке, а список тут старый): отчёт, где чек УЖЕ лежит, помечаем
+          «здесь» и выбрать не даём — иначе тап вернул бы 409 «Чек уже в другом
+          отчёте». Данных хватает своих: receiptIds приходят в каждом отчёте,
+          доп. запрос не нужен. */}
       {!loading &&
         !error &&
-        reports.map((rep) => (
-          <button
-            key={rep.id}
-            onClick={() => onPick(rep)}
-            disabled={busy}
-            style={{
-              ...optStyle(false),
-              opacity: busy ? 0.6 : 1,
-              cursor: busy ? "default" : "pointer",
-            }}
-          >
-            <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <span>{rep.title}</span>
-              <span style={{ font: `400 12px/1 ${FONT}`, color: T.fg3 }}>
-                {rep.status} · {(rep.receiptIds || []).length} чек(ов)
+        reports.map((rep) => {
+          const here = (rep.receiptIds || []).includes(receiptId);
+          return (
+            <button
+              key={rep.id}
+              onClick={() => !here && onPick(rep)}
+              disabled={busy || here}
+              aria-disabled={here}
+              style={{
+                ...optStyle(false),
+                opacity: busy || here ? 0.6 : 1,
+                cursor: busy || here ? "default" : "pointer",
+              }}
+            >
+              <span
+                style={{ display: "flex", flexDirection: "column", gap: 3 }}
+              >
+                <span>{rep.title}</span>
+                <span style={{ font: `400 12px/1 ${FONT}`, color: T.fg3 }}>
+                  {rep.status} · {(rep.receiptIds || []).length} чек(ов)
+                </span>
               </span>
-            </span>
-          </button>
-        ))}
+              {here && (
+                <span
+                  style={{
+                    font: `500 12px/1 ${FONT}`,
+                    color: T.successFg,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  здесь
+                </span>
+              )}
+            </button>
+          );
+        })}
     </Sheet>
   );
 }
@@ -1417,6 +1440,7 @@ export default function ReceiptDetailModal({
         {showAttach && (
           <ReportPickSheet
             reports={reportsList}
+            receiptId={r.id}
             loading={reportsLoading}
             error={attachError}
             busy={attachBusy}

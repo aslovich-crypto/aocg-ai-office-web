@@ -2493,6 +2493,7 @@ function OperaciiPage({
   handleAdd,
   handleDelete,
   handleUpdate,
+  handleRefreshReceipt,
   handleBulkDelete,
   activePeriod,
   setActivePeriod,
@@ -2519,6 +2520,29 @@ function OperaciiPage({
   const [reqPrefill, setReqPrefill] = useState(null); // парсинг QR при заходе с неудачного скана
   const [showCatSheet, setShowCatSheet] = useState(false); // D1: bottom-sheet выбора статьи
   const [detail, setDetail] = useState(null);
+  // Счётчик открытий карточки: ответ на перечитывание применяем, только если
+  // с момента запроса не открыли другой чек и не закрыли карточку — иначе
+  // поздний ответ подменил бы чужие данные или «воскресил» закрытую карточку.
+  const detailReqRef = useRef(0);
+
+  // Открыть карточку: сразу показываем строку из списка (мгновенно, без
+  // спиннера), затем подменяем канонической формой с бэка. Список грузится
+  // один раз за сессию, поэтому вычисляемые поля (in_report, report_title)
+  // в нём протухают — например, если чек приложили к отчёту в другой вкладке.
+  async function openDetail(r) {
+    setDetail(r);
+    const req = ++detailReqRef.current;
+    // Ошибку/офлайн глотаем молча: на экране данные из списка, они не хуже.
+    const norm = await handleRefreshReceipt(r.id);
+    if (!norm) return;
+    if (req !== detailReqRef.current) return; // открыли другой чек / закрыли
+    setDetail(norm);
+  }
+
+  function closeDetail() {
+    detailReqRef.current++; // обесцениваем ответ, если он ещё в полёте
+    setDetail(null);
+  }
   const [form, setForm] = useState({
     org: "",
     amount: "",
@@ -3053,7 +3077,7 @@ function OperaciiPage({
           <SwipeableReceiptCard
             key={r.id}
             receipt={r}
-            onClick={() => setDetail(r)}
+            onClick={() => openDetail(r)}
             onDelete={() => handleDelete(r.id)}
           />
         ))}
@@ -3208,10 +3232,10 @@ function OperaciiPage({
           receipt={detail}
           paymentOptions={paymentOptions}
           catalog={catalog}
-          onClose={() => setDetail(null)}
+          onClose={closeDetail}
           onDelete={() => {
             handleDelete(detail.id);
-            setDetail(null);
+            closeDetail();
           }}
           onChangeCategory={async (c) => {
             const upd = await handleUpdate(detail.id, { category: c });
@@ -3225,14 +3249,8 @@ function OperaciiPage({
             // Чек прикреплён к отчёту — перечитываем его каноническую форму
             // (in_report / report_title считает бэк) и обновляем карточку
             // вместе со строкой в списке.
-            const res = await authFetch(`/api/receipts/${detail.id}`);
-            if (!res.ok) return;
-            const fresh = await res.json();
-            const norm = { ...fresh, amount: Number(fresh.amount) };
-            setDetail(norm);
-            setReceipts((prev) =>
-              prev.map((x) => (x.id === norm.id ? norm : x)),
-            );
+            const norm = await handleRefreshReceipt(detail.id);
+            if (norm) setDetail(norm);
           }}
         />
       )}
@@ -7943,6 +7961,23 @@ export default function App() {
     }
   }
 
+  // Перечитать ОДИН чек канонической формой и обновить строку в списке.
+  // Нужен там, где данные могли протухнуть без нашего участия: открытие
+  // карточки (список грузится раз за сессию) и прикрепление к отчёту
+  // (меняются вычисляемые in_report / report_title).
+  async function handleRefreshReceipt(id) {
+    try {
+      const res = await authFetch(`/api/receipts/${id}`);
+      if (!res.ok) return null;
+      const fresh = await res.json();
+      const norm = { ...fresh, amount: Number(fresh.amount) };
+      setReceipts((prev) => prev.map((r) => (r.id === id ? norm : r)));
+      return norm;
+    } catch {
+      return null;
+    }
+  }
+
   async function handleUpdate(id, patch) {
     try {
       const res = await authFetch(`/api/receipts/${id}`, {
@@ -8175,6 +8210,7 @@ export default function App() {
             handleAdd={handleAdd}
             handleDelete={handleDelete}
             handleUpdate={handleUpdate}
+            handleRefreshReceipt={handleRefreshReceipt}
             handleBulkDelete={handleBulkDelete}
             activePeriod={activePeriod}
             setActivePeriod={setActivePeriod}
