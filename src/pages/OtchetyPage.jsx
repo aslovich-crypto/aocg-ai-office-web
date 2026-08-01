@@ -4,6 +4,8 @@ import { ClipboardList, Plus, Search } from "lucide-react";
 import { C, FONT } from "../lib/theme";
 import { shortOrg, fmtDate } from "../lib/format";
 import { catName } from "../lib/categories";
+import { BADGE } from "../lib/reports";
+import ReportDetailModal from "../components/ReportDetailModal";
 
 // Экран «Отчёты» — вёрстка по макету templates/reports/Отчёты.html (ЧП2, INT).
 // Логика (статусы, PATCH, создание) — из кода, вёрстка — из макета.
@@ -19,14 +21,6 @@ const STATUS_CHIPS = [
   { chip: "Одобрен", value: "Одобрен" },
   { chip: "Отклонён", value: "Отклонён" },
 ];
-
-// Пилюли-бейджи статусов — цвета из макета.
-const BADGE = {
-  Черновик: { bg: "#EEF0F4", color: "#636B7D" },
-  "На проверке": { bg: "#FFFBEB", color: "#B45309" },
-  Одобрен: { bg: "#F0FDF4", color: "#15803D" },
-  Отклонён: { bg: "#FCEBEB", color: "#B91C1C" },
-};
 
 // Кнопка-pill действия на карточке (цветовые пары — из макета).
 function Pill({ children, onClick, bg, color, border }) {
@@ -71,6 +65,9 @@ export default function OtchetyPage({
   // Удаление отчёта: подтверждение + защита от двойного тапа.
   const [confirmDel, setConfirmDel] = useState(null); // отчёт или null
   const [deletingId, setDeletingId] = useState(null);
+  // Открытый отчёт (детали). Одобрение/отклонение живёт ТОЛЬКО там —
+  // чтобы решение принимали, увидев состав, а не вслепую из списка.
+  const [openRep, setOpenRep] = useState(null);
   const [toast, setToast] = useState(null); // {type,message,duration}
   // POST /reports in flight — blocks double-submit. Удаления отчётов пока нет
   // (REP-CRUD), поэтому дубль от двойного тапа убрать было бы нечем.
@@ -454,11 +451,22 @@ export default function OtchetyPage({
             return (
               <div
                 key={rep.id}
+                onClick={() => setOpenRep(rep)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  // Только когда фокус на самой карточке: иначе Enter/Пробел
+                  // на кнопке внутри («Отправить», «Удалить») всплыл бы сюда
+                  // и заодно открыл детали. Тапы гасит stopPropagation ниже.
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") setOpenRep(rep);
+                }}
                 style={{
                   background: C.white,
                   borderRadius: 12,
                   boxShadow: "0 1px 3px rgba(17,19,24,.08)",
                   padding: "14px 16px",
+                  cursor: "pointer",
                 }}
               >
                 <div
@@ -542,6 +550,7 @@ export default function OtchetyPage({
                     управленческие действия не прячем в жест) */}
                 {rep.status === "Черновик" && (
                   <div
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       display: "flex",
                       gap: 6,
@@ -567,6 +576,7 @@ export default function OtchetyPage({
                 )}
                 {rep.status === "На проверке" && (
                   <div
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       display: "flex",
                       gap: 6,
@@ -575,20 +585,9 @@ export default function OtchetyPage({
                       flexWrap: "wrap",
                     }}
                   >
-                    <Pill
-                      onClick={() => changeStatus(rep.id, "Одобрен")}
-                      bg="#15803D"
-                      color="#fff"
-                    >
-                      ✓ Одобрить
-                    </Pill>
-                    <Pill
-                      onClick={() => changeStatus(rep.id, "Отклонён")}
-                      bg="#B91C1C"
-                      color="#fff"
-                    >
-                      Отклонить
-                    </Pill>
+                    {/* «Одобрить»/«Отклонить» ЗДЕСЬ НЕТ намеренно: решение
+                        по деньгам принимают в деталях, увидев состав.
+                        Иначе одобрение вслепую — по названию и сумме. */}
                     <Pill
                       onClick={() => changeStatus(rep.id, "Черновик")}
                       bg="#FFFBEB"
@@ -597,10 +596,19 @@ export default function OtchetyPage({
                     >
                       Отозвать
                     </Pill>
+                    <span
+                      style={{
+                        font: `400 12px/1.3 ${FONT}`,
+                        color: C.gray,
+                      }}
+                    >
+                      Открыть, чтобы проверить и одобрить
+                    </span>
                   </div>
                 )}
                 {rep.status === "Отклонён" && (
                   <div
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       display: "flex",
                       gap: 6,
@@ -659,6 +667,30 @@ export default function OtchetyPage({
       >
         <Plus size={26} color="#fff" />
       </button>
+
+      {/* Детали отчёта: состав, суммы, «убрать чек» и — только здесь —
+          «Одобрить»/«Отклонить». */}
+      {openRep && (
+        <ReportDetailModal
+          report={openRep}
+          onClose={() => setOpenRep(null)}
+          reloadReceipts={reloadReceipts}
+          onChanged={(updated) => {
+            // Ответ ручек состава — форма элемента списка (T7), поэтому
+            // подставляем как есть и в список, и в открытую карточку.
+            setReports((prev) =>
+              prev.map((r) => (r.id === updated.id ? updated : r)),
+            );
+            setOpenRep((prev) =>
+              prev && prev.id === updated.id ? { ...prev, ...updated } : prev,
+            );
+          }}
+          onStatus={async (id, status) => {
+            await changeStatus(id, status);
+            setOpenRep(null); // решение принято — возвращаемся к списку
+          }}
+        />
+      )}
 
       {/* Подтверждение удаления. Главное в тексте — что будет с ЧЕКАМИ:
           они не пропадают, а возвращаются в свободный пул. Без этого
