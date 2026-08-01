@@ -79,15 +79,56 @@ export default function OtchetyPage({
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Единый текст ошибки сохранения. 429 разводим отдельно (S-27: лимит по IP
-  // ≠ отказ операции), остальное — нейтрально, без кода статуса в лицо.
-  function failToast(status) {
+  // Запасные тексты, когда показать нечего: detail отсутствует, пустой или
+  // не предназначен пользователю.
+  const FALLBACK_ANY = "Не удалось сохранить, попробуйте ещё раз";
+  const FALLBACK_BY_STATUS = {
+    // S-27: лимит по IP ≠ отказ операции, поэтому текст про «подождите».
+    429: "Слишком много запросов, подождите минуту",
+    // Отчёт мог быть удалён в другой вкладке — или он чужой (REP-ACL отдаёт
+    // 404, чтобы чужой был неотличим от несуществующего).
+    404: "Отчёт не найден",
+  };
+
+  // Человеческий текст ошибки. Бэк отчётов отдаёт {detail: "…"} — готовые
+  // русские фразы, объясняющие СЛЕДУЮЩИЙ ШАГ («Отчёт на проверке — сначала
+  // отзовите его», «Чек уже в другом отчёте», «Одобрять … может только
+  // бухгалтер или администратор»). Их и показываем.
+  // Но detail не всегда строка, поэтому берём его только если это строка:
+  //   • 404 в reports.py — технический английский "Not found" → свой текст;
+  //   • 422 (валидация FastAPI) — detail это СПИСОК объектов;
+  //   • в соседних роутерах (receipts, categories) detail бывает объектом
+  //     {error, message, existing_id}.
+  // Иначе в тост уехало бы "[object Object]" или "Not found".
+  async function errorMessage(res) {
+    if (!res) return FALLBACK_ANY; // сетевой сбой / таймаут — ответа нет
+    if (res.status === 404) return FALLBACK_BY_STATUS[404];
+    let detail = null;
+    try {
+      const body = await res.json();
+      detail = body && body.detail;
+    } catch {
+      detail = null; // тело пустое (204) или не JSON — это не ошибка чтения
+    }
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (
+      detail &&
+      typeof detail === "object" &&
+      !Array.isArray(detail) &&
+      typeof detail.message === "string"
+    ) {
+      return detail.message;
+    }
+    return FALLBACK_BY_STATUS[res.status] || FALLBACK_ANY;
+  }
+
+  // Единая точка показа ошибки: принимает ОТВЕТ (не статус), чтобы прочитать
+  // detail. Вызывать из любой ручки — changeStatus, create и будущих
+  // delete/attach; повторять разбор в каждой не нужно.
+  async function failToast(res) {
     setToast({
       type: "error",
-      message:
-        status === 429
-          ? "Слишком много запросов, подождите минуту"
-          : "Не удалось сохранить, попробуйте ещё раз",
+      message: await errorMessage(res),
       duration: 4000,
     });
   }
@@ -97,7 +138,7 @@ export default function OtchetyPage({
       .then(async (r) => {
         // res.ok обязателен: при 429/500 тело — {detail: …}, не список.
         if (!r.ok) {
-          failToast(r.status);
+          await failToast(r);
           return null;
         }
         return r.json();
@@ -124,7 +165,7 @@ export default function OtchetyPage({
       });
       // При ошибке модалку НЕ закрываем и форму НЕ чистим — введённое цело.
       if (!res.ok) {
-        failToast(res.status);
+        await failToast(res);
         return;
       }
       const created = await res.json();
@@ -153,7 +194,7 @@ export default function OtchetyPage({
       // Без этой проверки объект-ошибка {detail: …} подменял отчёт в списке:
       // карточка без названия, «0 чеков», сумма NaN — а сам отчёт исчезал.
       if (!res.ok) {
-        failToast(res.status);
+        await failToast(res);
         return;
       }
       const updated = await res.json();
