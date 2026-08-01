@@ -7823,6 +7823,10 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [catalog, setCatalog] = useState(null); // D1: справочник категорий (группы+статьи)
   const [role, setRole] = useState(null); // D2: роль текущего юзера для гейта управления категориями
+  // REP-CRUD ЧП5г: id текущего юзера. Отчёт собирается только из СВОИХ чеков
+  // (инвариант АО-1 на бэке), а бухгалтер видит чеки всей орг — без этого id
+  // он выбрал бы чужой чек и упёрся в 409 «Чек другого сотрудника».
+  const [userId, setUserId] = useState(null);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
 
@@ -7900,6 +7904,7 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data && data.role) setRole(data.role);
+        if (data && typeof data.id === "number") setUserId(data.id);
       })
       .catch(() => {});
     authFetch(`/api/organizations/me`) // INT: режим налогообложения для Сводки/Главной
@@ -8255,6 +8260,7 @@ export default function App() {
         {page === "otchety" && (
           <OtchetyPage
             receipts={receipts}
+            userId={userId}
             authFetch={authFetch}
             fmt={fmt}
             plural={plural}

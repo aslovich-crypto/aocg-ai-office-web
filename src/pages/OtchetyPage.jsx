@@ -50,6 +50,7 @@ function Pill({ children, onClick, bg, color, border }) {
 
 export default function OtchetyPage({
   receipts,
+  userId,
   authFetch,
   fmt,
   plural,
@@ -133,25 +134,45 @@ export default function OtchetyPage({
     });
   }
 
+  // Загрузка списка отдельной функцией: состав отчётов меняется и снаружи
+  // экрана (прикрепление из карточки чека, работа в другой вкладке), поэтому
+  // одного вызова на монтировании мало — перечитываем перед выбором чеков.
+  async function loadReports() {
+    try {
+      const r = await authFetch(`/api/reports/`);
+      // res.ok обязателен: при 429/500 тело — {detail: …}, не список.
+      if (!r.ok) {
+        await failToast(r);
+        return;
+      }
+      const data = await r.json();
+      if (Array.isArray(data)) setReports(data);
+    } catch {
+      failToast();
+    }
+  }
+
   useEffect(() => {
-    authFetch(`/api/reports/`)
-      .then(async (r) => {
-        // res.ok обязателен: при 429/500 тело — {detail: …}, не список.
-        if (!r.ok) {
-          await failToast(r);
-          return null;
-        }
-        return r.json();
-      })
-      .then((data) => {
-        if (Array.isArray(data)) setReports(data);
-      })
-      .catch(() => failToast());
+    loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Чек можно положить в отчёт, только если он ТОЧНО принадлежит текущему
+  // пользователю. Условие самодостаточное: три проверки в одном предикате,
+  // ни одна не переложена на UI или на порядок загрузки —
+  //   • userId ещё не пришёл (первые кадры до /api/users/me) → выбирать
+  //     нечего; без этой проверки сравнение null === null пропустило бы
+  //     ровно легаси-чеки без владельца;
+  //   • r.user_id пуст → легаси-чек «ничей», бэк его отвергнет
+  //     («У чека нет владельца — его нельзя включить в отчёт»);
+  //   • r.user_id чужой → 409 «Чек другого сотрудника» (инвариант АО-1:
+  //     один отчёт = один подотчётный). Бухгалтер видит чеки всей орг,
+  //     поэтому без фильтра он выбирал бы заведомо непроходной чек.
+  const isMine = (r) =>
+    userId != null && r.user_id != null && r.user_id === userId;
+  const myReceipts = receipts.filter(isMine);
   const usedIds = reports.flatMap((r) => r.receiptIds || []);
-  const free = receipts.filter((r) => !usedIds.includes(r.id));
+  const free = myReceipts.filter((r) => !usedIds.includes(r.id));
 
   async function create() {
     if (isSubmitting) return; // защита от двойного клика
@@ -206,6 +227,13 @@ export default function OtchetyPage({
     } catch {
       failToast();
     }
+  }
+
+  // Открытие формы создания: перед выбором чеков перечитываем отчёты, иначе
+  // usedIds протух и «свободный» чек окажется занятым (409 при сохранении).
+  function openCreate() {
+    loadReports();
+    setShowC(true);
   }
 
   function comingSoon(key) {
@@ -364,7 +392,7 @@ export default function OtchetyPage({
         >
           <ClipboardList size={44} strokeWidth={1.25} color={C.grayL} />
           {statusFilter === null || statusFilter === "Черновик" ? (
-            <Btn onClick={() => setShowC(true)}>Создать первый отчёт</Btn>
+            <Btn onClick={openCreate}>Создать первый отчёт</Btn>
           ) : (
             <span
               style={{
@@ -579,7 +607,7 @@ export default function OtchetyPage({
 
       {/* FAB «+» — создание отчёта (заменяет кнопку «+ Новый») */}
       <button
-        onClick={() => setShowC(true)}
+        onClick={openCreate}
         aria-label="Новый отчёт"
         style={{
           position: "fixed",
@@ -635,10 +663,16 @@ export default function OtchetyPage({
             >
               Выберите чеки · {selected.length} выбрано
             </div>
+            {/* Три разных «пусто» — причина у них разная, и подсказка тоже:
+                ждём профиль · своих чеков нет вовсе · все уже разложены. */}
             {free.length === 0 && (
               <Block>
                 <span style={{ fontFamily: FONT, fontSize: 12, color: C.mid }}>
-                  Нет свободных чеков
+                  {userId == null
+                    ? "Загружаем ваши чеки…"
+                    : myReceipts.length === 0
+                      ? "У вас пока нет чеков. В отчёт попадают только собственные — чужие приложить нельзя"
+                      : "Все ваши чеки уже разложены по отчётам"}
                 </span>
               </Block>
             )}
