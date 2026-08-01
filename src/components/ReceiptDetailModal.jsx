@@ -8,6 +8,7 @@ import {
   MapPin,
   BadgeCheck,
   ChevronDown,
+  ChevronRight,
   CreditCard,
   Banknote,
   Landmark,
@@ -21,6 +22,7 @@ import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { authFetch } from "../lib/api";
 import CategorySheet from "./CategorySheet";
+import ReportDetailModal from "./ReportDetailModal";
 
 // Токены дизайн-системы (colors_and_type.css), смапленные на палитру C +
 // несколько литералов, которых нет в C (success/error/cherry-hover).
@@ -388,7 +390,10 @@ export default function ReceiptDetailModal({
   onDelete,
   onChangeCategory,
   onChangePayment,
-  onAttached, // чек приложен к отчёту → родитель перечитывает чек и список
+  // Связь чека с отчётом изменилась (приложили ИЛИ убрали в деталях
+  // отчёта) → родитель перечитывает чек и строку списка: in_report,
+  // report_id и report_title считает бэк, локально их не выводим.
+  onReportLinkChanged,
   catalog,
   paymentOptions = [],
 }) {
@@ -495,6 +500,13 @@ export default function ReceiptDetailModal({
   const [reportsLoading, setReportsLoading] = useState(false);
   const [attachError, setAttachError] = useState("");
   const [attachBusy, setAttachBusy] = useState(false);
+  // Переход «В отчёте „…“» → детали отчёта поверх карточки. Глубина ровно
+  // одна: из деталей отчёта чек НЕ открывается, поэтому цикла чек → отчёт →
+  // чек не возникает и стопка модалок не растёт.
+  // Держим {id,title} КОПИЕЙ, а не читаем r.report_id при рендере: если в
+  // деталях убрать этот самый чек, родитель перечитает его, report_id станет
+  // пустым — и открытый экран отчёта схлопнулся бы под пальцем.
+  const [openReport, setOpenReport] = useState(null);
   // Карточку могут закрыть, пока запрос в полёте — после размонтирования
   // setState запрещён. Ref сбрасывается в cleanup ниже.
   const aliveRef = useRef(true);
@@ -615,7 +627,7 @@ export default function ReceiptDetailModal({
         return;
       }
       setShowAttach(false);
-      onAttached && onAttached();
+      onReportLinkChanged && onReportLinkChanged();
     } catch {
       if (aliveRef.current) setAttachError("Нет связи с сервером");
     } finally {
@@ -645,7 +657,7 @@ export default function ReceiptDetailModal({
         return;
       }
       setShowAttach(false);
-      onAttached && onAttached();
+      onReportLinkChanged && onReportLinkChanged();
     } catch {
       if (aliveRef.current) setAttachError("Нет связи с сервером");
     } finally {
@@ -1386,19 +1398,28 @@ export default function ReceiptDetailModal({
             )}
           </div>
           {/* Чек живёт ровно в одном отчёте (uq_report_items_receipt_id).
-              Занят — показываем ГДЕ он (без имени пользователь в тупике:
-              видит «занят», но не знает, куда идти). Отцепить отсюда пока
-              нельзя — это ЧП5в вместе с экраном деталей отчёта, поэтому
-              пометка статичная, а не кнопка в никуда. */}
+              Занят — показываем ГДЕ он и даём туда перейти: иначе пользователь
+              в тупике, видит «занят», но не знает, что там за отчёт и можно ли
+              чек забрать. Отцепляют его в деталях отчёта, туда и ведём.
+              НЕ вишнёвая: вишнёвый в карточке — только главный CTA, а это
+              переход по ссылке, второстепенное действие. */}
           {r.in_report ? (
-            <div
+            <button
+              type="button"
+              onClick={() =>
+                setOpenReport({
+                  id: r.report_id,
+                  title: r.report_title || "Отчёт",
+                })
+              }
+              disabled={!r.report_id}
               style={{
                 width: "100%",
                 minHeight: 50,
                 borderRadius: 8,
-                border: `1px solid ${T.border}`,
+                border: `1px solid ${T.borderStrong}`,
                 background: T.chipBg,
-                color: T.fg2,
+                color: T.fg1,
                 font: `500 15px/1.3 ${FONT}`,
                 display: "flex",
                 alignItems: "center",
@@ -1406,11 +1427,21 @@ export default function ReceiptDetailModal({
                 gap: 8,
                 padding: "10px 14px",
                 textAlign: "center",
+                cursor: r.report_id ? "pointer" : "default",
               }}
             >
-              <Paperclip size={18} />
+              <Paperclip size={18} style={{ flexShrink: 0 }} />
               {r.report_title ? `В отчёте «${r.report_title}»` : "В отчёте"}
-            </div>
+              {/* Шеврон читается как «здесь есть куда перейти» —
+                  тот же приём, что у выбора категории выше. */}
+              {r.report_id && (
+                <ChevronRight
+                  size={16}
+                  color={T.fg2}
+                  style={{ flexShrink: 0 }}
+                />
+              )}
+            </button>
           ) : (
             <button
               type="button"
@@ -1475,6 +1506,21 @@ export default function ReceiptDetailModal({
           />
         )}
       </div>
+
+      {/* Детали отчёта поверх карточки чека. В чеке есть только report_id и
+          report_title — этого хватает как «скелета», остальное подтянет
+          GET /{id}. onStatus не передаём: решение по деньгам принимают
+          в разделе «Отчёты», здесь это справка «куда делся мой чек».
+          zIndex выше карточки (150) и её шторок (160), но ниже
+          общеприложенческих слоёв (200+ — тосты, сканер). */}
+      {openReport && (
+        <ReportDetailModal
+          report={openReport}
+          onClose={() => setOpenReport(null)}
+          reloadReceipts={onReportLinkChanged}
+          zIndex={180}
+        />
+      )}
     </div>
   );
 }

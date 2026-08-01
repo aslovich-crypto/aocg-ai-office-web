@@ -3245,10 +3245,11 @@ function OperaciiPage({
             const upd = await handleUpdate(detail.id, { payment: p });
             if (upd) setDetail(upd);
           }}
-          onAttached={async () => {
-            // Чек прикреплён к отчёту — перечитываем его каноническую форму
-            // (in_report / report_title считает бэк) и обновляем карточку
-            // вместе со строкой в списке.
+          onReportLinkChanged={async () => {
+            // Связь с отчётом изменилась (прикрепили или убрали в деталях
+            // отчёта) — перечитываем каноническую форму чека
+            // (in_report / report_id / report_title считает бэк) и обновляем
+            // карточку вместе со строкой в списке.
             const norm = await handleRefreshReceipt(detail.id);
             if (norm) setDetail(norm);
           }}
