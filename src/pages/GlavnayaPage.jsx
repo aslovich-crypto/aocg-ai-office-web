@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { computeTaxAccounting, regimeFlags } from "../lib/tax";
+import { FONT, theme } from "../lib/theme";
 
 // Экран «Главная» (INT) — дашборд по образцу templates/home/Главная.html.
 // Зависимости (данные, навигация, форматтеры) приходят пропсами из App.jsx,
@@ -22,8 +23,6 @@ export default function GlavnayaPage({
   org,
   setPage,
   authFetch,
-  C,
-  FONT,
   fmt,
   fmtDate,
   plural,
@@ -67,8 +66,8 @@ export default function GlavnayaPage({
 
   // ── стили ──
   const card = {
-    background: C.white,
-    border: `0.5px solid ${C.silver}`,
+    background: theme.surface,
+    border: `0.5px solid ${theme.border}`,
     borderRadius: 12,
     boxShadow: "0 1px 3px rgba(17,19,24,.06)",
   };
@@ -95,7 +94,7 @@ export default function GlavnayaPage({
           onClick={onLink}
           style={{
             font: `500 13px/1 ${FONT}`,
-            color: C.cherry,
+            color: theme.cherry,
             cursor: "pointer",
             whiteSpace: "nowrap",
           }}
@@ -127,8 +126,8 @@ export default function GlavnayaPage({
           width: 38,
           height: 38,
           borderRadius: 10,
-          background: C.cherryTint,
-          color: C.cherry,
+          background: theme.cherryTint,
+          color: theme.cherry,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -175,21 +174,21 @@ export default function GlavnayaPage({
           {num}
         </span>
       </span>
-      <span style={{ font: `500 12.5px/1.25 ${FONT}`, color: C.gray }}>
+      <span style={{ font: `500 12.5px/1.25 ${FONT}`, color: theme.fg2 }}>
         {text}
       </span>
       <span
         style={{
           marginTop: "auto",
           paddingTop: 10,
-          borderTop: `1px solid ${C.silver}`,
+          borderTop: `1px solid ${theme.border}`,
         }}
       >
         <span
           style={{
             display: "block",
             font: `500 11px/1.2 ${FONT}`,
-            color: C.grayL,
+            color: theme.fg3,
             marginBottom: 3,
           }}
         >
@@ -247,7 +246,7 @@ export default function GlavnayaPage({
           display: "flex",
           alignItems: "center",
           gap: 9,
-          background: C.lightGray,
+          background: theme.surfaceSunk,
           border: "none",
           borderRadius: 10,
           padding: "11px 12px",
@@ -255,8 +254,8 @@ export default function GlavnayaPage({
           cursor: "pointer",
         }}
       >
-        <Search size={18} color={C.grayL} strokeWidth={2} />
-        <span style={{ font: `400 15px/1.2 ${FONT}`, color: C.grayL }}>
+        <Search size={18} color={theme.fg3} strokeWidth={2} />
+        <span style={{ font: `400 15px/1.2 ${FONT}`, color: theme.fg3 }}>
           Поиск
         </span>
       </button>
@@ -343,7 +342,7 @@ export default function GlavnayaPage({
               style={{
                 display: "block",
                 font: `400 13px/1.3 ${FONT}`,
-                color: C.gray,
+                color: theme.fg2,
                 marginBottom: 4,
               }}
             >
@@ -364,7 +363,7 @@ export default function GlavnayaPage({
               style={{
                 display: "block",
                 font: `400 13px/1.3 ${FONT}`,
-                color: C.gray,
+                color: theme.fg2,
                 marginTop: 4,
               }}
             >
@@ -376,7 +375,7 @@ export default function GlavnayaPage({
               ])}
             </span>
           </span>
-          <ChevronRight size={22} color={C.grayL} strokeWidth={2} />
+          <ChevronRight size={22} color={theme.fg3} strokeWidth={2} />
         </button>
       </div>
 
@@ -482,7 +481,7 @@ export default function GlavnayaPage({
                       gap: 6,
                       marginTop: 4,
                       font: `400 13px/1.2 ${FONT}`,
-                      color: C.gray,
+                      color: theme.fg2,
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -492,7 +491,7 @@ export default function GlavnayaPage({
                         width: 3,
                         height: 3,
                         borderRadius: "50%",
-                        background: C.grayL,
+                        background: theme.fg3,
                       }}
                     />
                     <span
@@ -502,7 +501,7 @@ export default function GlavnayaPage({
                         gap: 4,
                       }}
                     >
-                      <CreditCard size={14} color={C.gray} strokeWidth={2} />
+                      <CreditCard size={14} color={theme.fg2} strokeWidth={2} />
                       {r.card_last4 || r.payment || "—"}
                     </span>
                   </span>
@@ -531,8 +530,8 @@ export default function GlavnayaPage({
                       font: `500 12px/1 ${FONT}`,
                       padding: "5px 10px",
                       borderRadius: 999,
-                      background: pill.bg || C.lightGray,
-                      color: pill.fg || C.gray,
+                      background: pill.bg || theme.surfaceSunk,
+                      color: pill.fg || theme.fg2,
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -546,7 +545,7 @@ export default function GlavnayaPage({
             <div
               style={{
                 font: `400 13px/1.4 ${FONT}`,
-                color: C.grayL,
+                color: theme.fg3,
                 padding: "8px 0",
               }}
             >

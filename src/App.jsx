@@ -5662,8 +5662,6 @@ function NastroykiPage({
         <OrganizationTab
           authFetch={authFetch}
           role={role}
-          C={C}
-          FONT={FONT}
           Btn={Btn}
           SectionHead={SectionHead}
           fmtDate={fmtDate}
@@ -8201,8 +8199,6 @@ export default function App() {
             org={org}
             setPage={setPage}
             authFetch={authFetch}
-            C={C}
-            FONT={FONT}
             fmt={fmt}
             fmtDate={fmtDate}
             plural={plural}

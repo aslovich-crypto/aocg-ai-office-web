@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { C, FONT, theme } from "../lib/theme";
 
 // Вкладка «Организация» в Настройках (задача #1, фронт).
 // Профиль своей орг: показ name/inn/тип/дата; правка name/inn только для admin.
@@ -31,8 +32,6 @@ function extractErr(e) {
 export default function OrganizationTab({
   authFetch,
   role,
-  C,
-  FONT,
   Btn,
   SectionHead,
   fmtDate,
@@ -107,7 +106,7 @@ export default function OrganizationTab({
         style={{
           padding: "40px 20px",
           textAlign: "center",
-          color: C.grayL,
+          color: theme.fg3,
           fontFamily: FONT,
           fontSize: 13,
         }}
@@ -121,12 +120,12 @@ export default function OrganizationTab({
     justifyContent: "space-between",
     alignItems: "center",
     padding: "3px 12px",
-    borderBottom: `1px solid ${C.silver}`,
-    background: i % 2 === 0 ? C.white : C.lightGray,
+    borderBottom: `1px solid ${theme.border}`,
+    background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
   });
   const lbl = {
     fontSize: 11,
-    color: C.gray,
+    color: theme.fg2,
     fontFamily: FONT,
     minWidth: 110,
     flexShrink: 0,
@@ -142,7 +141,7 @@ export default function OrganizationTab({
     outline: "none",
     padding: "7px 0",
   };
-  const ro = { ...fin, color: C.gray }; // read-only значение
+  const ro = { ...fin, color: theme.fg2 }; // read-only значение
 
   // Редактируемое (admin) или статичное поле — единый рендер строки.
   const field = (i, label, key, opts = {}) => (
@@ -208,7 +207,7 @@ export default function OrganizationTab({
             <div
               style={{
                 fontSize: 12,
-                color: C.cherry,
+                color: theme.cherry,
                 fontFamily: FONT,
                 marginBottom: 8,
               }}
