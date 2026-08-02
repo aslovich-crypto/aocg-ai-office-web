@@ -33,28 +33,76 @@ const MARK = "overflow";
 
 function scan() {
   const W = window.innerWidth;
-  const out = [];
+  const over = new Map(); // элемент → на сколько вылез
   const clip = [];
   document.querySelectorAll("*").forEach((el) => {
-    if (el.dataset.ovfPanel) return; // сама панель не в счёт
+    if (el.dataset.ovfPanel) return;
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) return;
 
-    // (1) вылез за экран → прокрутка документа
-    const over = Math.round(r.right - W);
-    if (over > 1) out.push({ el, over });
+    const out = Math.round(r.right - W);
+    if (out > 1) over.set(el, out);
 
-    // (2) содержимое шире собственной ширины → обрезано или скроллится внутри
+    // Содержимое шире собственной ширины. Многоточие — НАМЕРЕННОЕ усечение
+    // (подпись способа оплаты в строке чека), это не дефект вёрстки.
     const hidden = Math.round(el.scrollWidth - el.clientWidth);
     if (hidden > 1) {
-      const ov = getComputedStyle(el).overflowX;
-      // auto/scroll — это НАМЕРЕННАЯ прокрутка (капсула фильтров), не дефект
-      if (ov === "hidden" || ov === "clip") clip.push({ el, hidden });
+      const cs = getComputedStyle(el);
+      if (cs.textOverflow === "ellipsis") return;
+      if (cs.overflowX === "hidden" || cs.overflowX === "clip")
+        clip.push({ el, hidden });
     }
   });
-  out.sort((a, b) => b.over - a.over);
-  clip.sort((a, b) => b.hidden - a.hidden);
-  return { out, clip };
+
+  // ГРАНИЦА ПЕРЕПОЛНЕНИЯ. Когда предок стал шире экрана, за ним вылезают все
+  // его потомки — на скриншоте это десятки строк, и настоящий виновник тонет
+  // среди них. Виновник ровно один: элемент, который вылез, а его РОДИТЕЛЬ
+  // нет. Его и показываем первым.
+  const boundary = [...over.entries()]
+    .filter(([el]) => !over.has(el.parentElement))
+    .map(([el, o]) => ({ el, over: o }))
+    .sort((a, b) => b.over - a.over);
+
+  // ШИРЕ РОДИТЕЛЯ — слепая зона первой версии: элемент помещается в экран,
+  // но торчит из своего контейнера, и его режет чужой overflow. Именно так
+  // выглядели обрезанные плитки «Главной» при нулевых прочих счётчиках.
+  const outgrow = [];
+  document.querySelectorAll("*").forEach((el) => {
+    if (el.dataset.ovfPanel || !el.parentElement) return;
+    const p = el.parentElement;
+    if (p === document.body || p === document.documentElement) return;
+    const r = el.getBoundingClientRect();
+    const pr = p.getBoundingClientRect();
+    if (r.width === 0) return;
+    const cs = getComputedStyle(p);
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const diff = Math.round(r.right - (pr.right - padR));
+    if (diff > 1) outgrow.push({ el, diff });
+  });
+  outgrow.sort((a, b) => b.diff - a.diff);
+
+  return { boundary, total: over.size, clip, outgrow };
+}
+
+// Цепочка предков с ширинами — по ней сразу видно, на каком уровне ширина
+// вдруг стала больше, и что этот уровень добавил (padding при content-box
+// прибавляется к width, см. T13).
+function chain(el) {
+  const out = [];
+  let n = el;
+  for (let i = 0; i < 5 && n && n !== document.body; i++) {
+    const cs = getComputedStyle(n);
+    const r = n.getBoundingClientRect();
+    out.push(
+      `${describe(n).slice(0, 26)} w=${Math.round(r.width)} ` +
+        `pad=${parseFloat(cs.paddingLeft) || 0}/${
+          parseFloat(cs.paddingRight) || 0
+        } ` +
+        `box=${cs.boxSizing === "border-box" ? "bb" : "CB"}`,
+    );
+    n = n.parentElement;
+  }
+  return out;
 }
 
 function describe(el) {
@@ -93,35 +141,55 @@ export function initOverflowDebug() {
   let marked = [];
   function run() {
     marked.forEach((el) => (el.style.outline = ""));
-    const { out, clip } = scan();
-    // Красным — то, что режется (его не видно на экране, это важнее);
-    // жёлтым — то, что вылезло за вьюпорт.
-    marked = [...clip.slice(0, 8), ...out.slice(0, 8)].map((f) => f.el);
-    clip.slice(0, 8).forEach((f, i) => {
+    const { boundary, total, clip, outgrow } = scan();
+    marked = [
+      ...boundary.slice(0, 3).map((f) => f.el),
+      ...clip.slice(0, 3).map((f) => f.el),
+      ...outgrow.slice(0, 3).map((f) => f.el),
+    ];
+    boundary.slice(0, 3).forEach((f, i) => {
       f.el.style.outline = i === 0 ? "3px solid #FF3B30" : "2px dashed #FF9F0A";
       f.el.style.outlineOffset = "-2px";
     });
-    out.slice(0, 8).forEach((f) => {
-      f.el.style.outline = "2px dashed #FFD60A";
+    outgrow.slice(0, 3).forEach((f) => {
+      f.el.style.outline = "2px dashed #30D158";
       f.el.style.outlineOffset = "-2px";
     });
+    clip.slice(0, 3).forEach((f) => {
+      f.el.style.outline = "2px dotted #FFD60A";
+    });
+
     const doc = Math.round(document.documentElement.scrollWidth);
     const lines = [
       `экран ${window.innerWidth}  документ ${doc}  ` +
-        `${doc > window.innerWidth ? "→ ЕСТЬ ПРОКРУТКА" : "прокрутки нет"}`,
-      `ОБРЕЗАНО (содержимое не влезло, режет overflow:hidden): ${clip.length}`,
-      ...clip
-        .slice(0, 6)
-        .map(
-          (f, i) => `${i === 0 ? "▶" : " "} −${f.hidden}px  ${describe(f.el)}`,
-        ),
-      `ВЫЛЕЗЛО ЗА ЭКРАН: ${out.length}`,
-      ...out
-        .slice(0, 4)
+        `${
+          doc > window.innerWidth
+            ? `ПРОКРУТКА +${doc - window.innerWidth}`
+            : "прокрутки нет"
+        }`,
+      `ВЫЛЕЗЛИ ЗА ЭКРАН: ${total}, из них ПЕРВОПРИЧИН ${boundary.length}`,
+      ...boundary
+        .slice(0, 3)
         .map(
           (f, i) => `${i === 0 ? "▶" : " "} +${f.over}px  ${describe(f.el)}`,
         ),
     ];
+    if (boundary.length) {
+      lines.push("ЦЕПОЧКА ПЕРВОПРИЧИНЫ (CB = content-box, T13):");
+      lines.push(...chain(boundary[0].el).map((x) => "   " + x));
+    }
+    lines.push(`ШИРЕ СВОЕГО РОДИТЕЛЯ: ${outgrow.length}`);
+    lines.push(
+      ...outgrow
+        .slice(0, 3)
+        .map(
+          (f, i) => `${i === 0 ? "▶" : " "} +${f.diff}px  ${describe(f.el)}`,
+        ),
+    );
+    lines.push(`ОБРЕЗАНО без многоточия: ${clip.length}`);
+    lines.push(
+      ...clip.slice(0, 2).map((f) => `  −${f.hidden}px  ${describe(f.el)}`),
+    );
     panel.textContent = lines.join("\n");
   }
 
