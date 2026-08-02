@@ -10,7 +10,7 @@ import jsQR from "jsqr";
 import { Camera, ImageUp, PenLine, Flashlight, FileText } from "lucide-react";
 
 import { useModalA11y } from "../hooks/useModalA11y";
-import { C, FONT } from "../lib/theme";
+import { C, FONT, theme } from "../lib/theme";
 import { fmtDate } from "../lib/format";
 import { parseQRString } from "../lib/qr";
 
@@ -1423,7 +1423,7 @@ export default function ScanReceiptModal({
                 style={{
                   flexShrink: 0,
                   padding: "10px 18px",
-                  background: C.lightGray,
+                  background: theme.surfaceSunk,
                   border: "none",
                   borderRadius: 10,
                   fontFamily: FONT,
@@ -1495,7 +1495,7 @@ export default function ScanReceiptModal({
                 style={{
                   flexShrink: 0,
                   padding: "10px 18px",
-                  background: C.lightGray,
+                  background: theme.surfaceSunk,
                   border: "none",
                   borderRadius: 10,
                   fontFamily: FONT,

@@ -478,7 +478,7 @@ export default function ReportDetailModal({
                 marginTop: 10,
                 font: `400 12px/1.45 ${FONT}`,
                 color: C.gray,
-                background: C.lightGray,
+                background: theme.surfaceSunk,
                 borderRadius: 8,
                 padding: "10px 12px",
               }}

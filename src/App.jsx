@@ -178,7 +178,7 @@ function SectionHead({ num, title }) {
           style={{
             width: 20,
             height: 20,
-            background: C.lightGray,
+            background: theme.surfaceSunk,
             color: C.gray,
             fontSize: 9,
             display: "flex",
@@ -218,7 +218,7 @@ function Btn({ children, onClick, disabled, outline, full, small, loading }) {
         background: loading
           ? C.cherry
           : disabled
-            ? C.lightGray
+            ? theme.surfaceSunk
             : outline
               ? "transparent"
               : C.cherry,
@@ -341,7 +341,7 @@ function Block({ children, style: s }) {
   return (
     <div
       style={{
-        background: C.lightGray,
+        background: theme.surfaceSunk,
         borderLeft: `3px solid ${theme.cherryMuted}`,
         padding: "10px 14px",
         marginBottom: 10,
@@ -388,7 +388,7 @@ function Modal({ title, onClose, children, footer }) {
       >
         <div
           style={{
-            background: C.lightGray,
+            background: theme.surfaceSunk,
             borderBottom: `1px solid ${C.silver}`,
             padding: "11px 16px",
             display: "flex",
@@ -434,7 +434,7 @@ function Modal({ title, onClose, children, footer }) {
             style={{
               padding: "10px 16px calc(10px + env(safe-area-inset-bottom))",
               borderTop: `1px solid ${C.silver}`,
-              background: C.lightGray,
+              background: theme.surfaceSunk,
               flexShrink: 0,
             }}
           >
@@ -979,7 +979,7 @@ function SvodkaPage({
                   width: 30,
                   height: 30,
                   borderRadius: "50%",
-                  background: C.lightGray,
+                  background: theme.surfaceSunk,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -2074,7 +2074,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                   fontWeight: 600,
                   letterSpacing: "0.03em",
                   color: C.mid,
-                  background: C.lightGray,
+                  background: theme.surfaceSunk,
                   border: `1px solid ${C.silver}`,
                   borderRadius: 5,
                   padding: "1px 6px",
@@ -2447,7 +2447,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
               style={{
                 marginTop: 6,
                 padding: "8px 10px",
-                background: C.lightGray,
+                background: theme.surfaceSunk,
                 borderRadius: 8,
                 fontFamily: FONT,
                 fontSize: 11,
@@ -3587,7 +3587,7 @@ function ServiceCard({ svc }) {
           width: 36,
           height: 36,
           borderRadius: 8,
-          background: C.lightGray,
+          background: theme.surfaceSunk,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3650,7 +3650,7 @@ function ServiceCard({ svc }) {
               style={{
                 padding: "6px 14px",
                 border: `1px solid ${C.silver}`,
-                background: C.lightGray,
+                background: theme.surfaceSunk,
                 color: C.grayL,
                 fontFamily: FONT,
                 fontSize: 12,
@@ -3986,7 +3986,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
           style={{
             padding: "12px 16px",
             borderTop: `1px solid ${C.silver}`,
-            background: C.lightGray,
+            background: theme.surfaceSunk,
           }}
         >
           <Btn full onClick={submit} disabled={!f.first_name.trim() || busy}>
@@ -4332,7 +4332,7 @@ function AccountTab() {
     alignItems: "center",
     padding: "3px 12px",
     borderBottom: `1px solid ${C.silver}`,
-    background: i % 2 === 0 ? C.white : C.lightGray,
+    background: i % 2 === 0 ? C.white : theme.surfaceSunk,
   });
   const lbl = {
     fontSize: 11,
@@ -4937,7 +4937,7 @@ function InviteSheet({ onClose }) {
               </div>
               <div
                 style={{
-                  background: C.lightGray,
+                  background: theme.surfaceSunk,
                   border: `1px solid ${C.silver}`,
                   borderRadius: 10,
                   padding: "10px 12px",
@@ -5218,7 +5218,9 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
       />
       <label style={FIELD_LBL}>Группа</label>
       {mode === "edit" ? (
-        <div style={{ ...FIELD_INP, color: C.gray, background: C.lightGray }}>
+        <div
+          style={{ ...FIELD_INP, color: C.gray, background: theme.surfaceSunk }}
+        >
           {group ? group.name : "—"}
         </div>
       ) : (
@@ -5438,7 +5440,9 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
               </span>
             </div>
             {open && (
-              <div style={{ background: C.lightGray, padding: "2px 0 8px" }}>
+              <div
+                style={{ background: theme.surfaceSunk, padding: "2px 0 8px" }}
+              >
                 {cats.map((c) => {
                   const hidden = c.is_visible === false;
                   return (
@@ -5859,7 +5863,7 @@ function NastroykiPage({
             <div
               key={c.id}
               style={{
-                background: i % 2 === 0 ? C.white : C.lightGray,
+                background: i % 2 === 0 ? C.white : theme.surfaceSunk,
                 padding: "5px 14px",
                 borderBottom: `1px solid ${C.silver}`,
                 display: "flex",
@@ -6147,7 +6151,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
           style={{
             padding: "12px 16px",
             borderTop: `1px solid ${C.silver}`,
-            background: C.lightGray,
+            background: theme.surfaceSunk,
           }}
         >
           <button
@@ -6405,7 +6409,7 @@ function ConsentScreen({ onAccept }) {
             padding: "14px",
             border: "none",
             borderRadius: 12,
-            background: canSubmit ? C.cherry : C.lightGray,
+            background: canSubmit ? C.cherry : theme.surfaceSunk,
             color: canSubmit ? C.white : C.grayL,
             fontFamily: FONT,
             fontSize: 14,
