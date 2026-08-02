@@ -229,6 +229,51 @@ function geometry(el) {
   return out;
 }
 
+// ── ПЕРЕКРЫТО ПЛАВАЮЩИМ (#overflow-hit) ─────────────────────────────────────
+// Пятый вопрос: содержимое не обрезано и никуда не вылезло, но его НЕ ВИДНО,
+// потому что сверху лежит плавающая кнопка. Геометрически это не переполнение,
+// поэтому первые четыре группы честно молчат — и правильно делают.
+//
+// ПОЧЕМУ ЭТО НЕ ПОСТОЯННАЯ ПРОВЕРКА, А РЕЖИМ ПО ЗАПРОСУ: плавающая кнопка
+// перекрывает содержимое ПО ЗАМЫСЛУ, это её работа. Автоматическая группа
+// кричала бы на каждом экране с FAB и стала бы фоном. Здесь важен не сам
+// факт перекрытия, а решение человека: приемлемо оно или нет.
+//
+// Фильтр от шума: учитываются только МЕЛКИЕ плавающие элементы — меньше
+// четверти экрана. Полноэкранные оверлеи (модалки, шторки) перекрывают всё
+// намеренно, они не дефект.
+function overlapProbe() {
+  const VW = window.innerWidth;
+  const VH = window.innerHeight;
+  const out = [];
+  document.querySelectorAll("*").forEach((f) => {
+    if (f.dataset.ovfPanel) return;
+    const pos = getComputedStyle(f).position;
+    if (pos !== "fixed" && pos !== "sticky") return;
+    const fr = f.getBoundingClientRect();
+    if (fr.width < 8 || fr.height < 8) return;
+    if (fr.width * fr.height > VW * VH * 0.25) return; // оверлей, не кнопка
+    // Что РЕАЛЬНО лежит сверху в центре плавающего элемента и слева от него
+    const cx = fr.left + fr.width / 2;
+    const cy = fr.top + fr.height / 2;
+    const top = document.elementFromPoint(cx, cy);
+    const covered = [];
+    document.querySelectorAll("span,div,button").forEach((el) => {
+      if (el === f || f.contains(el) || el.contains(f)) return;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      if (r.right <= fr.left || r.left >= fr.right) return;
+      if (r.bottom <= fr.top || r.top >= fr.bottom) return;
+      if (r.width > VW * 0.9) return; // страница целиком, не содержимое
+      const hidden = Math.round(r.right - fr.left);
+      if (hidden > 1) covered.push({ el, hidden });
+    });
+    covered.sort((a, b) => b.hidden - a.hidden);
+    out.push({ f, fr, top, covered });
+  });
+  return out;
+}
+
 export function initOverflowDebug() {
   if (typeof window === "undefined") return;
   if (!window.location.hash.includes(MARK)) return;
@@ -239,6 +284,7 @@ export function initOverflowDebug() {
   const THIN = H.includes("overflow-test-thin");
   const TEST = THIN || H.includes("overflow-test");
   const WHY = H.includes("overflow-why");
+  const HIT = H.includes("overflow-hit");
   let probeNote = "";
 
   const panel = document.createElement("div");
@@ -327,6 +373,29 @@ export function initOverflowDebug() {
     lines.push(
       ...clip.slice(0, 2).map((f) => `  −${f.hidden}px  ${describe(f.el)}`),
     );
+    if (HIT) {
+      const ov = overlapProbe();
+      lines.push(`ПЛАВАЮЩИХ ЭЛЕМЕНТОВ (мельче четверти экрана): ${ov.length}`);
+      for (const o of ov.slice(0, 2)) {
+        const r = o.fr;
+        lines.push(
+          `   ${describe(o.f).slice(0, 20)} ` +
+            `x=${Math.round(r.left)}..${Math.round(r.right)} ` +
+            `y=${Math.round(r.top)}..${Math.round(r.bottom)}`,
+        );
+        lines.push(
+          `   сверху в его центре: ${
+            o.top ? describe(o.top).slice(0, 30) : "—"
+          }`,
+        );
+        lines.push(`   перекрывает содержимого: ${o.covered.length}`);
+        lines.push(
+          ...o.covered
+            .slice(0, 3)
+            .map((c) => `      −${c.hidden}px  ${describe(c.el).slice(0, 26)}`),
+        );
+      }
+    }
     if (WHY) {
       const top = cutoff[0] || outgrow[0] || boundary[0];
       if (top) {
