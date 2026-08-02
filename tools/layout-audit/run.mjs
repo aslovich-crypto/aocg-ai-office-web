@@ -97,10 +97,36 @@ async function login() {
   await inputs.nth(0).fill(EMAIL);
   await inputs.nth(1).fill(PASSWORD);
   await page.locator(".aocg-login-submit").click();
-  await page.waitForSelector(".aocg-login-input", {
-    state: "detached",
-    timeout: 20000,
-  });
+  try {
+    await page.waitForSelector(".aocg-login-input", {
+      state: "detached",
+      timeout: 20000,
+    });
+  } catch {
+    // Слепой таймаут ничего не объясняет. Забираем то, что показывает
+    // сама страница: приложение отвечает человеческим текстом («Неверный
+    // логин или пароль», «Слишком много запросов»), и он и есть диагноз.
+    const texts = await page.evaluate(() =>
+      [...document.querySelectorAll("div,span,p")]
+        .filter((e) => {
+          const t = (e.textContent || "").trim();
+          return (
+            t.length > 5 &&
+            t.length < 160 &&
+            e.children.length === 0 &&
+            /невер|ошиб|паро|блок|попыт|много|связ|сервер|не удалось/i.test(t)
+          );
+        })
+        .map((e) => e.textContent.trim()),
+    );
+    await page.screenshot({ path: join(OUT, "login-failed.png") });
+    throw new Error(
+      "вход не выполнен. Страница говорит: " +
+        (texts.length ? [...new Set(texts)].join(" | ") : "ничего не сказала") +
+        `\n  Скриншот: ${join(OUT, "login-failed.png")}` +
+        `\n  Адрес: ${URL_BASE}`,
+    );
+  }
   return "вход выполнен";
 }
 
