@@ -471,6 +471,16 @@ function SegmentedControl({ segments, active, onChange }) {
             aria-pressed={on}
             style={{
               flex: 1,
+              // minWidth:0 обязателен: у флекс-элемента по умолчанию
+              // min-width:auto, то есть он НЕ МОЖЕТ сжаться уже своего текста.
+              // Пять подписей, причём активная жирнее остальных — суммарная
+              // минимальная ширина МЕНЯЕТСЯ при переключении периода, и на
+              // узком экране строка переставала помещаться. Отсюда «страница
+              // уехала вбок сразу после переключения чипа».
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
               textAlign: "center",
               padding: "6px 2px",
               borderRadius: 6,
@@ -8354,6 +8364,13 @@ export default function App() {
               onClick={() => setPage(n.id)}
               style={{
                 flex: 1,
+                // Та же мина, что в SegmentedControl: без minWidth:0 кнопка
+                // не сжимается уже своей подписи. Четыре подписи («Главная»,
+                // «Сводка», «Чеки», «Отчёты») на узком экране перестают
+                // помещаться, строка меню становится шире вьюпорта, документ
+                // получает горизонтальную прокрутку — и весь каркас уезжает
+                // влево вместе с шапкой, а первый пункт уходит за край.
+                minWidth: 0,
                 padding: "8px 0 7px",
                 border: "none",
                 background: "transparent",
@@ -8372,6 +8389,13 @@ export default function App() {
                   fontWeight: active ? 600 : 500,
                   fontFamily: FONT,
                   color,
+                  // Кнопке разрешено сжиматься (minWidth:0 выше), поэтому
+                  // подпись обязана уметь обрезаться — иначе она просто
+                  // вылезет за кнопку и вернёт ту же переполненную строку.
+                  maxWidth: "100%",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {n.label}

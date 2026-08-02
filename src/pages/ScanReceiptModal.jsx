@@ -999,7 +999,10 @@ export default function ScanReceiptModal({
         zIndex: 200,
         background: "#000",
         overflow: "hidden",
-        width: "100vw",
+        // width брали в 100vw — единица считает ширину БЕЗ учёта того, что
+        // видимая область на iOS уже layout-вьюпорта, и элемент может стать
+        // шире экрана, дав горизонтальную прокрутку документа. inset:0 уже
+        // растягивает по вьюпорту, отдельная ширина не нужна.
         height: "100dvh",
         outline: "none",
       }}
