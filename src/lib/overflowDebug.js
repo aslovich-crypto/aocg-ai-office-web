@@ -109,31 +109,40 @@ function scan() {
   // не дошёл — предок обрезал раньше. Дефект видно глазами и не видно
   // ни одной проверкой.
   const cutoff = [];
+  const rejects = []; // почему кандидат НЕ попал в список — для #overflow-why
   document.querySelectorAll("*").forEach((el) => {
     if (el.dataset.ovfPanel) return;
     const r = el.getBoundingClientRect();
+    const drop = (why, extra = "") =>
+      rejects.push({ el, why, extra, right: r.right });
+
     if (r.width === 0 && r.height === 0) return;
-    // Многоточие — намеренное усечение, не дефект.
-    if (getComputedStyle(el).textOverflow === "ellipsis") return;
+    if (getComputedStyle(el).textOverflow === "ellipsis")
+      return drop("многоточие");
     const clipper = nearestClipper(el);
-    if (!clipper) return;
-    const cut = Math.round(r.right - contentRight(clipper));
-    if (cut <= 1) return;
-    // Показываем только ГРАНИЦУ: если родитель срезан тем же предком,
-    // элемент лишь унаследовал беду — иначе список утонет в потомках,
-    // как это было с 79 строками на «Чеках».
+    if (!clipper) return drop("нет режущего предка (или выше стоит скроллер)");
+
+    // Дробные границы: 500.4 против 500.0 — реальное переполнение
+    // в полпикселя. Округлять ДО сравнения нельзя, иначе тонкий обрез
+    // исчезает. Округляем только для показа.
+    const cut = r.right - contentRight(clipper);
+    if (cut <= 0.5) return;
+
+    // Показываем границу: если родитель срезан ТЕМ ЖЕ предком не слабее,
+    // потомок беду унаследовал. Но если потомок торчит ДАЛЬШЕ родителя —
+    // это его собственный дефект, и он обязан попасть в список: прошлая
+    // версия отсекала такие случаи и теряла настоящего виновника.
     const par = el.parentElement;
     if (par && nearestClipper(par) === clipper) {
-      const pcut = Math.round(
-        par.getBoundingClientRect().right - contentRight(clipper),
-      );
-      if (pcut > 1) return;
+      const pcut = par.getBoundingClientRect().right - contentRight(clipper);
+      if (pcut >= cut - 0.5)
+        return drop("родитель срезан не меньше", `род −${Math.round(pcut)}px`);
     }
-    cutoff.push({ el, cut, clipper });
+    cutoff.push({ el, cut: Math.round(cut), clipper });
   });
   cutoff.sort((a, b) => b.cut - a.cut);
 
-  return { boundary, total: over.size, clip, outgrow, cutoff };
+  return { boundary, total: over.size, clip, outgrow, cutoff, rejects };
 }
 
 // Цепочка предков с ширинами — по ней сразу видно, на каком уровне ширина
@@ -174,7 +183,7 @@ function describe(el) {
 // заведомо широкую полосу внутрь первого режущего контейнера на странице:
 // панель ОБЯЗАНА показать её в группе «срезан предком». Не показала —
 // дыра подтверждена замером, а не рассуждением.
-function injectProbe() {
+function injectProbe(extra) {
   const cand = [...document.querySelectorAll("div")].find((el) => {
     if (el.dataset.ovfPanel) return false;
     const ox = getComputedStyle(el).overflowX;
@@ -186,9 +195,9 @@ function injectProbe() {
     return "контейнер с overflow:hidden не найден — пробу вставить некуда";
   const probe = document.createElement("div");
   probe.dataset.ovfProbe = "1";
-  probe.textContent = "ПРОБА T11";
+  probe.textContent = `ПРОБА T11 +${extra}px`;
   probe.style.cssText =
-    `width:${Math.round(cand.getBoundingClientRect().width) + 120}px;` +
+    `width:${Math.round(cand.getBoundingClientRect().width) + extra}px;` +
     "height:10px;background:#BF5AF2;color:#fff;font:700 8px/10px sans-serif;" +
     "flex-shrink:0;";
   cand.appendChild(probe);
@@ -198,13 +207,38 @@ function injectProbe() {
   )} — она ДОЛЖНА попасть в «срезан предком»`;
 }
 
+// ── ПОЧЕМУ НЕ ПОЙМАЛ (#overflow-why) ────────────────────────────────────────
+// Печатает то, что иначе пришлось бы смотреть в инспекторе: геометрию
+// элемента и КАЖДОГО предка до #root — правую границу, правую границу
+// содержимого, overflow. И список кандидатов, которых сторож отбросил,
+// с причиной каждого. Нужен ровно тогда, когда глазами дефект видно,
+// а группа показывает ноль: без этого спор «сторож врёт / вёрстка цела»
+// решается рассуждением, а рассуждение сегодня трижды ошибалось.
+function geometry(el) {
+  const out = [];
+  let n = el;
+  for (let i = 0; i < 7 && n && n !== document.body; i++) {
+    const r = n.getBoundingClientRect();
+    const cs = getComputedStyle(n);
+    out.push(
+      `${describe(n).slice(0, 22)} right=${r.right.toFixed(1)} ` +
+        `contR=${contentRight(n).toFixed(1)} ovf=${cs.overflowX}`,
+    );
+    n = n.parentElement;
+  }
+  return out;
+}
+
 export function initOverflowDebug() {
   if (typeof window === "undefined") return;
   if (!window.location.hash.includes(MARK)) return;
 
   // Режим самопроверки: вставляем заведомо сломанный элемент и смотрим,
   // поймает ли его сторож. Вставка отложена — ждём, пока React отрисует.
-  const TEST = window.location.hash.includes("overflow-test");
+  const H = window.location.hash;
+  const THIN = H.includes("overflow-test-thin");
+  const TEST = THIN || H.includes("overflow-test");
+  const WHY = H.includes("overflow-why");
   let probeNote = "";
 
   const panel = document.createElement("div");
@@ -229,7 +263,7 @@ export function initOverflowDebug() {
   let marked = [];
   function run() {
     marked.forEach((el) => (el.style.outline = ""));
-    const { boundary, total, clip, outgrow, cutoff } = scan();
+    const { boundary, total, clip, outgrow, cutoff, rejects } = scan();
     marked = [
       ...boundary.slice(0, 3).map((f) => f.el),
       ...clip.slice(0, 3).map((f) => f.el),
@@ -293,6 +327,25 @@ export function initOverflowDebug() {
     lines.push(
       ...clip.slice(0, 2).map((f) => `  −${f.hidden}px  ${describe(f.el)}`),
     );
+    if (WHY) {
+      const top = cutoff[0] || outgrow[0] || boundary[0];
+      if (top) {
+        lines.push("ГЕОМЕТРИЯ ЛУЧШЕГО КАНДИДАТА:");
+        lines.push(...geometry(top.el).map((x) => "   " + x));
+      }
+      lines.push(`ОТБРОШЕНО КАНДИДАТОВ: ${rejects.length}`);
+      lines.push(
+        ...rejects
+          .slice()
+          .sort((a, b) => b.right - a.right)
+          .slice(0, 6)
+          .map(
+            (x) =>
+              `   ${describe(x.el).slice(0, 20)} right=${x.right.toFixed(1)}` +
+              `  ✗ ${x.why}${x.extra ? " · " + x.extra : ""}`,
+          ),
+      );
+    }
     if (TEST) {
       lines.unshift(
         "РЕЖИМ САМОПРОВЕРКИ (T11): " +
@@ -306,7 +359,7 @@ export function initOverflowDebug() {
   run();
   if (TEST) {
     setTimeout(() => {
-      probeNote = injectProbe();
+      probeNote = injectProbe(THIN ? 5 : 120);
       run();
     }, 800);
   }
