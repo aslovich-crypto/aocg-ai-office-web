@@ -383,7 +383,7 @@ export default function ReportDetailModal({
             <div
               style={{
                 font: `400 13px/1 ${FONT}`,
-                color: C.grayL,
+                color: theme.fg3,
                 padding: "14px 2px",
               }}
             >
@@ -456,7 +456,7 @@ export default function ReportDetailModal({
                       background: "none",
                       border: "none",
                       cursor: busyId === rc.id ? "default" : "pointer",
-                      color: C.grayL,
+                      color: theme.fg3,
                       padding: 4,
                       opacity: busyId === rc.id ? 0.4 : 1,
                       display: "flex",
@@ -492,7 +492,7 @@ export default function ReportDetailModal({
             <div
               style={{
                 font: `400 13px/1.4 ${FONT}`,
-                color: C.grayL,
+                color: theme.fg3,
                 padding: "14px 2px",
               }}
             >

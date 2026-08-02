@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { C, FONT } from "../lib/theme";
+import { C, FONT, theme } from "../lib/theme";
 import { groupColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
 
@@ -157,7 +157,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
               height="14"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={C.grayL}
+              stroke={theme.fg3}
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -327,7 +327,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                 padding: "24px 16px",
                 textAlign: "center",
                 fontSize: 13,
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
               }}
             >

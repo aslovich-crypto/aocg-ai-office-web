@@ -29,7 +29,7 @@ import ReportDetailModal from "./ReportDetailModal";
 const T = {
   fg1: "#111318",
   fg2: C.gray, // #636B7D
-  fg3: C.grayL, // #9CA3AF
+  fg3: theme.fg3, // #9CA3AF
   border: C.silver, // #EEF0F4
   borderStrong: theme.borderStrong, // #E2E5EB
   chipBg: "#EEF0F4",

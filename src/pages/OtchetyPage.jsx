@@ -388,7 +388,7 @@ export default function OtchetyPage({
               borderRadius: 10,
             }}
           >
-            <Search size={14} color={C.grayL} />
+            <Search size={14} color={theme.fg3} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -420,13 +420,13 @@ export default function OtchetyPage({
             gap: 16,
           }}
         >
-          <ClipboardList size={44} strokeWidth={1.25} color={C.grayL} />
+          <ClipboardList size={44} strokeWidth={1.25} color={theme.fg3} />
           {statusFilter === null || statusFilter === "Черновик" ? (
             <Btn onClick={openCreate}>Создать первый отчёт</Btn>
           ) : (
             <span
               style={{
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
                 fontSize: 11,
                 letterSpacing: "0.1em",

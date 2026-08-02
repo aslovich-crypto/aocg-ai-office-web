@@ -225,7 +225,7 @@ function Btn({ children, onClick, disabled, outline, full, small, loading }) {
         color: loading
           ? C.white
           : disabled
-            ? C.grayL
+            ? theme.fg3
             : outline
               ? C.cherry
               : C.white,
@@ -657,7 +657,7 @@ function Donut({ title, data, num, sliceColor }) {
         <div
           style={{
             fontSize: 12,
-            color: C.grayL,
+            color: theme.fg3,
             fontFamily: FONT,
             padding: "6px 0",
           }}
@@ -1031,7 +1031,7 @@ function SvodkaPage({
             <div
               style={{
                 fontSize: 12,
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
                 padding: "10px 0",
               }}
@@ -2417,7 +2417,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
                 width: 16,
                 height: 16,
                 borderRadius: "50%",
-                border: `1px solid ${C.grayL}`,
+                border: `1px solid ${theme.fg3}`,
                 background: "none",
                 color: C.gray,
                 fontSize: 11,
@@ -3039,7 +3039,7 @@ function OperaciiPage({
               height="14"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={C.grayL}
+              stroke={theme.fg3}
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -3478,7 +3478,7 @@ function OperaciiPage({
                     </span>
                   )}
                 </span>
-                <span style={{ color: C.grayL, fontSize: 18, flexShrink: 0 }}>
+                <span style={{ color: theme.fg3, fontSize: 18, flexShrink: 0 }}>
                   ›
                 </span>
               </button>
@@ -3651,7 +3651,7 @@ function ServiceCard({ svc }) {
                 padding: "6px 14px",
                 border: `1px solid ${C.silver}`,
                 background: theme.surfaceSunk,
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
                 fontSize: 12,
                 borderRadius: 8,
@@ -4314,7 +4314,7 @@ function AccountTab() {
         style={{
           padding: "40px 20px",
           textAlign: "center",
-          color: C.grayL,
+          color: theme.fg3,
           fontFamily: FONT,
           fontSize: 13,
         }}
@@ -4494,7 +4494,12 @@ function AccountTab() {
         </div>
       </div>
       <div
-        style={{ fontSize: 11, color: C.grayL, fontFamily: FONT, marginTop: 6 }}
+        style={{
+          fontSize: 11,
+          color: theme.fg3,
+          fontFamily: FONT,
+          marginTop: 6,
+        }}
       >
         Роль изменяется Администратором на вкладке «Пользователи»
       </div>
@@ -5279,7 +5284,7 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
           <div
             style={{
               fontSize: 11,
-              color: C.grayL,
+              color: theme.fg3,
               fontFamily: FONT,
               marginTop: 5,
               lineHeight: 1.4,
@@ -5424,7 +5429,9 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
               >
                 {g.name}
               </span>
-              <span style={{ fontSize: 11, color: C.grayL, fontFamily: FONT }}>
+              <span
+                style={{ fontSize: 11, color: theme.fg3, fontFamily: FONT }}
+              >
                 {cats.length}
               </span>
               <span
@@ -5478,7 +5485,11 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
                         </span>
                       )}
                       <span
-                        style={{ fontSize: 13, color: C.grayL, flexShrink: 0 }}
+                        style={{
+                          fontSize: 13,
+                          color: theme.fg3,
+                          flexShrink: 0,
+                        }}
                       >
                         ›
                       </span>
@@ -5673,7 +5684,7 @@ function NastroykiPage({
       )}
       {tab === "Лицензии" && (
         <div style={{ padding: "60px 24px", textAlign: "center" }}>
-          <div style={{ fontFamily: FONT, fontSize: 13, color: C.grayL }}>
+          <div style={{ fontFamily: FONT, fontSize: 13, color: theme.fg3 }}>
             Управление лицензиями — скоро
           </div>
         </div>
@@ -5693,7 +5704,7 @@ function NastroykiPage({
             <div
               style={{
                 fontSize: 12,
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
                 padding: "10px 0",
               }}
@@ -5707,7 +5718,7 @@ function NastroykiPage({
               <div
                 style={{
                   fontSize: 12,
-                  color: C.grayL,
+                  color: theme.fg3,
                   fontFamily: FONT,
                   padding: "4px 2px",
                 }}
@@ -5814,7 +5825,7 @@ function NastroykiPage({
             <div
               style={{
                 fontSize: 12,
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
                 padding: "10px 0",
               }}
@@ -5884,7 +5895,7 @@ function NastroykiPage({
                   fontSize: 16,
                   cursor: c.is_default ? "default" : "pointer",
                   flexShrink: 0,
-                  color: c.is_default ? C.cherry : C.grayL,
+                  color: c.is_default ? C.cherry : theme.fg3,
                   lineHeight: 1,
                 }}
               >
@@ -5931,7 +5942,7 @@ function NastroykiPage({
             <div
               style={{
                 fontSize: 12,
-                color: C.grayL,
+                color: theme.fg3,
                 fontFamily: FONT,
                 padding: "8px 0",
               }}
@@ -5982,7 +5993,7 @@ function NastroykiPage({
               paddingTop: 14,
               borderTop: `1px solid ${C.silver}`,
               fontSize: 10,
-              color: C.grayL,
+              color: theme.fg3,
               fontFamily: FONT,
               textAlign: "center",
               letterSpacing: "0.04em",
@@ -6410,7 +6421,7 @@ function ConsentScreen({ onAccept }) {
             border: "none",
             borderRadius: 12,
             background: canSubmit ? C.cherry : theme.surfaceSunk,
-            color: canSubmit ? C.white : C.grayL,
+            color: canSubmit ? C.white : theme.fg3,
             fontFamily: FONT,
             fontSize: 14,
             fontWeight: 600,
@@ -6591,13 +6602,13 @@ function AppSwitcher({ onClose, onPick }) {
                   fontFamily: FONT,
                   fontSize: 14,
                   fontWeight: a.active ? 600 : 500,
-                  color: a.soon ? C.grayL : "#111318",
+                  color: a.soon ? theme.fg3 : "#111318",
                 }}
               >
                 {a.label}
                 {a.soon && (
                   <span
-                    style={{ fontWeight: 400, fontSize: 12, color: C.grayL }}
+                    style={{ fontWeight: 400, fontSize: 12, color: theme.fg3 }}
                   >
                     {" "}
                     · Скоро
