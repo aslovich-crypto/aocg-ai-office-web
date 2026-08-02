@@ -2975,16 +2975,37 @@ function OperaciiPage({
           gap: 12,
         }}
       >
+        {/* UX-7: при заданном диапазоне «с/по» фильтр уходит в свою ветку
+            и период НЕ применяется (см. inDate ниже). Раньше чип продолжал
+            подсвечивать «Месяц» и выглядел рабочим — пользователь был уверен,
+            что видит месяц, а видел диапазон. Из-за этого «Чеки» и «Сводка»
+            молча показывали разное. Теперь капсула приглушена и под ней
+            написан реальный диапазон; тап по любому чипу его сбрасывает
+            (это уже делал onChange) и возвращает период. */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <SegmentedControl
-            segments={PERIOD_OPTIONS.map((o) => o.label)}
-            active={periodLabel(activePeriod)}
-            onChange={(l) => {
-              setActivePeriod(periodKey(l));
-              setDateFrom(defaultFrom);
-              setDateTo(defaultTo);
-            }}
-          />
+          <div style={{ opacity: customFilterActive ? 0.45 : 1 }}>
+            <SegmentedControl
+              segments={PERIOD_OPTIONS.map((o) => o.label)}
+              active={periodLabel(activePeriod)}
+              onChange={(l) => {
+                setActivePeriod(periodKey(l));
+                setDateFrom(defaultFrom);
+                setDateTo(defaultTo);
+              }}
+            />
+          </div>
+          {customFilterActive && (
+            <div
+              style={{
+                marginTop: 6,
+                font: `500 11px/1.3 ${FONT}`,
+                color: theme.warningFg,
+              }}
+            >
+              Показан свой период: {dateFrom ? fmtDate(dateFrom) : "…"} —{" "}
+              {dateTo ? fmtDate(dateTo) : "…"}. Тап по периоду сбросит его
+            </div>
+          )}
         </div>
         <div
           style={{
