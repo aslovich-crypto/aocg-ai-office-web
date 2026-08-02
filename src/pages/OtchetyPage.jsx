@@ -45,6 +45,7 @@ function Pill({ children, onClick, bg, color, border }) {
 export default function OtchetyPage({
   receipts,
   userId,
+  role, // ЧП5б: гейт «Одобрить/Отклонить» в деталях отчёта
   authFetch,
   reloadReceipts, // после удаления отчёта его чеки освободились
   fmt,
@@ -674,6 +675,7 @@ export default function OtchetyPage({
         <ReportDetailModal
           report={openRep}
           onClose={() => setOpenRep(null)}
+          role={role}
           reloadReceipts={reloadReceipts}
           onChanged={(updated) => {
             // Ответ ручек состава — форма элемента списка (T7), поэтому

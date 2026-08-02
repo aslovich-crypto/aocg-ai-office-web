@@ -6,7 +6,7 @@ import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { authFetch } from "../lib/api";
-import { BADGE, isEditable, FROZEN_HINT } from "../lib/reports";
+import { BADGE, isEditable, FROZEN_HINT, canApprove } from "../lib/reports";
 
 // Детали отчёта — полноэкранная карточка по образцу «Детали чека».
 // ЗАЧЕМ ЭКРАН СУЩЕСТВУЕТ: без него бухгалтер одобрял вслепую — в списке видно
@@ -30,6 +30,27 @@ function receiptWhen(r) {
   return fmtDate(r.date);
 }
 
+// Что показать внизу экрана у отчёта «На проверке». Кнопок нет — объясняем
+// причину, иначе пустой низ читается как поломка.
+const FOOTER_NOTE = {
+  elsewhere: "Отчёт ждёт решения — одобряют и отклоняют в разделе «Отчёты»",
+  noRights: "Отчёт на проверке у бухгалтера",
+};
+
+// Единственный узел решения: кнопки, объяснение или ничего.
+// Порядок веток важен — сначала право, потом место. Иначе сотруднику,
+// открывшему отчёт из карточки чека, написали бы «одобряют в разделе
+// „Отчёты“», хотя одобрить он не может нигде.
+function footerFor({ status, role, onStatus }) {
+  if (status !== "На проверке") return null;
+  // Роль ещё не пришла (/api/users/me в полёте): не рисуем ни кнопок, ни
+  // «нет прав». Показать отказ по незагруженным данным — соврать, а потом
+  // молча переобуться, когда роль придёт.
+  if (role == null) return null;
+  if (!canApprove(role)) return "noRights";
+  return onStatus ? "buttons" : "elsewhere";
+}
+
 export default function ReportDetailModal({
   // Отчёт: из списка приходит целиком (показываем сразу, без спиннера), из
   // карточки чека — «скелетом» {id, title}: в чеке есть только report_id и
@@ -38,6 +59,7 @@ export default function ReportDetailModal({
   onClose,
   onChanged, // обновлённый отчёт → в список (из карточки чека не нужен)
   onStatus, // (id, status) → смена статуса; НЕ передан — решения тут не принимают
+  role, // роль текущего юзера; null = ещё не загрузилась (не «нет прав»)
   reloadReceipts, // состав изменился → чек освободился/занялся
   zIndex = 120, // из карточки чека открываемся поверх неё (у неё 150)
 }) {
@@ -170,6 +192,8 @@ export default function ReportDetailModal({
     );
     if (aliveRef.current) setBusyId(null);
   }
+
+  const footer = footerFor({ status: rep.status, role, onStatus });
 
   const dialogRef = useModalA11y(onClose);
 
@@ -503,12 +527,8 @@ export default function ReportDetailModal({
         </div>
       )}
 
-      {/* Решение по деньгам — только здесь, после просмотра состава.
-          Открыли отчёт из карточки чека («В отчёте …») — это справка «куда
-          делся мой чек», а не рабочее место проверяющего: onStatus не передан,
-          кнопок нет. Чтобы отсутствие кнопок не читалось как поломка, ниже —
-          строка, куда идти за решением. */}
-      {rep.status === "На проверке" && onStatus && (
+      {/* Решение по деньгам — только здесь, после просмотра состава. */}
+      {footer === "buttons" && (
         <div
           style={{
             flexShrink: 0,
@@ -552,7 +572,9 @@ export default function ReportDetailModal({
         </div>
       )}
 
-      {rep.status === "На проверке" && !onStatus && (
+      {/* Кнопок нет — объясняем почему. Молчание читалось бы как поломка:
+          пользователь видит «На проверке» и пустой низ экрана. */}
+      {FOOTER_NOTE[footer] && (
         <div
           style={{
             flexShrink: 0,
@@ -564,7 +586,7 @@ export default function ReportDetailModal({
             textAlign: "center",
           }}
         >
-          Отчёт ждёт решения — одобряют и отклоняют в разделе «Отчёты»
+          {FOOTER_NOTE[footer]}
         </div>
       )}
     </div>

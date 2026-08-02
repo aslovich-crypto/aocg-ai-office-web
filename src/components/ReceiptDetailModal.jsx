@@ -395,6 +395,7 @@ export default function ReceiptDetailModal({
   // отчёта) → родитель перечитывает чек и строку списка: in_report,
   // report_id и report_title считает бэк, локально их не выводим.
   onReportLinkChanged,
+  role, // ЧП5б: прокидывается дальше в детали отчёта
   catalog,
   paymentOptions = [],
 }) {
@@ -1518,6 +1519,7 @@ export default function ReceiptDetailModal({
         <ReportDetailModal
           report={openReport}
           onClose={() => setOpenReport(null)}
+          role={role}
           reloadReceipts={onReportLinkChanged}
           zIndex={180}
         />

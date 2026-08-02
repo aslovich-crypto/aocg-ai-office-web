@@ -2490,6 +2490,7 @@ function OperaciiPage({
   receipts,
   cards,
   catalog,
+  role, // ЧП5б: до деталей отчёта, открытых из карточки чека
   handleAdd,
   handleDelete,
   handleUpdate,
@@ -3245,6 +3246,7 @@ function OperaciiPage({
             const upd = await handleUpdate(detail.id, { payment: p });
             if (upd) setDetail(upd);
           }}
+          role={role}
           onReportLinkChanged={async () => {
             // Связь с отчётом изменилась (прикрепили или убрали в деталях
             // отчёта) — перечитываем каноническую форму чека
@@ -8228,6 +8230,7 @@ export default function App() {
             handleDelete={handleDelete}
             handleUpdate={handleUpdate}
             handleRefreshReceipt={handleRefreshReceipt}
+            role={role}
             handleBulkDelete={handleBulkDelete}
             activePeriod={activePeriod}
             setActivePeriod={setActivePeriod}
@@ -8237,6 +8240,7 @@ export default function App() {
           <OtchetyPage
             receipts={receipts}
             userId={userId}
+            role={role}
             authFetch={authFetch}
             reloadReceipts={reloadReceipts}
             fmt={fmt}
