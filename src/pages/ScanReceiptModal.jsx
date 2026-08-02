@@ -1537,7 +1537,7 @@ export default function ScanReceiptModal({
                     fontFamily: FONT,
                     fontSize: 14,
                     fontWeight: 600,
-                    color: C.white,
+                    color: theme.surface,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -1557,7 +1557,7 @@ export default function ScanReceiptModal({
                 }}
                 style={{
                   padding: "12px",
-                  background: C.white,
+                  background: theme.surface,
                   border: `1px solid ${C.silver}`,
                   borderRadius: 12,
                   fontFamily: FONT,
@@ -1604,7 +1604,7 @@ export default function ScanReceiptModal({
                 fontFamily: FONT,
                 fontSize: 14,
                 fontWeight: 600,
-                color: C.white,
+                color: theme.surface,
                 cursor: "pointer",
               }}
             >
@@ -1744,7 +1744,7 @@ export default function ScanReceiptModal({
                     fontFamily: FONT,
                     fontSize: 14,
                     fontWeight: 600,
-                    color: C.white,
+                    color: theme.surface,
                     cursor: "pointer",
                   }}
                 >
@@ -1798,7 +1798,7 @@ export default function ScanReceiptModal({
                     fontFamily: FONT,
                     fontSize: 14,
                     fontWeight: 600,
-                    color: C.white,
+                    color: theme.surface,
                     cursor: "pointer",
                   }}
                 >

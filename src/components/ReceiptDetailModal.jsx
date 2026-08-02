@@ -39,7 +39,7 @@ const T = {
   cherry: theme.cherry,
   cherryTint: theme.cherryTint, // Brand Tint — подсветка выбранного пункта
   cherryHover: "#8B1218",
-  white: C.white,
+  white: theme.surface,
 };
 
 const money = (n) =>

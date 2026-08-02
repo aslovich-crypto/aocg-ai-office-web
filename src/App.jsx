@@ -223,12 +223,12 @@ function Btn({ children, onClick, disabled, outline, full, small, loading }) {
               ? "transparent"
               : theme.cherry,
         color: loading
-          ? C.white
+          ? theme.surface
           : disabled
             ? theme.fg3
             : outline
               ? theme.cherry
-              : C.white,
+              : theme.surface,
         border: `1.5px solid ${disabled && !loading ? C.silver : theme.cherry}`,
         padding: small ? "6px 12px" : "9px 18px",
         fontFamily: FONT,
@@ -305,7 +305,7 @@ function TabBar({ tabs, active, onSelect }) {
       style={{
         display: "flex",
         borderBottom: `1px solid ${C.silver}`,
-        background: C.white,
+        background: theme.surface,
         overflowX: "auto",
       }}
     >
@@ -376,7 +376,7 @@ function Modal({ title, onClose, children, footer }) {
         aria-label={title}
         tabIndex={-1}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderTop: `3px solid ${theme.cherry}`,
@@ -474,7 +474,7 @@ function SegmentedControl({ segments, active, onChange }) {
               borderRadius: 6,
               cursor: "pointer",
               userSelect: "none",
-              background: on ? C.white : "transparent",
+              background: on ? theme.surface : "transparent",
               color: on ? "#A4161A" : "#636B7D",
               border: on ? "1px solid #EEF0F4" : "1px solid transparent",
               boxShadow: on ? "0 1px 3px rgba(17,19,24,0.12)" : "none",
@@ -499,7 +499,7 @@ function SectionCard({ title, children }) {
   return (
     <div
       style={{
-        background: C.white,
+        background: theme.surface,
         border: `0.5px solid ${C.silver}`,
         borderRadius: 12,
         marginBottom: 12,
@@ -559,7 +559,7 @@ function Donut({ title, data, num, sliceColor }) {
               <Tooltip
                 formatter={(v) => fmt(v)}
                 contentStyle={{
-                  background: C.white,
+                  background: theme.surface,
                   border: `1px solid ${C.silver}`,
                   fontFamily: FONT,
                   fontSize: 11,
@@ -769,7 +769,7 @@ function SvodkaPage({
     <div style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)" }}>
       <div
         style={{
-          background: C.white,
+          background: theme.surface,
           borderBottom: `1px solid ${C.silver}`,
           padding: "10px 16px",
         }}
@@ -801,7 +801,7 @@ function SvodkaPage({
         {/* 1 · Итого за период */}
         <div
           style={{
-            background: C.white,
+            background: theme.surface,
             border: `0.5px solid ${C.silver}`,
             borderRadius: 12,
             padding: 16,
@@ -1217,7 +1217,7 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
         onPointerCancel={onPointerUp}
         onClick={handleTap}
         style={{
-          background: C.white,
+          background: theme.surface,
           padding: "14px 16px",
           display: "flex",
           alignItems: "flex-start",
@@ -1396,7 +1396,7 @@ function FiltersModal({
     fontSize: 13,
     fontFamily: FONT,
     color: C.dark,
-    background: C.white,
+    background: theme.surface,
     boxSizing: "border-box",
   };
   const labelStyle = {
@@ -1472,7 +1472,7 @@ function FiltersModal({
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
@@ -1682,7 +1682,7 @@ function FiltersModal({
                                 ? col.fg
                                 : someOn
                                   ? col.bg
-                                  : C.white,
+                                  : theme.surface,
                               color: allOn ? "#fff" : col.fg,
                               display: "flex",
                               alignItems: "center",
@@ -1815,7 +1815,7 @@ function FiltersModal({
               width: 44,
               height: 44,
               border: `1px solid ${C.silver}`,
-              background: C.white,
+              background: theme.surface,
               color: theme.fg2,
               cursor: "pointer",
               borderRadius: 10,
@@ -1849,7 +1849,7 @@ function FiltersModal({
               border: "none",
               fontFamily: FONT,
               fontSize: 13,
-              color: C.white,
+              color: theme.surface,
               cursor: "pointer",
               borderRadius: 10,
               fontWeight: 600,
@@ -2055,7 +2055,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                 alignItems: "center",
                 gap: 8,
                 padding: "6px 8px",
-                background: C.white,
+                background: theme.surface,
                 border: `1px solid ${C.silver}`,
                 borderRadius: 8,
                 cursor: locked ? "default" : "pointer",
@@ -2175,7 +2175,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
             fontWeight: 700,
             cursor: disabledBtn ? "default" : "pointer",
             background: disabledBtn ? C.silver : theme.cherry,
-            color: disabledBtn ? theme.fg2 : C.white,
+            color: disabledBtn ? theme.fg2 : theme.surface,
           }}
         >
           <Trash2 size={14} strokeWidth={2} /> Удалить выбранные ({count})
@@ -2965,7 +2965,7 @@ function OperaciiPage({
       <TabBar tabs={["Чеки","Онлайн чеки"]} active={tab} onSelect={setTab}/> */}
       <div
         style={{
-          background: C.white,
+          background: theme.surface,
           borderBottom: `1px solid ${C.silver}`,
           padding: "10px 16px",
           display: "flex",
@@ -3026,7 +3026,7 @@ function OperaciiPage({
       {showSearch && (
         <div
           style={{
-            background: C.white,
+            background: theme.surface,
             borderBottom: `1px solid ${C.silver}`,
             padding: "0 16px 10px",
           }}
@@ -3153,7 +3153,7 @@ function OperaciiPage({
               style={{
                 padding: "10px 20px",
                 border: `1px solid ${C.silver}`,
-                background: C.white,
+                background: theme.surface,
                 color: theme.cherry,
                 fontFamily: FONT,
                 fontSize: 12,
@@ -3179,7 +3179,7 @@ function OperaciiPage({
           width: 56,
           height: 56,
           background: theme.cherry,
-          color: C.white,
+          color: theme.surface,
           border: "none",
           fontSize: 20,
           cursor: "pointer",
@@ -3449,7 +3449,7 @@ function OperaciiPage({
                   gap: 10,
                   padding: "10px 12px",
                   border: `1px solid ${C.silver}`,
-                  background: C.white,
+                  background: theme.surface,
                   borderRadius: 10,
                   cursor: "pointer",
                   fontFamily: FONT,
@@ -3537,7 +3537,7 @@ function OperaciiPage({
                         form.payment === m ? theme.cherry : C.silver
                       }`,
                       background:
-                        form.payment === m ? theme.cherrySoft : C.white,
+                        form.payment === m ? theme.cherrySoft : theme.surface,
                       color: form.payment === m ? theme.cherry : C.mid,
                       fontFamily: FONT,
                       fontSize: 11,
@@ -3584,7 +3584,7 @@ function ServiceCard({ svc }) {
   return (
     <div
       style={{
-        background: C.white,
+        background: theme.surface,
         border: `1px solid ${C.silver}`,
         borderRadius: 8,
         padding: "12px 14px",
@@ -3758,7 +3758,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
         onPointerUp={up}
         onPointerCancel={up}
         style={{
-          background: C.white,
+          background: theme.surface,
           padding: "11px 14px",
           display: "flex",
           alignItems: "center",
@@ -3778,7 +3778,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
             height: 34,
             borderRadius: "50%",
             background: theme.cherry,
-            color: C.white,
+            color: theme.surface,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -3836,7 +3836,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
     fontSize: 13,
     fontFamily: FONT,
     color: C.dark,
-    background: C.white,
+    background: theme.surface,
     boxSizing: "border-box",
   };
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -3869,7 +3869,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
@@ -4041,7 +4041,7 @@ function ChangePasswordModal({ onClose }) {
     fontSize: 14,
     fontFamily: FONT,
     color: C.dark,
-    background: C.white,
+    background: theme.surface,
     boxSizing: "border-box",
     outline: "none",
   };
@@ -4100,7 +4100,7 @@ function ChangePasswordModal({ onClose }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
@@ -4348,7 +4348,7 @@ function AccountTab() {
     alignItems: "center",
     padding: "3px 12px",
     borderBottom: `1px solid ${C.silver}`,
-    background: i % 2 === 0 ? C.white : theme.surfaceSunk,
+    background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
   });
   const lbl = {
     fontSize: 11,
@@ -4476,7 +4476,7 @@ function AccountTab() {
       <SectionHead title="Ваша роль" />
       <div
         style={{
-          background: C.white,
+          background: theme.surface,
           border: `1px solid ${C.silver}`,
           borderRadius: 8,
           borderLeft: `3px solid ${theme.cherry}`,
@@ -4526,7 +4526,7 @@ function AccountTab() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          background: C.white,
+          background: theme.surface,
           border: `1px solid ${C.silver}`,
           borderRadius: 8,
           padding: "12px 14px",
@@ -4540,7 +4540,7 @@ function AccountTab() {
           onClick={() => setShowPwModal(true)}
           style={{
             border: `1px solid ${C.silver}`,
-            background: C.white,
+            background: theme.surface,
             borderRadius: 8,
             padding: "7px 14px",
             fontFamily: FONT,
@@ -4574,7 +4574,7 @@ function AccountTab() {
               display: "flex",
               alignItems: "center",
               gap: 10,
-              background: C.white,
+              background: theme.surface,
               border: `1px solid ${C.silver}`,
               borderRadius: 8,
               padding: "8px 12px",
@@ -4609,7 +4609,7 @@ function AccountTab() {
               onClick={oauthSoon}
               style={{
                 border: `1px solid ${C.silver}`,
-                background: C.white,
+                background: theme.surface,
                 borderRadius: 8,
                 padding: "6px 12px",
                 fontFamily: FONT,
@@ -4629,7 +4629,7 @@ function AccountTab() {
           <SectionHead title="Согласие на обработку данных" />
           <div
             style={{
-              background: C.white,
+              background: theme.surface,
               border: `1px solid ${C.silver}`,
               borderRadius: 8,
               padding: "12px 14px",
@@ -4674,7 +4674,7 @@ function AccountTab() {
           style={{
             width: "100%",
             padding: "12px",
-            background: C.white,
+            background: theme.surface,
             border: `1.5px solid ${theme.cherry}`,
             borderRadius: 10,
             fontFamily: FONT,
@@ -4819,7 +4819,7 @@ function InviteSheet({ onClose }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
@@ -4977,7 +4977,7 @@ function InviteSheet({ onClose }) {
                   style={{
                     flex: 1,
                     padding: "12px",
-                    background: C.white,
+                    background: theme.surface,
                     border: `1px solid ${C.silver}`,
                     borderRadius: 10,
                     fontFamily: FONT,
@@ -5034,7 +5034,7 @@ const FIELD_INP = {
   fontSize: 14,
   fontFamily: FONT,
   color: C.dark,
-  background: C.white,
+  background: theme.surface,
   outline: "none",
 };
 
@@ -5074,7 +5074,7 @@ function BottomSheet({ title, onClose, children }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
@@ -5426,7 +5426,7 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
                 gap: 8,
                 padding: "11px 12px",
                 cursor: "pointer",
-                background: C.white,
+                background: theme.surface,
               }}
             >
               <span
@@ -5612,7 +5612,7 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
             bottom: 90,
             transform: "translateX(-50%)",
             background: C.dark,
-            color: C.white,
+            color: theme.surface,
             padding: "10px 16px",
             borderRadius: 8,
             fontSize: 13,
@@ -5753,7 +5753,7 @@ function NastroykiPage({
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  background: C.white,
+                  background: theme.surface,
                   border: `1px solid ${C.silver}`,
                   borderRadius: 8,
                   padding: "10px 12px",
@@ -5894,7 +5894,7 @@ function NastroykiPage({
             <div
               key={c.id}
               style={{
-                background: i % 2 === 0 ? C.white : theme.surfaceSunk,
+                background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
                 padding: "5px 14px",
                 borderBottom: `1px solid ${C.silver}`,
                 display: "flex",
@@ -5991,7 +5991,7 @@ function NastroykiPage({
                 fontSize: 13,
                 fontFamily: FONT,
                 color: C.dark,
-                background: C.white,
+                background: theme.surface,
                 boxSizing: "border-box",
               }}
             />
@@ -6117,7 +6117,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           maxHeight: "80dvh",
@@ -6190,7 +6190,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
             style={{
               width: "100%",
               padding: "12px",
-              background: C.white,
+              background: theme.surface,
               border: `1px solid ${C.silver}`,
               borderRadius: 10,
               fontFamily: FONT,
@@ -6234,7 +6234,7 @@ function ConsentCheckbox({ checked, onToggleCheck, onOpenSheet, label }) {
           marginTop: 1,
           borderRadius: 5,
           border: `1.5px solid ${checked ? theme.cherry : C.silver}`,
-          background: checked ? theme.cherry : C.white,
+          background: checked ? theme.cherry : theme.surface,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -6445,7 +6445,7 @@ function ConsentScreen({ onAccept }) {
             border: "none",
             borderRadius: 12,
             background: canSubmit ? theme.cherry : theme.surfaceSunk,
-            color: canSubmit ? C.white : theme.fg3,
+            color: canSubmit ? theme.surface : theme.fg3,
             fontFamily: FONT,
             fontSize: 14,
             fontWeight: 600,
@@ -6576,7 +6576,7 @@ function AppSwitcher({ onClose, onPick }) {
           left: 8,
           zIndex: 41,
           width: 256,
-          background: C.white,
+          background: theme.surface,
           border: `1px solid ${C.silver}`,
           borderRadius: 12,
           boxShadow: "0 8px 30px rgba(17,19,24,0.16)",
@@ -6668,7 +6668,7 @@ function AuthShell({ children }) {
     <div
       style={{
         minHeight: "100dvh",
-        background: C.white,
+        background: theme.surface,
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
@@ -6691,7 +6691,7 @@ const A_INPUT = {
   fontSize: 15,
   fontFamily: FONT,
   color: C.dark,
-  background: C.white,
+  background: theme.surface,
   boxSizing: "border-box",
   outline: "none",
 };
@@ -7282,7 +7282,7 @@ function RegisterScreen({ onAuthed, navigate }) {
         padding: "14px 16px",
         border: `1px solid ${orgType === t ? theme.cherry : C.silver}`,
         borderRadius: 12,
-        background: C.white,
+        background: theme.surface,
         cursor: "pointer",
         marginBottom: 10,
       }}
@@ -8109,7 +8109,7 @@ export default function App() {
     >
       <div
         style={{
-          background: C.white,
+          background: theme.surface,
           borderBottom: `1px solid ${C.silver}`,
           flexShrink: 0,
           paddingTop: "env(safe-area-inset-top)",
@@ -8314,7 +8314,7 @@ export default function App() {
       </div>
       <div
         style={{
-          background: C.white,
+          background: theme.surface,
           borderTop: `1px solid ${C.silver}`,
           display: "flex",
           flexShrink: 0,

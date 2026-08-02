@@ -288,7 +288,7 @@ export default function OtchetyPage({
           Токены/отступы скопированы оттуда 1:1. */}
       <div
         style={{
-          background: C.white,
+          background: theme.surface,
           borderBottom: `1px solid ${C.silver}`,
           padding: "10px 16px",
           display: "flex",
@@ -326,7 +326,7 @@ export default function OtchetyPage({
                     borderRadius: 6,
                     font: `${on ? 600 : 500} 13px/1 ${FONT}`,
                     color: on ? theme.cherry : C.mid,
-                    background: on ? C.white : "transparent",
+                    background: on ? theme.surface : "transparent",
                     boxShadow: on ? "0 1px 3px rgba(17,19,24,0.12)" : "none",
                     cursor: "pointer",
                     whiteSpace: "nowrap",
@@ -372,7 +372,7 @@ export default function OtchetyPage({
       {showSearch && (
         <div
           style={{
-            background: C.white,
+            background: theme.surface,
             borderBottom: `1px solid ${C.silver}`,
             padding: "0 16px 10px",
           }}
@@ -463,7 +463,7 @@ export default function OtchetyPage({
                   if (e.key === "Enter" || e.key === " ") setOpenRep(rep);
                 }}
                 style={{
-                  background: C.white,
+                  background: theme.surface,
                   borderRadius: 12,
                   boxShadow: "0 1px 3px rgba(17,19,24,.08)",
                   padding: "14px 16px",
@@ -809,7 +809,7 @@ export default function OtchetyPage({
                     padding: "9px 10px",
                     marginBottom: 4,
                     border: `1px solid ${sel ? theme.cherry : C.silver}`,
-                    background: sel ? theme.cherrySoft : C.white,
+                    background: sel ? theme.cherrySoft : theme.surface,
                     cursor: "pointer",
                   }}
                 >
@@ -822,7 +822,7 @@ export default function OtchetyPage({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: C.white,
+                      color: theme.surface,
                       fontSize: 10,
                       flexShrink: 0,
                       borderRadius: 3,

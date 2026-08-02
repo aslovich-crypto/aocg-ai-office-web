@@ -75,7 +75,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.white,
+          background: theme.surface,
           width: "100%",
           maxWidth: 480,
           borderRadius: "16px 16px 0 0",
@@ -231,7 +231,9 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                       selected === specialCat.name ? specialCol.fg : C.silver
                     }`,
                     background:
-                      selected === specialCat.name ? specialCol.bg : C.white,
+                      selected === specialCat.name
+                        ? specialCol.bg
+                        : theme.surface,
                     color:
                       selected === specialCat.name ? specialCol.fg : C.dark,
                     fontFamily: FONT,
@@ -304,7 +306,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                         style={{
                           padding: "7px 12px",
                           border: `1px solid ${sel ? col.fg : C.silver}`,
-                          background: sel ? col.bg : C.white,
+                          background: sel ? col.bg : theme.surface,
                           color: sel ? col.fg : C.dark,
                           fontFamily: FONT,
                           fontSize: 12,

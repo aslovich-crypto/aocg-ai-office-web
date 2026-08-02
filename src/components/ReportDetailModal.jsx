@@ -237,7 +237,7 @@ export default function ReportDetailModal({
         {/* шапка */}
         <div
           style={{
-            background: C.white,
+            background: theme.surface,
             borderBottom: `1px solid ${C.silver}`,
             padding: "calc(env(safe-area-inset-top) + 8px) 8px 8px",
             display: "flex",
@@ -270,7 +270,7 @@ export default function ReportDetailModal({
           {/* заголовок + статус + итог */}
           <div
             style={{
-              background: C.white,
+              background: theme.surface,
               borderRadius: 12,
               padding: "16px",
               boxShadow: "0 1px 3px rgba(17,19,24,.08)",
@@ -396,7 +396,7 @@ export default function ReportDetailModal({
               <div
                 key={rc.id}
                 style={{
-                  background: C.white,
+                  background: theme.surface,
                   borderRadius: 12,
                   boxShadow: "0 1px 3px rgba(17,19,24,.06)",
                   padding: "12px 14px",
@@ -512,7 +512,7 @@ export default function ReportDetailModal({
               right: 16,
               bottom: "calc(env(safe-area-inset-bottom) + 84px)",
               background: C.dark,
-              color: C.white,
+              color: theme.surface,
               borderRadius: 10,
               padding: "12px 14px",
               display: "flex",
@@ -552,7 +552,7 @@ export default function ReportDetailModal({
           <div
             style={{
               flexShrink: 0,
-              background: C.white,
+              background: theme.surface,
               borderTop: `1px solid ${C.silver}`,
               padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
               display: "flex",
@@ -566,7 +566,7 @@ export default function ReportDetailModal({
                 height: 46,
                 borderRadius: 8,
                 border: "1px solid #FECACA",
-                background: C.white,
+                background: theme.surface,
                 color: "#B91C1C",
                 font: `600 15px/1 ${FONT}`,
                 cursor: "pointer",
@@ -582,7 +582,7 @@ export default function ReportDetailModal({
                 borderRadius: 8,
                 border: "none",
                 background: "#15803D",
-                color: C.white,
+                color: theme.surface,
                 font: `600 15px/1 ${FONT}`,
                 cursor: "pointer",
               }}
@@ -598,7 +598,7 @@ export default function ReportDetailModal({
           <div
             style={{
               flexShrink: 0,
-              background: C.white,
+              background: theme.surface,
               borderTop: `1px solid ${C.silver}`,
               padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
               font: `400 13px/1.4 ${FONT}`,
