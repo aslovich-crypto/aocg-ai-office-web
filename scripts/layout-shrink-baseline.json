@@ -1,0 +1,29 @@
+{
+  "_": "Известные нарушения на момент введения правил (T14). Число может только УМЕНЬШАТЬСЯ: сторож требует опускать планку после каждой починки, иначе список тихо зарастает. Записи full-width-padding снимаются вместе с T13 (глобальный box-sizing) — до тех пор они не ошибка, а зафиксированный долг.",
+  "counts": {
+    "src/App.jsx": {
+      "flex-no-minwidth": 19,
+      "grid-1fr-no-minmax": 1,
+      "full-width-padding": 9
+    },
+    "src/components/ReceiptDetailModal.jsx": {
+      "flex-no-minwidth": 4,
+      "full-width-padding": 6
+    },
+    "src/components/ReportDetailModal.jsx": {
+      "flex-no-minwidth": 2
+    },
+    "src/pages/GlavnayaPage.jsx": {
+      "flex-no-minwidth": 1,
+      "grid-1fr-no-minmax": 2,
+      "full-width-padding": 3
+    },
+    "src/pages/OrganizationTab.jsx": {
+      "flex-no-minwidth": 1
+    },
+    "src/pages/ScanReceiptModal.jsx": {
+      "flex-no-minwidth": 3,
+      "full-width-padding": 4
+    }
+  }
+}
