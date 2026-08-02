@@ -321,6 +321,49 @@ export function initOverflowDebug() {
   const HIT = H.includes("overflow-hit");
   let probeNote = "";
 
+  // Структурный доступ для автоматического прогона (tools/layout-audit).
+  // ЗАЧЕМ ИМЕННО ТАК: считывать показания из ТЕКСТА панели — значит разбирать
+  // формулировки регулярками, и любая правка подписи ломает прогон молча.
+  // Дублировать логику сканирования в скрипте нельзя тем более: копия
+  // разойдётся с оригиналом при первой правке — та самая болезнь, с которой
+  // мы боремся в теме, в документации и в вендорной копии ДС.
+  // Отдаём ТЕ ЖЕ данные, что видит панель, только в виде значений.
+  // Ставится ПОСЛЕ проверки метки выше: без #overflow в адресе этой функции
+  // на window нет вовсе, как нет ни панели, ни слушателей.
+  window.__overflowScan = () => {
+    const { boundary, total, clip, outgrow, cutoff } = scan();
+    const plain = (arr, key) =>
+      arr.map((x) => ({ el: describe(x.el), px: x[key] }));
+    return {
+      screen: window.innerWidth,
+      doc: Math.round(document.documentElement.scrollWidth),
+      overflowTotal: total,
+      boundary: plain(boundary, "over"),
+      outgrow: plain(outgrow, "diff"),
+      clip: plain(clip, "hidden"),
+      cutoff: cutoff.map((x) => ({
+        el: describe(x.el),
+        px: x.cut,
+        clipper: describe(x.clipper),
+      })),
+      overlap: overlapProbe().map((o) => ({
+        floating: describe(o.f),
+        rect: {
+          x1: Math.round(o.fr.left),
+          x2: Math.round(o.fr.right),
+          y1: Math.round(o.fr.top),
+          y2: Math.round(o.fr.bottom),
+        },
+        onTop: o.top ? describe(o.top) : null,
+        covered: o.covered.map((c) => ({
+          el: describe(c.el),
+          px: c.hidden,
+          leaf: c.leaf,
+        })),
+      })),
+    };
+  };
+
   const panel = document.createElement("div");
   panel.dataset.ovfPanel = "1";
   panel.style.cssText = [
