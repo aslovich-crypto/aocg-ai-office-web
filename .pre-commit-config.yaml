@@ -10,11 +10,17 @@ repos:
       - id: gitleaks
 
   # --- Базовая гигиена ---
+  # design/ исключён из «причёсывающих» хуков: там вендорная копия ДС, она
+  # сверяется ПОБАЙТНО. В её шапке-отметке есть концевой пробел, и
+  # trailing-whitespace молча срезал бы его — копия перестала бы совпадать
+  # с выгрузкой, а мы бы «починили» это пересчётом суммы и закрепили расхождение.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^design/
       - id: end-of-file-fixer
+        exclude: ^design/
       - id: check-added-large-files
         args: ['--maxkb=5120']
       - id: check-merge-conflict
