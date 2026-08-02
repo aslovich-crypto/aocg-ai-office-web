@@ -31,6 +31,26 @@
 
 const MARK = "overflow";
 
+// Ближайший предок, который РЕЖЕТ содержимое. overflow-x auto/scroll —
+// не режет, а прокручивает: там содержимое доступно, это не дефект.
+function nearestClipper(el) {
+  let p = el.parentElement;
+  while (p && p !== document.body && p !== document.documentElement) {
+    const ox = getComputedStyle(p).overflowX;
+    if (ox === "auto" || ox === "scroll") return null;
+    if (ox === "hidden" || ox === "clip") return p;
+    p = p.parentElement;
+  }
+  return null;
+}
+
+// Правая граница СОДЕРЖИМОГО элемента во вьюпортных координатах:
+// clientLeft снимает рамку, clientWidth — ширина без рамки и полосы прокрутки.
+function contentRight(el) {
+  const r = el.getBoundingClientRect();
+  return r.left + el.clientLeft + el.clientWidth;
+}
+
 function scan() {
   const W = window.innerWidth;
   const over = new Map(); // элемент → на сколько вылез
@@ -81,7 +101,39 @@ function scan() {
   });
   outgrow.sort((a, b) => b.diff - a.diff);
 
-  return { boundary, total: over.size, clip, outgrow };
+  // СРЕЗАН ПРЕДКОМ — четвёртая группа. Прошлые три отвечали на вопросы
+  // «вылез за экран?», «сам себя режет?», «торчит из родителя?». Случай
+  // «правая колонка выехала из карточки, а режет её обёртка свайпа через
+  // два уровня» не покрывался ни одним: пострадавший не режет себя сам,
+  // из своего родителя не торчит (они выехали вместе) и до края экрана
+  // не дошёл — предок обрезал раньше. Дефект видно глазами и не видно
+  // ни одной проверкой.
+  const cutoff = [];
+  document.querySelectorAll("*").forEach((el) => {
+    if (el.dataset.ovfPanel) return;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return;
+    // Многоточие — намеренное усечение, не дефект.
+    if (getComputedStyle(el).textOverflow === "ellipsis") return;
+    const clipper = nearestClipper(el);
+    if (!clipper) return;
+    const cut = Math.round(r.right - contentRight(clipper));
+    if (cut <= 1) return;
+    // Показываем только ГРАНИЦУ: если родитель срезан тем же предком,
+    // элемент лишь унаследовал беду — иначе список утонет в потомках,
+    // как это было с 79 строками на «Чеках».
+    const par = el.parentElement;
+    if (par && nearestClipper(par) === clipper) {
+      const pcut = Math.round(
+        par.getBoundingClientRect().right - contentRight(clipper),
+      );
+      if (pcut > 1) return;
+    }
+    cutoff.push({ el, cut, clipper });
+  });
+  cutoff.sort((a, b) => b.cut - a.cut);
+
+  return { boundary, total: over.size, clip, outgrow, cutoff };
 }
 
 // Цепочка предков с ширинами — по ней сразу видно, на каком уровне ширина
@@ -115,9 +167,45 @@ function describe(el) {
   return `${el.tagName.toLowerCase()}${id}${cls}${txt ? ` «${txt}»` : ""}`;
 }
 
+// ── МУТАЦИЯ НА УСТРОЙСТВЕ (правило T11) ─────────────────────────────────────
+// Сторож, не проверенный мутацией, считается неработающим. Этот измеряет
+// раскладку, а раскладки нет ни в Node, ни в jsdom — значит и мутация
+// возможна только в настоящем браузере. Метка #overflow-test вставляет
+// заведомо широкую полосу внутрь первого режущего контейнера на странице:
+// панель ОБЯЗАНА показать её в группе «срезан предком». Не показала —
+// дыра подтверждена замером, а не рассуждением.
+function injectProbe() {
+  const cand = [...document.querySelectorAll("div")].find((el) => {
+    if (el.dataset.ovfPanel) return false;
+    const ox = getComputedStyle(el).overflowX;
+    if (ox !== "hidden" && ox !== "clip") return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 160 && r.height > 40;
+  });
+  if (!cand)
+    return "контейнер с overflow:hidden не найден — пробу вставить некуда";
+  const probe = document.createElement("div");
+  probe.dataset.ovfProbe = "1";
+  probe.textContent = "ПРОБА T11";
+  probe.style.cssText =
+    `width:${Math.round(cand.getBoundingClientRect().width) + 120}px;` +
+    "height:10px;background:#BF5AF2;color:#fff;font:700 8px/10px sans-serif;" +
+    "flex-shrink:0;";
+  cand.appendChild(probe);
+  return `проба вставлена в ${describe(cand).slice(
+    0,
+    24,
+  )} — она ДОЛЖНА попасть в «срезан предком»`;
+}
+
 export function initOverflowDebug() {
   if (typeof window === "undefined") return;
   if (!window.location.hash.includes(MARK)) return;
+
+  // Режим самопроверки: вставляем заведомо сломанный элемент и смотрим,
+  // поймает ли его сторож. Вставка отложена — ждём, пока React отрисует.
+  const TEST = window.location.hash.includes("overflow-test");
+  let probeNote = "";
 
   const panel = document.createElement("div");
   panel.dataset.ovfPanel = "1";
@@ -141,11 +229,12 @@ export function initOverflowDebug() {
   let marked = [];
   function run() {
     marked.forEach((el) => (el.style.outline = ""));
-    const { boundary, total, clip, outgrow } = scan();
+    const { boundary, total, clip, outgrow, cutoff } = scan();
     marked = [
       ...boundary.slice(0, 3).map((f) => f.el),
       ...clip.slice(0, 3).map((f) => f.el),
       ...outgrow.slice(0, 3).map((f) => f.el),
+      ...cutoff.slice(0, 3).map((f) => f.el),
     ];
     boundary.slice(0, 3).forEach((f, i) => {
       f.el.style.outline = i === 0 ? "3px solid #FF3B30" : "2px dashed #FF9F0A";
@@ -157,6 +246,10 @@ export function initOverflowDebug() {
     });
     clip.slice(0, 3).forEach((f) => {
       f.el.style.outline = "2px dotted #FFD60A";
+    });
+    cutoff.slice(0, 3).forEach((f, i) => {
+      f.el.style.outline = i === 0 ? "3px solid #BF5AF2" : "2px dashed #BF5AF2";
+      f.el.style.outlineOffset = "-2px";
     });
 
     const doc = Math.round(document.documentElement.scrollWidth);
@@ -186,14 +279,37 @@ export function initOverflowDebug() {
           (f, i) => `${i === 0 ? "▶" : " "} +${f.diff}px  ${describe(f.el)}`,
         ),
     );
+    lines.push(`СРЕЗАН ПРЕДКОМ: ${cutoff.length}`);
+    lines.push(
+      ...cutoff
+        .slice(0, 3)
+        .map(
+          (f, i) =>
+            `${i === 0 ? "▶" : " "} −${f.cut}px  ${describe(f.el)}` +
+            `  ← режет ${describe(f.clipper).slice(0, 22)}`,
+        ),
+    );
     lines.push(`ОБРЕЗАНО без многоточия: ${clip.length}`);
     lines.push(
       ...clip.slice(0, 2).map((f) => `  −${f.hidden}px  ${describe(f.el)}`),
     );
+    if (TEST) {
+      lines.unshift(
+        "РЕЖИМ САМОПРОВЕРКИ (T11): " +
+          (probeNote || "вставляю пробу…") +
+          "\nЕсли «срезан предком» = 0 — СТОРОЖ НЕ РАБОТАЕТ.",
+      );
+    }
     panel.textContent = lines.join("\n");
   }
 
   run();
+  if (TEST) {
+    setTimeout(() => {
+      probeNote = injectProbe();
+      run();
+    }, 800);
+  }
   window.addEventListener("resize", run, { passive: true });
   // Пересчёт после каждого тапа: переполнение часто появляется от смены
   // состояния (жирная активная подпись, раскрытый фильтр), а не при загрузке.
