@@ -1119,7 +1119,33 @@ const SOURCE_LABELS = {
 };
 const sourceLabel = (s) => SOURCE_LABELS[s] || null;
 
-function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
+// Узкая ли карточка списка. ОДНО измерение на весь список, а не наблюдатель
+// на каждую строку: строки одинаковые, а десятки ResizeObserver на мобильном —
+// это ровно та тяжесть, которую CLAUDE.md запрещает тащить на фронт.
+//
+// Порог выведен из содержимого мета-строки при 13px Inter, а не подобран
+// на глаз: дата «01.08.2026» ≈ 72px, две точки-разделителя с отступами ≈ 18px,
+// источник ≈ 50px в худшем случае («Вручную»), способу оплаты нужно ≥ 40px,
+// чтобы многоточие ещё что-то значило. Итого полной строке нужно ≈ 180px.
+// Доступное = ширина карточки − 32 (её padding) − 12 (gap) − ≈85 (сумма).
+// Отсюда 180 + 129 ≈ 309: уже — источник не помещается и скрывается ЦЕЛИКОМ.
+const META_FULL_MIN = 309;
+
+function useNarrowCard(ref) {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => {
+      setNarrow(e.contentRect.width < META_FULL_MIN);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return narrow;
+}
+
+function SwipeableReceiptCard({ receipt, onClick, onDelete, narrow }) {
   const [tx, setTx] = useState(0);
   const [drag, setDrag] = useState(false); // render-safe mirror of dragging.current (no transition while dragging)
   const startX = useRef(0);
@@ -1279,7 +1305,12 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
             }}
           >
             <span style={{ flexShrink: 0 }}>{fmtDate(r.date)}</span>
-            {sourceLabel(r.source) && (
+            {/* Источник уступает ВТОРЫМ и ЦЕЛИКОМ, вместе со своей точкой:
+                метка в 2-4 символа («QR», «ФНС»), усекать её многоточием
+                бессмысленно. Первым уступает способ оплаты — он и сейчас
+                схлопывается в многоточие. Дата не уступает никогда.
+                Из макета источник НЕ удалён: на широком экране он на месте. */}
+            {!narrow && sourceLabel(r.source) && (
               <>
                 <span style={dot} />
                 <span style={{ flexShrink: 0 }}>{sourceLabel(r.source)}</span>
@@ -2536,6 +2567,9 @@ function OperaciiPage({
   const [limit, setLimit] = useState(30);
   const [showSearch, setShowSearch] = useState(false); // поиск-иконка раскрывает поле
   const [showScan, setShowScan] = useState(false);
+  // Ширину меряем у КОНТЕЙНЕРА списка — одним наблюдателем на все строки.
+  const listRef = useRef(null);
+  const narrowCard = useNarrowCard(listRef);
   const [showAdd, setShowAdd] = useState(false);
   const [showReq, setShowReq] = useState(false); // экран ручного ввода реквизитов (проверка ФНС)
   const [reqPrefill, setReqPrefill] = useState(null); // парсинг QR при заходе с неудачного скана
@@ -3108,6 +3142,7 @@ function OperaciiPage({
         </div>
       )}
       <div
+        ref={listRef}
         style={{
           padding: "12px 16px 88px",
           display: "flex",
@@ -3118,6 +3153,7 @@ function OperaciiPage({
         {visible.map((r) => (
           <SwipeableReceiptCard
             key={r.id}
+            narrow={narrowCard}
             receipt={r}
             onClick={() => openDetail(r)}
             onDelete={() => handleDelete(r.id)}
