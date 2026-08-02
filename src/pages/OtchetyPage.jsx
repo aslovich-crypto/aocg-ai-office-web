@@ -325,7 +325,7 @@ export default function OtchetyPage({
                     border: on ? "1px solid #EEF0F4" : "1px solid transparent",
                     borderRadius: 6,
                     font: `${on ? 600 : 500} 13px/1 ${FONT}`,
-                    color: on ? C.cherry : C.mid,
+                    color: on ? theme.cherry : C.mid,
                     background: on ? C.white : "transparent",
                     boxShadow: on ? "0 1px 3px rgba(17,19,24,0.12)" : "none",
                     cursor: "pointer",
@@ -363,7 +363,7 @@ export default function OtchetyPage({
               display: "flex",
             }}
           >
-            <Search size={20} color={showSearch ? C.cherry : C.gray} />
+            <Search size={20} color={showSearch ? theme.cherry : C.gray} />
           </button>
         </div>
       </div>
@@ -656,7 +656,7 @@ export default function OtchetyPage({
           width: 56,
           height: 56,
           borderRadius: 999,
-          background: C.cherry,
+          background: theme.cherry,
           boxShadow: "0 2px 8px rgba(17,19,24,.16)",
           display: "flex",
           alignItems: "center",
@@ -808,7 +808,7 @@ export default function OtchetyPage({
                     gap: 10,
                     padding: "9px 10px",
                     marginBottom: 4,
-                    border: `1px solid ${sel ? C.cherry : C.silver}`,
+                    border: `1px solid ${sel ? theme.cherry : C.silver}`,
                     background: sel ? theme.cherrySoft : C.white,
                     cursor: "pointer",
                   }}
@@ -817,8 +817,8 @@ export default function OtchetyPage({
                     style={{
                       width: 12,
                       height: 12,
-                      border: `1.5px solid ${sel ? C.cherry : C.silver}`,
-                      background: sel ? C.cherry : "transparent",
+                      border: `1.5px solid ${sel ? theme.cherry : C.silver}`,
+                      background: sel ? theme.cherry : "transparent",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -851,7 +851,7 @@ export default function OtchetyPage({
                     style={{
                       fontFamily: FONT,
                       fontSize: 13,
-                      color: C.cherry,
+                      color: theme.cherry,
                       fontWeight: 700,
                     }}
                   >
@@ -874,7 +874,7 @@ export default function OtchetyPage({
                     style={{
                       fontFamily: FONT,
                       fontSize: 14,
-                      color: C.cherry,
+                      color: theme.cherry,
                       fontWeight: 700,
                     }}
                   >

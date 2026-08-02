@@ -216,20 +216,20 @@ function Btn({ children, onClick, disabled, outline, full, small, loading }) {
       disabled={off}
       style={{
         background: loading
-          ? C.cherry
+          ? theme.cherry
           : disabled
             ? theme.surfaceSunk
             : outline
               ? "transparent"
-              : C.cherry,
+              : theme.cherry,
         color: loading
           ? C.white
           : disabled
             ? theme.fg3
             : outline
-              ? C.cherry
+              ? theme.cherry
               : C.white,
-        border: `1.5px solid ${disabled && !loading ? C.silver : C.cherry}`,
+        border: `1.5px solid ${disabled && !loading ? C.silver : theme.cherry}`,
         padding: small ? "6px 12px" : "9px 18px",
         fontFamily: FONT,
         fontSize: 10,
@@ -284,7 +284,7 @@ function RuleInput({
         style={{
           width: "100%",
           border: "none",
-          borderBottom: `1.5px solid ${f ? C.cherry : C.silver}`,
+          borderBottom: `1.5px solid ${f ? theme.cherry : C.silver}`,
           outline: "none",
           padding: "7px 0",
           fontSize: 13,
@@ -317,7 +317,7 @@ function TabBar({ tabs, active, onSelect }) {
             padding: "10px 14px",
             border: "none",
             background: "transparent",
-            color: active === t ? C.cherry : C.gray,
+            color: active === t ? theme.cherry : C.gray,
             fontFamily: FONT,
             fontSize: 10,
             letterSpacing: "0.08em",
@@ -326,7 +326,9 @@ function TabBar({ tabs, active, onSelect }) {
             whiteSpace: "nowrap",
             flexShrink: 0,
             borderBottom:
-              active === t ? `2px solid ${C.cherry}` : "2px solid transparent",
+              active === t
+                ? `2px solid ${theme.cherry}`
+                : "2px solid transparent",
             transition: "all 0.15s",
           }}
         >
@@ -377,7 +379,7 @@ function Modal({ title, onClose, children, footer }) {
           background: C.white,
           width: "100%",
           maxWidth: 480,
-          borderTop: `3px solid ${C.cherry}`,
+          borderTop: `3px solid ${theme.cherry}`,
           maxHeight: "82vh",
           display: "flex",
           flexDirection: "column",
@@ -398,7 +400,7 @@ function Modal({ title, onClose, children, footer }) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 3, height: 14, background: C.cherry }} />
+            <div style={{ width: 3, height: 14, background: theme.cherry }} />
             <span
               style={{
                 fontSize: 11,
@@ -523,7 +525,13 @@ function SectionCard({ title, children }) {
 }
 
 function Donut({ title, data, num, sliceColor }) {
-  const pal = [C.cherry, theme.cherryMuted, "#C45558", "#E8A0A2", "#D4888A"];
+  const pal = [
+    theme.cherry,
+    theme.cherryMuted,
+    "#C45558",
+    "#E8A0A2",
+    "#D4888A",
+  ];
   // sliceColor(d) — раскраска по группе (донат «Категории»); иначе вишнёвая палитра.
   const colorAt = (d, i) => (sliceColor ? sliceColor(d) : pal[i % pal.length]);
   const sectionTotal = data.reduce((s, d) => s + d.value, 0);
@@ -1837,7 +1845,7 @@ function FiltersModal({
             style={{
               flex: 1,
               padding: "12px",
-              background: C.cherry,
+              background: theme.cherry,
               border: "none",
               fontFamily: FONT,
               fontSize: 13,
@@ -1857,7 +1865,7 @@ function FiltersModal({
 }
 
 function FilterIcon({ active, onClick, size = 38 }) {
-  const stroke = active ? C.cherry : "#636B7D";
+  const stroke = active ? theme.cherry : "#636B7D";
   return (
     <button
       type="button"
@@ -1901,7 +1909,7 @@ function FilterIcon({ active, onClick, size = 38 }) {
             width: 7,
             height: 7,
             borderRadius: "50%",
-            background: C.cherry,
+            background: theme.cherry,
             border: "1.5px solid #fff",
           }}
         />
@@ -2063,7 +2071,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                 style={{
                   width: 16,
                   height: 16,
-                  accentColor: C.cherry,
+                  accentColor: theme.cherry,
                   cursor: locked ? "default" : "pointer",
                   flexShrink: 0,
                 }}
@@ -2166,7 +2174,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
             fontSize: 12,
             fontWeight: 700,
             cursor: disabledBtn ? "default" : "pointer",
-            background: disabledBtn ? C.silver : C.cherry,
+            background: disabledBtn ? C.silver : theme.cherry,
             color: disabledBtn ? C.gray : C.white,
           }}
         >
@@ -3001,7 +3009,7 @@ function OperaciiPage({
               height="20"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={showSearch ? C.cherry : C.gray}
+              stroke={showSearch ? theme.cherry : C.gray}
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -3112,7 +3120,7 @@ function OperaciiPage({
                     marginTop: 4,
                     background: "none",
                     border: "none",
-                    color: C.cherry,
+                    color: theme.cherry,
                     fontFamily: FONT,
                     fontSize: 13,
                     fontWeight: 600,
@@ -3146,7 +3154,7 @@ function OperaciiPage({
                 padding: "10px 20px",
                 border: `1px solid ${C.silver}`,
                 background: C.white,
-                color: C.cherry,
+                color: theme.cherry,
                 fontFamily: FONT,
                 fontSize: 12,
                 fontWeight: 600,
@@ -3170,7 +3178,7 @@ function OperaciiPage({
           right: 16,
           width: 56,
           height: 56,
-          background: C.cherry,
+          background: theme.cherry,
           color: C.white,
           border: "none",
           fontSize: 20,
@@ -3522,11 +3530,11 @@ function OperaciiPage({
                     style={{
                       padding: "4px 10px",
                       border: `1px solid ${
-                        form.payment === m ? C.cherry : C.silver
+                        form.payment === m ? theme.cherry : C.silver
                       }`,
                       background:
                         form.payment === m ? theme.cherrySoft : C.white,
-                      color: form.payment === m ? C.cherry : C.mid,
+                      color: form.payment === m ? theme.cherry : C.mid,
                       fontFamily: FONT,
                       fontSize: 11,
                       cursor: "pointer",
@@ -3756,7 +3764,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
           userSelect: "none",
           touchAction: "pan-y",
           borderLeft: `3px solid ${
-            u.is_active !== false ? C.cherry : C.silver
+            u.is_active !== false ? theme.cherry : C.silver
           }`,
         }}
       >
@@ -3765,7 +3773,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
             width: 34,
             height: 34,
             borderRadius: "50%",
-            background: C.cherry,
+            background: theme.cherry,
             color: C.white,
             display: "flex",
             alignItems: "center",
@@ -3971,7 +3979,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
                       fontFamily: FONT,
                       fontSize: 12,
                       fontWeight: on ? 600 : 500,
-                      background: on ? C.cherry : "#EEF0F4",
+                      background: on ? theme.cherry : "#EEF0F4",
                       color: on ? "#fff" : "#636B7D",
                     }}
                   >
@@ -4211,13 +4219,17 @@ function ChangePasswordModal({ onClose }) {
                   checked={show}
                   onChange={(e) => setShow(e.target.checked)}
                   aria-label="Показать пароли"
-                  style={{ accentColor: C.cherry }}
+                  style={{ accentColor: theme.cherry }}
                 />{" "}
                 Показать пароли
               </label>
               {err && (
                 <div
-                  style={{ color: C.cherry, fontSize: 13, fontFamily: FONT }}
+                  style={{
+                    color: theme.cherry,
+                    fontSize: 13,
+                    fontFamily: FONT,
+                  }}
                 >
                   {err}
                 </div>
@@ -4442,7 +4454,7 @@ function AccountTab() {
       {err && (
         <div
           style={{
-            color: C.cherry,
+            color: theme.cherry,
             fontSize: 13,
             fontFamily: FONT,
             marginTop: 10,
@@ -4463,7 +4475,7 @@ function AccountTab() {
           background: C.white,
           border: `1px solid ${C.silver}`,
           borderRadius: 8,
-          borderLeft: `3px solid ${C.cherry}`,
+          borderLeft: `3px solid ${theme.cherry}`,
           padding: "12px 14px",
         }}
       >
@@ -4471,7 +4483,7 @@ function AccountTab() {
           style={{
             display: "inline-block",
             background: theme.cherrySoft,
-            color: C.cherry,
+            color: theme.cherry,
             fontFamily: FONT,
             fontSize: 12,
             fontWeight: 700,
@@ -4529,7 +4541,7 @@ function AccountTab() {
             padding: "7px 14px",
             fontFamily: FONT,
             fontSize: 13,
-            color: C.cherry,
+            color: theme.cherry,
             fontWeight: 600,
             cursor: "pointer",
           }}
@@ -4598,7 +4610,7 @@ function AccountTab() {
                 padding: "6px 12px",
                 fontFamily: FONT,
                 fontSize: 13,
-                color: isLinked ? C.cherry : C.gray,
+                color: isLinked ? theme.cherry : C.gray,
                 cursor: "pointer",
               }}
             >
@@ -4639,7 +4651,7 @@ function AccountTab() {
                 marginTop: 8,
                 background: "none",
                 border: "none",
-                color: C.cherry,
+                color: theme.cherry,
                 fontFamily: FONT,
                 fontSize: 13,
                 cursor: "pointer",
@@ -4659,12 +4671,12 @@ function AccountTab() {
             width: "100%",
             padding: "12px",
             background: C.white,
-            border: `1.5px solid ${C.cherry}`,
+            border: `1.5px solid ${theme.cherry}`,
             borderRadius: 10,
             fontFamily: FONT,
             fontSize: 14,
             fontWeight: 600,
-            color: C.cherry,
+            color: theme.cherry,
             cursor: "pointer",
           }}
         >
@@ -4978,7 +4990,7 @@ function InviteSheet({ onClose }) {
                   style={{
                     flex: 1,
                     padding: "12px",
-                    background: C.cherry,
+                    background: theme.cherry,
                     border: "none",
                     borderRadius: 10,
                     fontFamily: FONT,
@@ -5145,7 +5157,7 @@ function ActionRow({ children, onClick, danger }) {
         background: "none",
         fontFamily: FONT,
         fontSize: 14,
-        color: danger ? C.cherry : C.dark,
+        color: danger ? theme.cherry : C.dark,
         cursor: "pointer",
       }}
     >
@@ -5299,7 +5311,7 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
         <div
           style={{
             fontSize: 12,
-            color: C.cherry,
+            color: theme.cherry,
             fontFamily: FONT,
             marginTop: 10,
           }}
@@ -5895,7 +5907,7 @@ function NastroykiPage({
                   fontSize: 16,
                   cursor: c.is_default ? "default" : "pointer",
                   flexShrink: 0,
-                  color: c.is_default ? C.cherry : theme.fg3,
+                  color: c.is_default ? theme.cherry : theme.fg3,
                   lineHeight: 1,
                 }}
               >
@@ -6213,8 +6225,8 @@ function ConsentCheckbox({ checked, onToggleCheck, onOpenSheet, label }) {
           height: 22,
           marginTop: 1,
           borderRadius: 5,
-          border: `1.5px solid ${checked ? C.cherry : C.silver}`,
-          background: checked ? C.cherry : C.white,
+          border: `1.5px solid ${checked ? theme.cherry : C.silver}`,
+          background: checked ? theme.cherry : C.white,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -6389,7 +6401,9 @@ function ConsentScreen({ onAccept }) {
           label={
             <>
               Я ознакомился и согласен с{" "}
-              <span style={{ color: C.cherry, textDecoration: "underline" }}>
+              <span
+                style={{ color: theme.cherry, textDecoration: "underline" }}
+              >
                 Политикой конфиденциальности
               </span>
             </>
@@ -6402,7 +6416,9 @@ function ConsentScreen({ onAccept }) {
           label={
             <>
               Я даю{" "}
-              <span style={{ color: C.cherry, textDecoration: "underline" }}>
+              <span
+                style={{ color: theme.cherry, textDecoration: "underline" }}
+              >
                 согласие на обработку моих персональных данных
               </span>{" "}
               в соответствии с 152-ФЗ
@@ -6420,7 +6436,7 @@ function ConsentScreen({ onAccept }) {
             padding: "14px",
             border: "none",
             borderRadius: 12,
-            background: canSubmit ? C.cherry : theme.surfaceSunk,
+            background: canSubmit ? theme.cherry : theme.surfaceSunk,
             color: canSubmit ? C.white : theme.fg3,
             fontFamily: FONT,
             fontSize: 14,
@@ -6495,7 +6511,7 @@ function MarkPlate({ size = 40, radius = 8 }) {
         width: size,
         height: size,
         borderRadius: radius,
-        background: C.cherry,
+        background: theme.cherry,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -6629,7 +6645,9 @@ function AppSwitcher({ onClose, onPick }) {
                 {a.sub}
               </div>
             </div>
-            {a.active && <Check size={16} color={C.cherry} strokeWidth={2.5} />}
+            {a.active && (
+              <Check size={16} color={theme.cherry} strokeWidth={2.5} />
+            )}
           </button>
         ))}
       </div>
@@ -7054,7 +7072,7 @@ function VerifyEmailScreen({ onAuthed, navigate }) {
               marginTop: 16,
               background: "none",
               border: "none",
-              color: C.cherry,
+              color: theme.cherry,
               fontSize: 14,
               cursor: "pointer",
               fontFamily: FONT,
@@ -7080,7 +7098,7 @@ function CheckEmailScreen({ email, navigate }) {
           textAlign: "center",
         }}
       >
-        <Mail size={48} color={C.cherry} strokeWidth={1.5} />
+        <Mail size={48} color={theme.cherry} strokeWidth={1.5} />
         <h1
           style={{
             fontSize: 20,
@@ -7111,7 +7129,7 @@ function CheckEmailScreen({ email, navigate }) {
           style={{
             marginTop: 22,
             padding: "12px 24px",
-            background: C.cherry,
+            background: theme.cherry,
             color: "#fff",
             border: "none",
             borderRadius: 10,
@@ -7130,7 +7148,7 @@ function CheckEmailScreen({ email, navigate }) {
             marginTop: 16,
             background: "none",
             border: "none",
-            color: C.cherry,
+            color: theme.cherry,
             fontSize: 14,
             cursor: "pointer",
             fontFamily: FONT,
@@ -7254,7 +7272,7 @@ function RegisterScreen({ onAuthed, navigate }) {
         width: "100%",
         textAlign: "left",
         padding: "14px 16px",
-        border: `1px solid ${orgType === t ? C.cherry : C.silver}`,
+        border: `1px solid ${orgType === t ? theme.cherry : C.silver}`,
         borderRadius: 12,
         background: C.white,
         cursor: "pointer",
@@ -7320,7 +7338,7 @@ function RegisterScreen({ onAuthed, navigate }) {
                 width: "100%",
                 background: "none",
                 border: "none",
-                color: C.cherry,
+                color: theme.cherry,
                 fontFamily: FONT,
                 fontSize: 14,
                 cursor: "pointer",
@@ -7449,7 +7467,9 @@ function RegisterScreen({ onAuthed, navigate }) {
               style={A_INPUT}
             />
             {err && (
-              <div style={{ color: C.cherry, fontSize: 13, fontFamily: FONT }}>
+              <div
+                style={{ color: theme.cherry, fontSize: 13, fontFamily: FONT }}
+              >
                 {err}
               </div>
             )}
@@ -7459,7 +7479,7 @@ function RegisterScreen({ onAuthed, navigate }) {
               style={{
                 marginTop: 4,
                 padding: "13px",
-                background: C.cherry,
+                background: theme.cherry,
                 color: "#fff",
                 border: "none",
                 borderRadius: 10,
@@ -7606,7 +7626,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
               marginTop: 16,
               background: "none",
               border: "none",
-              color: C.cherry,
+              color: theme.cherry,
               fontSize: 14,
               cursor: "pointer",
               fontFamily: FONT,
@@ -7734,7 +7754,9 @@ function JoinScreen({ token, onAuthed, navigate }) {
             style={A_INPUT}
           />
           {err && (
-            <div style={{ color: C.cherry, fontSize: 13, fontFamily: FONT }}>
+            <div
+              style={{ color: theme.cherry, fontSize: 13, fontFamily: FONT }}
+            >
               {err}
             </div>
           )}
@@ -7744,7 +7766,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
             style={{
               marginTop: 4,
               padding: "13px",
-              background: C.cherry,
+              background: theme.cherry,
               color: "#fff",
               border: "none",
               borderRadius: 10,
@@ -8198,7 +8220,7 @@ export default function App() {
                   width: 7,
                   height: 7,
                   borderRadius: "50%",
-                  background: C.cherry,
+                  background: theme.cherry,
                   border: "1.5px solid #fff",
                 }}
               />
@@ -8294,7 +8316,7 @@ export default function App() {
         {NAV.map((n) => {
           const Icon = n.Icon;
           const active = page === n.id;
-          const color = active ? C.cherry : "#636B7D";
+          const color = active ? theme.cherry : "#636B7D";
           return (
             <button
               key={n.id}

@@ -36,7 +36,7 @@ const T = {
   successBg: "#F0FDF4",
   successFg: "#15803D",
   errorFg: "#B91C1C",
-  cherry: C.cherry,
+  cherry: theme.cherry,
   cherryTint: theme.cherryTint, // Brand Tint — подсветка выбранного пункта
   cherryHover: "#8B1218",
   white: C.white,

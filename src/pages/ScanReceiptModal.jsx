@@ -1460,7 +1460,7 @@ export default function ScanReceiptModal({
                   height="22"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke={C.cherry}
+                  stroke={theme.cherry}
                   strokeWidth="2.5"
                   style={{ flexShrink: 0 }}
                 >
@@ -1531,7 +1531,7 @@ export default function ScanReceiptModal({
                   }}
                   style={{
                     padding: "14px",
-                    background: C.cherry,
+                    background: theme.cherry,
                     border: "none",
                     borderRadius: 12,
                     fontFamily: FONT,
@@ -1598,7 +1598,7 @@ export default function ScanReceiptModal({
               }}
               style={{
                 padding: "14px",
-                background: C.cherry,
+                background: theme.cherry,
                 border: "none",
                 borderRadius: 12,
                 fontFamily: FONT,
@@ -1738,7 +1738,7 @@ export default function ScanReceiptModal({
                   }}
                   style={{
                     padding: "14px",
-                    background: C.cherry,
+                    background: theme.cherry,
                     border: "none",
                     borderRadius: 12,
                     fontFamily: FONT,
@@ -1792,7 +1792,7 @@ export default function ScanReceiptModal({
                   style={{
                     flex: 1,
                     padding: "14px",
-                    background: C.cherry,
+                    background: theme.cherry,
                     border: "none",
                     borderRadius: 12,
                     fontFamily: FONT,
