@@ -266,9 +266,20 @@ function overlapProbe() {
       if (r.bottom <= fr.top || r.top >= fr.bottom) return;
       if (r.width > VW * 0.9) return; // страница целиком, не содержимое
       const hidden = Math.round(r.right - fr.left);
-      if (hidden > 1) covered.push({ el, hidden });
+      if (hidden <= 1) return;
+      // С ТЕКСТОМ или ПУСТАЯ ОБОЛОЧКА. В прошлом замере из четырёх
+      // перекрытых опасен был ровно один — сумма чека, остальное
+      // контейнеры без собственного содержимого. Раз человек не видит
+      // разницы в списке, её должен показывать сторож, иначе три строки
+      // шума на одну находку.
+      // Собственный текст = текст, которого нет ни в одном потомке-элементе:
+      // так контейнер не выдаёт себя за носителя текста своих детей.
+      let own = "";
+      for (const n of el.childNodes) if (n.nodeType === 3) own += n.textContent;
+      covered.push({ el, hidden, leaf: own.trim().length > 0 });
     });
-    covered.sort((a, b) => b.hidden - a.hidden);
+    // Сначала носители текста: пустые оболочки человеку не видны в любом случае.
+    covered.sort((a, b) => b.leaf - a.leaf || b.hidden - a.hidden);
     out.push({ f, fr, top, covered });
   });
   return out;
@@ -388,11 +399,18 @@ export function initOverflowDebug() {
             o.top ? describe(o.top).slice(0, 30) : "—"
           }`,
         );
-        lines.push(`   перекрывает содержимого: ${o.covered.length}`);
+        const withText = o.covered.filter((c) => c.leaf).length;
+        lines.push(
+          `   перекрывает: ${o.covered.length}, из них С ТЕКСТОМ ${withText}`,
+        );
         lines.push(
           ...o.covered
             .slice(0, 3)
-            .map((c) => `      −${c.hidden}px  ${describe(c.el).slice(0, 26)}`),
+            .map(
+              (c) =>
+                `      −${c.hidden}px  ${c.leaf ? "ТЕКСТ" : "пусто"}  ` +
+                `${describe(c.el).slice(0, 24)}`,
+            ),
         );
       }
     }
