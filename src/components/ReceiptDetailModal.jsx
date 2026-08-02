@@ -16,7 +16,7 @@ import {
   Paperclip,
   Plus,
 } from "lucide-react";
-import { C, FONT, theme } from "../lib/theme";
+import { FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
@@ -30,7 +30,7 @@ const T = {
   fg1: "#111318",
   fg2: theme.fg2, // #636B7D
   fg3: theme.fg3, // #9CA3AF
-  border: C.silver, // #EEF0F4
+  border: theme.border, // #EEF0F4
   borderStrong: theme.borderStrong, // #E2E5EB
   chipBg: "#EEF0F4",
   successBg: "#F0FDF4",

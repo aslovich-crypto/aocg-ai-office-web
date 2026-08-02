@@ -202,7 +202,7 @@ function SectionHead({ num, title }) {
       >
         {title}
       </span>
-      <div style={{ flex: 1, height: "0.5px", background: C.silver }} />
+      <div style={{ flex: 1, height: "0.5px", background: theme.border }} />
     </div>
   );
 }
@@ -229,7 +229,9 @@ function Btn({ children, onClick, disabled, outline, full, small, loading }) {
             : outline
               ? theme.cherry
               : theme.surface,
-        border: `1.5px solid ${disabled && !loading ? C.silver : theme.cherry}`,
+        border: `1.5px solid ${
+          disabled && !loading ? theme.border : theme.cherry
+        }`,
         padding: small ? "6px 12px" : "9px 18px",
         fontFamily: FONT,
         fontSize: 10,
@@ -284,7 +286,7 @@ function RuleInput({
         style={{
           width: "100%",
           border: "none",
-          borderBottom: `1.5px solid ${f ? theme.cherry : C.silver}`,
+          borderBottom: `1.5px solid ${f ? theme.cherry : theme.border}`,
           outline: "none",
           padding: "7px 0",
           fontSize: 13,
@@ -304,7 +306,7 @@ function TabBar({ tabs, active, onSelect }) {
     <div
       style={{
         display: "flex",
-        borderBottom: `1px solid ${C.silver}`,
+        borderBottom: `1px solid ${theme.border}`,
         background: theme.surface,
         overflowX: "auto",
       }}
@@ -391,7 +393,7 @@ function Modal({ title, onClose, children, footer }) {
         <div
           style={{
             background: theme.surfaceSunk,
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             padding: "11px 16px",
             display: "flex",
             justifyContent: "space-between",
@@ -435,7 +437,7 @@ function Modal({ title, onClose, children, footer }) {
           <div
             style={{
               padding: "10px 16px calc(10px + env(safe-area-inset-bottom))",
-              borderTop: `1px solid ${C.silver}`,
+              borderTop: `1px solid ${theme.border}`,
               background: theme.surfaceSunk,
               flexShrink: 0,
             }}
@@ -500,7 +502,7 @@ function SectionCard({ title, children }) {
     <div
       style={{
         background: theme.surface,
-        border: `0.5px solid ${C.silver}`,
+        border: `0.5px solid ${theme.border}`,
         borderRadius: 12,
         marginBottom: 12,
         padding: 16,
@@ -560,7 +562,7 @@ function Donut({ title, data, num, sliceColor }) {
                 formatter={(v) => fmt(v)}
                 contentStyle={{
                   background: theme.surface,
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   fontFamily: FONT,
                   fontSize: 11,
                 }}
@@ -605,7 +607,7 @@ function Donut({ title, data, num, sliceColor }) {
               alignItems: "center",
               gap: 10,
               padding: "7px 0",
-              borderTop: i === 0 ? "none" : `1px solid ${C.silver}`,
+              borderTop: i === 0 ? "none" : `1px solid ${theme.border}`,
             }}
           >
             <div
@@ -770,7 +772,7 @@ function SvodkaPage({
       <div
         style={{
           background: theme.surface,
-          borderBottom: `1px solid ${C.silver}`,
+          borderBottom: `1px solid ${theme.border}`,
           padding: "10px 16px",
         }}
       >
@@ -802,7 +804,7 @@ function SvodkaPage({
         <div
           style={{
             background: theme.surface,
-            border: `0.5px solid ${C.silver}`,
+            border: `0.5px solid ${theme.border}`,
             borderRadius: 12,
             padding: 16,
             marginBottom: 12,
@@ -907,7 +909,7 @@ function SvodkaPage({
                 style={{
                   marginTop: 14,
                   paddingTop: 14,
-                  borderTop: `1px solid ${C.silver}`,
+                  borderTop: `1px solid ${theme.border}`,
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
@@ -979,7 +981,7 @@ function SvodkaPage({
                 alignItems: "center",
                 gap: 12,
                 padding: "11px 0",
-                borderTop: i === 0 ? "none" : `1px solid ${C.silver}`,
+                borderTop: i === 0 ? "none" : `1px solid ${theme.border}`,
               }}
             >
               <div
@@ -1391,7 +1393,7 @@ function FiltersModal({
   const inputStyle = {
     width: "100%",
     padding: "10px 12px",
-    border: `1px solid ${C.silver}`,
+    border: `1px solid ${theme.border}`,
     borderRadius: 8,
     fontSize: 13,
     fontFamily: FONT,
@@ -1505,7 +1507,7 @@ function FiltersModal({
         <div
           style={{
             padding: "4px 16px 12px",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -1643,7 +1645,7 @@ function FiltersModal({
                     <div
                       key={g.id}
                       style={{
-                        border: `1px solid ${C.silver}`,
+                        border: `1px solid ${theme.border}`,
                         borderRadius: 10,
                         overflow: "hidden",
                       }}
@@ -1676,7 +1678,7 @@ function FiltersModal({
                               height: 18,
                               borderRadius: 5,
                               border: `1.5px solid ${
-                                allOn || someOn ? col.fg : C.silver
+                                allOn || someOn ? col.fg : theme.border
                               }`,
                               background: allOn
                                 ? col.fg
@@ -1802,7 +1804,7 @@ function FiltersModal({
             padding: "12px 16px",
             display: "flex",
             gap: 8,
-            borderTop: `1px solid ${C.silver}`,
+            borderTop: `1px solid ${theme.border}`,
             flexShrink: 0,
           }}
         >
@@ -1814,7 +1816,7 @@ function FiltersModal({
             style={{
               width: 44,
               height: 44,
-              border: `1px solid ${C.silver}`,
+              border: `1px solid ${theme.border}`,
               background: theme.surface,
               color: theme.fg2,
               cursor: "pointer",
@@ -2056,7 +2058,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                 gap: 8,
                 padding: "6px 8px",
                 background: theme.surface,
-                border: `1px solid ${C.silver}`,
+                border: `1px solid ${theme.border}`,
                 borderRadius: 8,
                 cursor: locked ? "default" : "pointer",
                 opacity: locked ? 0.7 : 1,
@@ -2083,7 +2085,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                   letterSpacing: "0.03em",
                   color: C.mid,
                   background: theme.surfaceSunk,
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: 5,
                   padding: "1px 6px",
                   flexShrink: 0,
@@ -2174,7 +2176,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
             fontSize: 12,
             fontWeight: 700,
             cursor: disabledBtn ? "default" : "pointer",
-            background: disabledBtn ? C.silver : theme.cherry,
+            background: disabledBtn ? theme.border : theme.cherry,
             color: disabledBtn ? theme.fg2 : theme.surface,
           }}
         >
@@ -2287,7 +2289,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
   const inp = {
     width: "100%",
     border: "none",
-    borderBottom: `1.5px solid ${C.silver}`,
+    borderBottom: `1.5px solid ${theme.border}`,
     outline: "none",
     padding: "7px 0",
     fontSize: 13,
@@ -2966,7 +2968,7 @@ function OperaciiPage({
       <div
         style={{
           background: theme.surface,
-          borderBottom: `1px solid ${C.silver}`,
+          borderBottom: `1px solid ${theme.border}`,
           padding: "10px 16px",
           display: "flex",
           alignItems: "center",
@@ -3027,7 +3029,7 @@ function OperaciiPage({
         <div
           style={{
             background: theme.surface,
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             padding: "0 16px 10px",
           }}
         >
@@ -3152,7 +3154,7 @@ function OperaciiPage({
               onClick={() => setLimit((l) => l + 30)}
               style={{
                 padding: "10px 20px",
-                border: `1px solid ${C.silver}`,
+                border: `1px solid ${theme.border}`,
                 background: theme.surface,
                 color: theme.cherry,
                 fontFamily: FONT,
@@ -3341,7 +3343,7 @@ function OperaciiPage({
                   marginBottom: 12,
                   padding: "8px 12px",
                   background: "#EEF0F4",
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: 6,
                   fontFamily: FONT,
                   fontSize: 11,
@@ -3448,7 +3450,7 @@ function OperaciiPage({
                   alignItems: "center",
                   gap: 10,
                   padding: "10px 12px",
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   background: theme.surface,
                   borderRadius: 10,
                   cursor: "pointer",
@@ -3534,7 +3536,7 @@ function OperaciiPage({
                     style={{
                       padding: "4px 10px",
                       border: `1px solid ${
-                        form.payment === m ? theme.cherry : C.silver
+                        form.payment === m ? theme.cherry : theme.border
                       }`,
                       background:
                         form.payment === m ? theme.cherrySoft : theme.surface,
@@ -3585,7 +3587,7 @@ function ServiceCard({ svc }) {
     <div
       style={{
         background: theme.surface,
-        border: `1px solid ${C.silver}`,
+        border: `1px solid ${theme.border}`,
         borderRadius: 8,
         padding: "12px 14px",
         marginBottom: 10,
@@ -3661,7 +3663,7 @@ function ServiceCard({ svc }) {
               title="Скоро"
               style={{
                 padding: "6px 14px",
-                border: `1px solid ${C.silver}`,
+                border: `1px solid ${theme.border}`,
                 background: theme.surfaceSunk,
                 color: theme.fg3,
                 fontFamily: FONT,
@@ -3726,7 +3728,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
       style={{
         position: "relative",
         background: "#B91C1C",
-        borderBottom: `1px solid ${C.silver}`,
+        borderBottom: `1px solid ${theme.border}`,
         overflow: "hidden",
       }}
     >
@@ -3768,7 +3770,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
           userSelect: "none",
           touchAction: "pan-y",
           borderLeft: `3px solid ${
-            u.is_active !== false ? theme.cherry : C.silver
+            u.is_active !== false ? theme.cherry : theme.border
           }`,
         }}
       >
@@ -3831,7 +3833,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
   const inp = {
     width: "100%",
     padding: "10px 12px",
-    border: `1px solid ${C.silver}`,
+    border: `1px solid ${theme.border}`,
     borderRadius: 8,
     fontSize: 13,
     fontFamily: FONT,
@@ -3887,7 +3889,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
           }}
         >
           <span
@@ -3997,7 +3999,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
         <div
           style={{
             padding: "12px 16px",
-            borderTop: `1px solid ${C.silver}`,
+            borderTop: `1px solid ${theme.border}`,
             background: theme.surfaceSunk,
           }}
         >
@@ -4036,7 +4038,7 @@ function ChangePasswordModal({ onClose }) {
   const inp = {
     width: "100%",
     padding: "11px 12px",
-    border: `1px solid ${C.silver}`,
+    border: `1px solid ${theme.border}`,
     borderRadius: 8,
     fontSize: 14,
     fontFamily: FONT,
@@ -4129,7 +4131,7 @@ function ChangePasswordModal({ onClose }) {
         <div
           style={{
             padding: "4px 16px 12px",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -4347,7 +4349,7 @@ function AccountTab() {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "3px 12px",
-    borderBottom: `1px solid ${C.silver}`,
+    borderBottom: `1px solid ${theme.border}`,
     background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
   });
   const lbl = {
@@ -4477,7 +4479,7 @@ function AccountTab() {
       <div
         style={{
           background: theme.surface,
-          border: `1px solid ${C.silver}`,
+          border: `1px solid ${theme.border}`,
           borderRadius: 8,
           borderLeft: `3px solid ${theme.cherry}`,
           padding: "12px 14px",
@@ -4527,7 +4529,7 @@ function AccountTab() {
           justifyContent: "space-between",
           alignItems: "center",
           background: theme.surface,
-          border: `1px solid ${C.silver}`,
+          border: `1px solid ${theme.border}`,
           borderRadius: 8,
           padding: "12px 14px",
           marginBottom: 14,
@@ -4539,7 +4541,7 @@ function AccountTab() {
         <button
           onClick={() => setShowPwModal(true)}
           style={{
-            border: `1px solid ${C.silver}`,
+            border: `1px solid ${theme.border}`,
             background: theme.surface,
             borderRadius: 8,
             padding: "7px 14px",
@@ -4575,7 +4577,7 @@ function AccountTab() {
               alignItems: "center",
               gap: 10,
               background: theme.surface,
-              border: `1px solid ${C.silver}`,
+              border: `1px solid ${theme.border}`,
               borderRadius: 8,
               padding: "8px 12px",
               marginBottom: 6,
@@ -4588,7 +4590,7 @@ function AccountTab() {
                 borderRadius: "50%",
                 background: bg,
                 color: fg,
-                border: bg === "#fff" ? `1px solid ${C.silver}` : "none",
+                border: bg === "#fff" ? `1px solid ${theme.border}` : "none",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -4608,7 +4610,7 @@ function AccountTab() {
             <button
               onClick={oauthSoon}
               style={{
-                border: `1px solid ${C.silver}`,
+                border: `1px solid ${theme.border}`,
                 background: theme.surface,
                 borderRadius: 8,
                 padding: "6px 12px",
@@ -4630,7 +4632,7 @@ function AccountTab() {
           <div
             style={{
               background: theme.surface,
-              border: `1px solid ${C.silver}`,
+              border: `1px solid ${theme.border}`,
               borderRadius: 8,
               padding: "12px 14px",
             }}
@@ -4849,7 +4851,7 @@ function InviteSheet({ onClose }) {
         <div
           style={{
             padding: "4px 16px 12px",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -4959,7 +4961,7 @@ function InviteSheet({ onClose }) {
               <div
                 style={{
                   background: theme.surfaceSunk,
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: 10,
                   padding: "10px 12px",
                   fontSize: 12,
@@ -4978,7 +4980,7 @@ function InviteSheet({ onClose }) {
                     flex: 1,
                     padding: "12px",
                     background: theme.surface,
-                    border: `1px solid ${C.silver}`,
+                    border: `1px solid ${theme.border}`,
                     borderRadius: 10,
                     fontFamily: FONT,
                     fontSize: 13,
@@ -5028,7 +5030,7 @@ const FIELD_LBL = {
 const FIELD_INP = {
   width: "100%",
   boxSizing: "border-box",
-  border: `1px solid ${C.silver}`,
+  border: `1px solid ${theme.border}`,
   borderRadius: 8,
   padding: "9px 11px",
   fontSize: 14,
@@ -5107,7 +5109,7 @@ function BottomSheet({ title, onClose, children }) {
         <div
           style={{
             padding: "4px 16px 12px",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -5157,7 +5159,7 @@ function ActionRow({ children, onClick, danger }) {
         textAlign: "left",
         padding: "14px 6px",
         border: "none",
-        borderBottom: `1px solid ${C.silver}`,
+        borderBottom: `1px solid ${theme.border}`,
         background: "none",
         fontFamily: FONT,
         fontSize: 14,
@@ -5413,7 +5415,7 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
             key={g.id}
             style={{
               marginBottom: 8,
-              border: `1px solid ${C.silver}`,
+              border: `1px solid ${theme.border}`,
               borderRadius: 10,
               overflow: "hidden",
             }}
@@ -5754,7 +5756,7 @@ function NastroykiPage({
                   alignItems: "center",
                   gap: 8,
                   background: theme.surface,
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: 8,
                   padding: "10px 12px",
                   marginBottom: 6,
@@ -5896,7 +5898,7 @@ function NastroykiPage({
               style={{
                 background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
                 padding: "5px 14px",
-                borderBottom: `1px solid ${C.silver}`,
+                borderBottom: `1px solid ${theme.border}`,
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
@@ -5984,7 +5986,7 @@ function NastroykiPage({
               }}
               style={{
                 flex: 1,
-                border: `1px solid ${C.silver}`,
+                border: `1px solid ${theme.border}`,
                 borderRadius: 6,
                 outline: "none",
                 padding: "7px 10px",
@@ -6011,7 +6013,7 @@ function NastroykiPage({
             style={{
               marginTop: 28,
               paddingTop: 14,
-              borderTop: `1px solid ${C.silver}`,
+              borderTop: `1px solid ${theme.border}`,
               fontSize: 10,
               color: theme.fg3,
               fontFamily: FONT,
@@ -6135,7 +6137,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
           }}
         >
           <span
@@ -6181,7 +6183,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
         <div
           style={{
             padding: "12px 16px",
-            borderTop: `1px solid ${C.silver}`,
+            borderTop: `1px solid ${theme.border}`,
             background: theme.surfaceSunk,
           }}
         >
@@ -6191,7 +6193,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
               width: "100%",
               padding: "12px",
               background: theme.surface,
-              border: `1px solid ${C.silver}`,
+              border: `1px solid ${theme.border}`,
               borderRadius: 10,
               fontFamily: FONT,
               fontSize: 13,
@@ -6233,7 +6235,7 @@ function ConsentCheckbox({ checked, onToggleCheck, onOpenSheet, label }) {
           height: 22,
           marginTop: 1,
           borderRadius: 5,
-          border: `1.5px solid ${checked ? theme.cherry : C.silver}`,
+          border: `1.5px solid ${checked ? theme.cherry : theme.border}`,
           background: checked ? theme.cherry : theme.surface,
           display: "flex",
           alignItems: "center",
@@ -6334,7 +6336,7 @@ function ConsentScreen({ onAccept }) {
             width: 72,
             height: 72,
             background: "#fff",
-            border: `1px solid ${C.silver}`,
+            border: `1px solid ${theme.border}`,
             borderRadius: "50%",
             display: "flex",
             alignItems: "center",
@@ -6577,7 +6579,7 @@ function AppSwitcher({ onClose, onPick }) {
           zIndex: 41,
           width: 256,
           background: theme.surface,
-          border: `1px solid ${C.silver}`,
+          border: `1px solid ${theme.border}`,
           borderRadius: 12,
           boxShadow: "0 8px 30px rgba(17,19,24,0.16)",
           padding: 6,
@@ -6686,7 +6688,7 @@ function AuthShell({ children }) {
 const A_INPUT = {
   width: "100%",
   padding: "13px 14px",
-  border: `1px solid ${C.silver}`,
+  border: `1px solid ${theme.border}`,
   borderRadius: 10,
   fontSize: 15,
   fontFamily: FONT,
@@ -7280,7 +7282,7 @@ function RegisterScreen({ onAuthed, navigate }) {
         width: "100%",
         textAlign: "left",
         padding: "14px 16px",
-        border: `1px solid ${orgType === t ? theme.cherry : C.silver}`,
+        border: `1px solid ${orgType === t ? theme.cherry : theme.border}`,
         borderRadius: 12,
         background: theme.surface,
         cursor: "pointer",
@@ -8110,7 +8112,7 @@ export default function App() {
       <div
         style={{
           background: theme.surface,
-          borderBottom: `1px solid ${C.silver}`,
+          borderBottom: `1px solid ${theme.border}`,
           flexShrink: 0,
           paddingTop: "env(safe-area-inset-top)",
         }}
@@ -8315,7 +8317,7 @@ export default function App() {
       <div
         style={{
           background: theme.surface,
-          borderTop: `1px solid ${C.silver}`,
+          borderTop: `1px solid ${theme.border}`,
           display: "flex",
           flexShrink: 0,
           paddingBottom: "env(safe-area-inset-bottom)",

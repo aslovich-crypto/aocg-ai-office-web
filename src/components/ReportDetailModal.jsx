@@ -238,7 +238,7 @@ export default function ReportDetailModal({
         <div
           style={{
             background: theme.surface,
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             padding: "calc(env(safe-area-inset-top) + 8px) 8px 8px",
             display: "flex",
             alignItems: "center",
@@ -553,7 +553,7 @@ export default function ReportDetailModal({
             style={{
               flexShrink: 0,
               background: theme.surface,
-              borderTop: `1px solid ${C.silver}`,
+              borderTop: `1px solid ${theme.border}`,
               padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
               display: "flex",
               gap: 8,
@@ -599,7 +599,7 @@ export default function ReportDetailModal({
             style={{
               flexShrink: 0,
               background: theme.surface,
-              borderTop: `1px solid ${C.silver}`,
+              borderTop: `1px solid ${theme.border}`,
               padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
               font: `400 13px/1.4 ${FONT}`,
               color: theme.fg2,

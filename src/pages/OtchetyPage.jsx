@@ -289,7 +289,7 @@ export default function OtchetyPage({
       <div
         style={{
           background: theme.surface,
-          borderBottom: `1px solid ${C.silver}`,
+          borderBottom: `1px solid ${theme.border}`,
           padding: "10px 16px",
           display: "flex",
           alignItems: "center",
@@ -373,7 +373,7 @@ export default function OtchetyPage({
         <div
           style={{
             background: theme.surface,
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             padding: "0 16px 10px",
           }}
         >
@@ -624,7 +624,7 @@ export default function OtchetyPage({
                     <Pill
                       onClick={() => changeStatus(rep.id, "Черновик")}
                       color="#475569"
-                      border={`1px solid ${C.silver}`}
+                      border={`1px solid ${theme.border}`}
                     >
                       Исправить
                     </Pill>
@@ -808,7 +808,7 @@ export default function OtchetyPage({
                     gap: 10,
                     padding: "9px 10px",
                     marginBottom: 4,
-                    border: `1px solid ${sel ? theme.cherry : C.silver}`,
+                    border: `1px solid ${sel ? theme.cherry : theme.border}`,
                     background: sel ? theme.cherrySoft : theme.surface,
                     cursor: "pointer",
                   }}
@@ -817,7 +817,9 @@ export default function OtchetyPage({
                     style={{
                       width: 12,
                       height: 12,
-                      border: `1.5px solid ${sel ? theme.cherry : C.silver}`,
+                      border: `1.5px solid ${
+                        sel ? theme.cherry : theme.border
+                      }`,
                       background: sel ? theme.cherry : "transparent",
                       display: "flex",
                       alignItems: "center",

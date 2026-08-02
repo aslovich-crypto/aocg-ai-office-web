@@ -108,7 +108,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
         <div
           style={{
             padding: "4px 16px 12px",
-            borderBottom: `1px solid ${C.silver}`,
+            borderBottom: `1px solid ${theme.border}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -228,7 +228,9 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                   style={{
                     padding: "7px 12px",
                     border: `1px solid ${
-                      selected === specialCat.name ? specialCol.fg : C.silver
+                      selected === specialCat.name
+                        ? specialCol.fg
+                        : theme.border
                     }`,
                     background:
                       selected === specialCat.name
@@ -249,7 +251,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
               <div
                 style={{
                   height: 1,
-                  background: C.silver,
+                  background: theme.border,
                   margin: "2px 16px 6px",
                 }}
               />
@@ -305,7 +307,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                         onClick={() => pick(c.name)}
                         style={{
                           padding: "7px 12px",
-                          border: `1px solid ${sel ? col.fg : C.silver}`,
+                          border: `1px solid ${sel ? col.fg : theme.border}`,
                           background: sel ? col.bg : theme.surface,
                           color: sel ? col.fg : C.dark,
                           fontFamily: FONT,

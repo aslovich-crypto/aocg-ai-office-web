@@ -1558,7 +1558,7 @@ export default function ScanReceiptModal({
                 style={{
                   padding: "12px",
                   background: theme.surface,
-                  border: `1px solid ${C.silver}`,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: 12,
                   fontFamily: FONT,
                   fontSize: 13,
