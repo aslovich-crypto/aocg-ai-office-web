@@ -1391,7 +1391,7 @@ export default function ScanReceiptModal({
                   style={{
                     fontFamily: FONT,
                     fontSize: 11,
-                    color: C.gray,
+                    color: theme.fg2,
                     marginBottom: 3,
                     letterSpacing: "0.02em",
                   }}
@@ -1514,7 +1514,7 @@ export default function ScanReceiptModal({
               <div
                 style={{
                   textAlign: "center",
-                  color: C.gray,
+                  color: theme.fg2,
                   fontFamily: FONT,
                   fontSize: 13,
                   marginBottom: 2,
@@ -1580,7 +1580,7 @@ export default function ScanReceiptModal({
                   border: "none",
                   fontFamily: FONT,
                   fontSize: 13,
-                  color: C.gray,
+                  color: theme.fg2,
                   cursor: "pointer",
                 }}
               >

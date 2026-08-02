@@ -179,7 +179,7 @@ function SectionHead({ num, title }) {
             width: 20,
             height: 20,
             background: theme.surfaceSunk,
-            color: C.gray,
+            color: theme.fg2,
             fontSize: 9,
             display: "flex",
             alignItems: "center",
@@ -264,7 +264,7 @@ function RuleInput({
           fontSize: 9,
           letterSpacing: "0.18em",
           textTransform: "uppercase",
-          color: C.gray,
+          color: theme.fg2,
           marginBottom: 4,
           fontFamily: FONT,
         }}
@@ -317,7 +317,7 @@ function TabBar({ tabs, active, onSelect }) {
             padding: "10px 14px",
             border: "none",
             background: "transparent",
-            color: active === t ? theme.cherry : C.gray,
+            color: active === t ? theme.cherry : theme.fg2,
             fontFamily: FONT,
             fontSize: 10,
             letterSpacing: "0.08em",
@@ -420,7 +420,7 @@ function Modal({ title, onClose, children, footer }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               cursor: "pointer",
               fontSize: 16,
             }}
@@ -646,7 +646,7 @@ function Donut({ title, data, num, sliceColor }) {
             <span
               style={{
                 fontSize: 13,
-                color: C.gray,
+                color: theme.fg2,
                 fontFamily: FONT,
                 fontVariantNumeric: "tabular-nums",
                 width: 40,
@@ -734,7 +734,7 @@ function SvodkaPage({
   const taxNote = {
     fontSize: 13,
     lineHeight: 1.45,
-    color: C.gray,
+    color: theme.fg2,
     fontFamily: FONT,
   };
   const taxRow = (color, name, value) => (
@@ -936,7 +936,7 @@ function SvodkaPage({
                     {fmt(vatSum)}
                   </div>
                   <div
-                    style={{ fontSize: 12, color: C.gray, fontFamily: FONT }}
+                    style={{ fontSize: 12, color: theme.fg2, fontFamily: FONT }}
                   >
                     {vatCount} {plural(vatCount, ["чек", "чека", "чеков"])} с
                     НДС
@@ -1401,7 +1401,7 @@ function FiltersModal({
   };
   const labelStyle = {
     fontSize: 11,
-    color: C.gray,
+    color: theme.fg2,
     fontFamily: FONT,
     marginBottom: 8,
     letterSpacing: "0.05em",
@@ -1529,7 +1529,7 @@ function FiltersModal({
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               fontSize: 18,
               cursor: "pointer",
             }}
@@ -1561,7 +1561,7 @@ function FiltersModal({
                   <div
                     style={{
                       fontSize: 10,
-                      color: C.gray,
+                      color: theme.fg2,
                       fontFamily: FONT,
                       marginBottom: 4,
                     }}
@@ -1580,7 +1580,7 @@ function FiltersModal({
                   <div
                     style={{
                       fontSize: 10,
-                      color: C.gray,
+                      color: theme.fg2,
                       fontFamily: FONT,
                       marginBottom: 4,
                     }}
@@ -1715,7 +1715,7 @@ function FiltersModal({
                             border: "none",
                             background: "none",
                             cursor: "pointer",
-                            color: C.gray,
+                            color: theme.fg2,
                             fontSize: 16,
                             padding: "2px 6px",
                             transform: expanded ? "rotate(90deg)" : "none",
@@ -1816,7 +1816,7 @@ function FiltersModal({
               height: 44,
               border: `1px solid ${C.silver}`,
               background: C.white,
-              color: C.gray,
+              color: theme.fg2,
               cursor: "pointer",
               borderRadius: 10,
               display: "flex",
@@ -2142,7 +2142,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
               {!d.deletable && (
                 <Lock
                   size={13}
-                  color={C.gray}
+                  color={theme.fg2}
                   strokeWidth={2}
                   style={{ flexShrink: 0 }}
                 />
@@ -2175,7 +2175,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
             fontWeight: 700,
             cursor: disabledBtn ? "default" : "pointer",
             background: disabledBtn ? C.silver : theme.cherry,
-            color: disabledBtn ? C.gray : C.white,
+            color: disabledBtn ? theme.fg2 : C.white,
           }}
         >
           <Trash2 size={14} strokeWidth={2} /> Удалить выбранные ({count})
@@ -2281,7 +2281,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
     fontSize: 9,
     letterSpacing: "0.18em",
     textTransform: "uppercase",
-    color: C.gray,
+    color: theme.fg2,
     fontFamily: FONT,
   };
   const inp = {
@@ -2314,7 +2314,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
     border: "none",
     fontFamily: FONT,
     fontSize: 12,
-    color: C.gray,
+    color: theme.fg2,
     cursor: "pointer",
     textDecoration: "underline",
   };
@@ -2427,7 +2427,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
                 borderRadius: "50%",
                 border: `1px solid ${theme.fg3}`,
                 background: "none",
-                color: C.gray,
+                color: theme.fg2,
                 fontSize: 11,
                 lineHeight: 1,
                 cursor: "pointer",
@@ -3009,7 +3009,7 @@ function OperaciiPage({
               height="20"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={showSearch ? theme.cherry : C.gray}
+              stroke={showSearch ? theme.cherry : theme.fg2}
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -3433,7 +3433,7 @@ function OperaciiPage({
                   fontSize: 9,
                   letterSpacing: "0.15em",
                   textTransform: "uppercase",
-                  color: C.gray,
+                  color: theme.fg2,
                   marginBottom: 6,
                   fontFamily: FONT,
                 }}
@@ -3480,7 +3480,11 @@ function OperaciiPage({
                   </span>
                   {groupOf(form.category) && (
                     <span
-                      style={{ display: "block", fontSize: 10, color: C.gray }}
+                      style={{
+                        display: "block",
+                        fontSize: 10,
+                        color: theme.fg2,
+                      }}
                     >
                       {groupOf(form.category)}
                     </span>
@@ -3515,7 +3519,7 @@ function OperaciiPage({
                   fontSize: 9,
                   letterSpacing: "0.15em",
                   textTransform: "uppercase",
-                  color: C.gray,
+                  color: theme.fg2,
                   marginBottom: 6,
                   fontFamily: FONT,
                 }}
@@ -3644,7 +3648,7 @@ function ServiceCard({ svc }) {
           style={{
             fontFamily: FONT,
             fontSize: 11,
-            color: C.gray,
+            color: theme.fg2,
             lineHeight: 1.4,
           }}
         >
@@ -3800,7 +3804,7 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
           >
             {name}
           </div>
-          <div style={{ fontFamily: FONT, fontSize: 11, color: C.gray }}>
+          <div style={{ fontFamily: FONT, fontSize: 11, color: theme.fg2 }}>
             {roleLabel(u.role)} ·{" "}
             {u.is_active !== false ? "активен" : "неактивен"}
           </div>
@@ -3903,7 +3907,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               cursor: "pointer",
               fontSize: 20,
               padding: 4,
@@ -3957,7 +3961,7 @@ function AddEmployeeSheet({ onClose, onAdd }) {
                 fontSize: 10,
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
-                color: C.gray,
+                color: theme.fg2,
                 fontFamily: FONT,
                 marginBottom: 8,
               }}
@@ -4148,7 +4152,7 @@ function ChangePasswordModal({ onClose }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               fontSize: 18,
               cursor: "pointer",
             }}
@@ -4209,7 +4213,7 @@ function ChangePasswordModal({ onClose }) {
                   alignItems: "center",
                   gap: 8,
                   fontSize: 12,
-                  color: C.gray,
+                  color: theme.fg2,
                   fontFamily: FONT,
                   cursor: "pointer",
                 }}
@@ -4348,7 +4352,7 @@ function AccountTab() {
   });
   const lbl = {
     fontSize: 11,
-    color: C.gray,
+    color: theme.fg2,
     fontFamily: FONT,
     minWidth: 110,
     flexShrink: 0,
@@ -4407,7 +4411,7 @@ function AccountTab() {
             justifyContent: "flex-end",
             gap: 6,
             fontSize: 13,
-            color: C.gray,
+            color: theme.fg2,
             fontFamily: FONT,
           }}
         >
@@ -4497,7 +4501,7 @@ function AccountTab() {
           style={{
             fontFamily: FONT,
             fontSize: 12,
-            color: C.gray,
+            color: theme.fg2,
             lineHeight: 1.5,
             marginTop: 8,
           }}
@@ -4554,7 +4558,7 @@ function AccountTab() {
           fontSize: 10,
           letterSpacing: "0.12em",
           textTransform: "uppercase",
-          color: C.gray,
+          color: theme.fg2,
           fontFamily: FONT,
           marginBottom: 8,
         }}
@@ -4610,7 +4614,7 @@ function AccountTab() {
                 padding: "6px 12px",
                 fontFamily: FONT,
                 fontSize: 13,
-                color: isLinked ? theme.cherry : C.gray,
+                color: isLinked ? theme.cherry : theme.fg2,
                 cursor: "pointer",
               }}
             >
@@ -4749,7 +4753,7 @@ function InviteSheet({ onClose }) {
     fontSize: 10,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-    color: C.gray,
+    color: theme.fg2,
     fontFamily: FONT,
     marginBottom: 8,
   };
@@ -4868,7 +4872,7 @@ function InviteSheet({ onClose }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               fontSize: 18,
               cursor: "pointer",
             }}
@@ -4945,7 +4949,7 @@ function InviteSheet({ onClose }) {
               <div
                 style={{
                   fontSize: 13,
-                  color: C.gray,
+                  color: theme.fg2,
                   fontFamily: FONT,
                   marginBottom: 8,
                 }}
@@ -5015,7 +5019,7 @@ function InviteSheet({ onClose }) {
 const FIELD_LBL = {
   display: "block",
   fontSize: 11,
-  color: C.gray,
+  color: theme.fg2,
   fontFamily: FONT,
   letterSpacing: "0.04em",
   textTransform: "uppercase",
@@ -5127,7 +5131,7 @@ function BottomSheet({ title, onClose, children }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               fontSize: 18,
               cursor: "pointer",
             }}
@@ -5236,7 +5240,11 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
       <label style={FIELD_LBL}>Группа</label>
       {mode === "edit" ? (
         <div
-          style={{ ...FIELD_INP, color: C.gray, background: theme.surfaceSunk }}
+          style={{
+            ...FIELD_INP,
+            color: theme.fg2,
+            background: theme.surfaceSunk,
+          }}
         >
           {group ? group.name : "—"}
         </div>
@@ -5258,7 +5266,7 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
         style={{
           border: "none",
           background: "none",
-          color: C.gray,
+          color: theme.fg2,
           fontSize: 12,
           fontFamily: FONT,
           cursor: "pointer",
@@ -5449,7 +5457,7 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
               <span
                 style={{
                   fontSize: 14,
-                  color: C.gray,
+                  color: theme.fg2,
                   transform: open ? "rotate(90deg)" : "none",
                   transition: "transform 0.15s",
                   display: "inline-block",
@@ -5767,7 +5775,7 @@ function NastroykiPage({
                     {roleLabel(inv.role)}
                   </div>
                   <div
-                    style={{ fontSize: 11, color: C.gray, fontFamily: FONT }}
+                    style={{ fontSize: 11, color: theme.fg2, fontFamily: FONT }}
                   >
                     {inv.expires_at
                       ? new Date(inv.expires_at).toLocaleDateString("ru-RU")
@@ -5788,7 +5796,7 @@ function NastroykiPage({
                     cursor: "pointer",
                     flexShrink: 0,
                     padding: 4,
-                    color: copiedToken === inv.token ? "#15803D" : C.gray,
+                    color: copiedToken === inv.token ? "#15803D" : theme.fg2,
                   }}
                 >
                   <span aria-hidden="true">
@@ -5859,7 +5867,7 @@ function NastroykiPage({
             <div
               style={{
                 padding: "12px 2px",
-                color: C.gray,
+                color: theme.fg2,
                 fontSize: 13,
                 fontFamily: FONT,
                 lineHeight: 1.5,
@@ -5872,7 +5880,7 @@ function NastroykiPage({
           <div
             style={{
               fontSize: 11,
-              color: C.gray,
+              color: theme.fg2,
               fontFamily: FONT,
               marginBottom: 8,
               lineHeight: 1.5,
@@ -6147,7 +6155,7 @@ function ConsentBottomSheet({ title, text, onClose }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               cursor: "pointer",
               fontSize: 20,
               padding: 4,
@@ -6377,7 +6385,7 @@ function ConsentScreen({ onAccept }) {
         style={{
           fontFamily: FONT,
           fontSize: 14,
-          color: C.gray,
+          color: theme.fg2,
           textAlign: "center",
           margin: "0 0 32px",
           lineHeight: 1.45,
@@ -6584,7 +6592,7 @@ function AppSwitcher({ onClose, onPick }) {
             fontWeight: 600,
             letterSpacing: "0.12em",
             textTransform: "uppercase",
-            color: C.gray,
+            color: theme.fg2,
           }}
         >
           Приложения
@@ -6635,7 +6643,7 @@ function AppSwitcher({ onClose, onPick }) {
                 style={{
                   fontFamily: FONT,
                   fontSize: 12,
-                  color: C.gray,
+                  color: theme.fg2,
                   marginTop: 1,
                   whiteSpace: "nowrap",
                   overflow: "hidden",

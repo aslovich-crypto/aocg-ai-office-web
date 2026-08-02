@@ -363,7 +363,7 @@ export default function OtchetyPage({
               display: "flex",
             }}
           >
-            <Search size={20} color={showSearch ? theme.cherry : C.gray} />
+            <Search size={20} color={showSearch ? theme.cherry : theme.fg2} />
           </button>
         </div>
       </div>
@@ -501,7 +501,7 @@ export default function OtchetyPage({
                     <div
                       style={{
                         font: `400 13px/1.2 ${FONT}`,
-                        color: C.gray,
+                        color: theme.fg2,
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
@@ -600,7 +600,7 @@ export default function OtchetyPage({
                     <span
                       style={{
                         font: `400 12px/1.3 ${FONT}`,
-                        color: C.gray,
+                        color: theme.fg2,
                       }}
                     >
                       Открыть, чтобы проверить и одобрить
@@ -772,7 +772,7 @@ export default function OtchetyPage({
                 fontSize: 9,
                 letterSpacing: "0.15em",
                 textTransform: "uppercase",
-                color: C.gray,
+                color: theme.fg2,
                 marginBottom: 8,
                 fontFamily: FONT,
               }}
@@ -842,7 +842,11 @@ export default function OtchetyPage({
                       {shortOrg(r.org)}
                     </div>
                     <div
-                      style={{ fontFamily: FONT, fontSize: 10, color: C.gray }}
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: 10,
+                        color: theme.fg2,
+                      }}
                     >
                       {fmtDate(r.date)} · {catName(r)}
                     </div>
@@ -866,7 +870,7 @@ export default function OtchetyPage({
                   style={{ display: "flex", justifyContent: "space-between" }}
                 >
                   <span
-                    style={{ fontFamily: FONT, fontSize: 11, color: C.gray }}
+                    style={{ fontFamily: FONT, fontSize: 11, color: theme.fg2 }}
                   >
                     Итого:
                   </span>

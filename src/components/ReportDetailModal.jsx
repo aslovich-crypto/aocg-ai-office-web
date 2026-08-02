@@ -302,7 +302,7 @@ export default function ReportDetailModal({
                 </span>
               )}
               {rep.created && (
-                <span style={{ font: `400 13px/1 ${FONT}`, color: C.gray }}>
+                <span style={{ font: `400 13px/1 ${FONT}`, color: theme.fg2 }}>
                   от {fmtDate(rep.created)}
                 </span>
               )}
@@ -335,7 +335,7 @@ export default function ReportDetailModal({
                 justifyContent: "space-between",
               }}
             >
-              <span style={{ font: `400 13px/1 ${FONT}`, color: C.gray }}>
+              <span style={{ font: `400 13px/1 ${FONT}`, color: theme.fg2 }}>
                 Итого по отчёту
               </span>
               <span
@@ -372,7 +372,7 @@ export default function ReportDetailModal({
               font: `600 11px/1 ${FONT}`,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: C.gray,
+              color: theme.fg2,
               margin: "20px 2px 8px",
             }}
           >
@@ -429,7 +429,7 @@ export default function ReportDetailModal({
                   <div
                     style={{
                       font: `400 12px/1.3 ${FONT}`,
-                      color: C.gray,
+                      color: theme.fg2,
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -477,7 +477,7 @@ export default function ReportDetailModal({
               style={{
                 marginTop: 10,
                 font: `400 12px/1.45 ${FONT}`,
-                color: C.gray,
+                color: theme.fg2,
                 background: theme.surfaceSunk,
                 borderRadius: 8,
                 padding: "10px 12px",
@@ -602,7 +602,7 @@ export default function ReportDetailModal({
               borderTop: `1px solid ${C.silver}`,
               padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
               font: `400 13px/1.4 ${FONT}`,
-              color: C.gray,
+              color: theme.fg2,
               textAlign: "center",
             }}
           >

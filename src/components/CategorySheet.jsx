@@ -132,7 +132,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
             style={{
               border: "none",
               background: "none",
-              color: C.gray,
+              color: theme.fg2,
               fontSize: 18,
               cursor: "pointer",
             }}
@@ -208,7 +208,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                     fontWeight: 600,
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
-                    color: C.gray,
+                    color: theme.fg2,
                     fontFamily: FONT,
                   }}
                 >
@@ -280,7 +280,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                       fontWeight: 600,
                       letterSpacing: "0.06em",
                       textTransform: "uppercase",
-                      color: C.gray,
+                      color: theme.fg2,
                       fontFamily: FONT,
                     }}
                   >
