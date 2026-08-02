@@ -89,14 +89,83 @@ await page.addInitScript(() => {
   }
 });
 
+// Ответы на вход копим С МОМЕНТА ЗАПУСКА, а не спрашиваем задним числом.
+// Так было нельзя: waitForResponse ждёт ответ, который придёт В БУДУЩЕМ, —
+// а ответ сервера прилетает через ~1 сек после клика, тогда как разбор
+// начинается через 20 сек, по таймауту ожидания. Слушать начинали на 19 сек
+// позже события, вердикт получался ОБРАТНЫЙ: «форма не ушла, дело в скрипте»
+// при честном 401 от сервера. Слушатель вешается один раз, до всякого клика.
+const loginCalls = [];
+page.on("response", (r) => {
+  if (r.url().includes("/api/auth/login"))
+    loginCalls.push({ status: r.status() });
+});
+
+// Разбор накопленного. Смысл различения: «сервер отверг» и «форма не ушла»
+// на экране выглядят одинаково, а лечатся противоположно — первое правится
+// в .env, второе в скрипте.
+//
+// Про 429 отдельно: он не только диагноз, но и ДОКАЗАТЕЛЬСТВО доставки.
+// Бэкенд считает неудачные попытки и после пятой закрывает вход на 15 минут
+// (failed_attempts / locked_until). Счётчик растёт ТОЛЬКО от реально
+// полученных запросов — значит рост счётчика (или пришедший 429) означает,
+// что форма уходит, и разбирать надо креды, а не кнопку. Обратное тоже
+// работает: счётчик стоит на месте — запросы не доходят.
+// Цена признака: каждый прогон с неверным паролем приближает блокировку.
+function loginVerdict() {
+  const last = loginCalls.at(-1);
+  if (!last)
+    return (
+      "запроса на /api/auth/login НЕ БЫЛО → форма не ушла. Дело не в кредах: " +
+      "либо значения не дошли до состояния формы (submit() молча выходит " +
+      "на пустых полях), либо кнопка не нажалась. Правьте скрипт"
+    );
+  if (last.status === 429)
+    return (
+      "сервер ответил 429 → блокировка или лимит по IP. Попутно доказано, " +
+      "что запросы ДОХОДЯТ (счётчик неудачных попыток растёт только от " +
+      "реально полученных запросов). Подождите и проверьте креды"
+    );
+  if (last.status >= 400)
+    return `сервер ОТВЕРГ: ${last.status} на /api/auth/login → правьте AUDIT_EMAIL/AUDIT_PASSWORD в .env`;
+  return (
+    `сервер ПРИНЯЛ (${last.status}), но форма осталась на экране → дело не ` +
+    "во входе, а в переключении интерфейса. Правьте скрипт или смотрите приложение"
+  );
+}
+
 async function login() {
   await page.setViewportSize({ width: 430, height: 932 });
   await page.goto(URL_BASE, { waitUntil: "networkidle" });
   const inputs = page.locator(".aocg-login-input");
   if ((await inputs.count()) === 0) return "уже был авторизован";
-  await inputs.nth(0).fill(EMAIL);
-  await inputs.nth(1).fill(PASSWORD);
-  await page.locator(".aocg-login-submit").click();
+
+  // ПЕЧАТАЕМ, А НЕ ПОДСТАВЛЯЕМ. fill() ставит значение одним присваиванием;
+  // если оно совпало с прежним (повторный запуск после ошибки), React может
+  // не увидеть изменения, кнопка останется заблокированной и форма просто
+  // не уйдёт. Внешне это неотличимо от неверного пароля — на чём мы
+  // и застряли: сообщение об ошибке висело от прошлой попытки, а счётчик
+  // неудачных входов на сервере не рос.
+  const type = async (loc, value) => {
+    await loc.click();
+    await loc.fill("");
+    await loc.pressSequentially(value, { delay: 15 });
+  };
+  await type(inputs.nth(0), EMAIL);
+  await type(inputs.nth(1), PASSWORD);
+
+  // Кнопка неактивна — значит форма не считает данные валидными.
+  // Жать вслепую бессмысленно и тратит попытку входа.
+  const submit = page.locator(".aocg-login-submit");
+  if (await submit.isDisabled()) {
+    await page.screenshot({ path: join(OUT, "login-failed.png") });
+    throw new Error(
+      "кнопка «Войти» неактивна — форма не приняла введённое.\n" +
+        `  Проверьте AUDIT_EMAIL и AUDIT_PASSWORD в .env.\n` +
+        `  Скриншот: ${join(OUT, "login-failed.png")}`,
+    );
+  }
+  await submit.click();
   try {
     await page.waitForSelector(".aocg-login-input", {
       state: "detached",
@@ -123,6 +192,11 @@ async function login() {
     throw new Error(
       "вход не выполнен. Страница говорит: " +
         (texts.length ? [...new Set(texts)].join(" | ") : "ничего не сказала") +
+        `\n  Диагноз: ${loginVerdict()}` +
+        `\n  Запросов на /api/auth/login: ${loginCalls.length}` +
+        (loginCalls.length
+          ? ` (ответы: ${loginCalls.map((c) => c.status).join(", ")})`
+          : "") +
         `\n  Скриншот: ${join(OUT, "login-failed.png")}` +
         `\n  Адрес: ${URL_BASE}`,
     );
@@ -248,10 +322,14 @@ md += `- дата: ${new Date().toISOString().slice(0, 16).replace("T", " ")}\n`
 md += `- гнали против: ${URL_BASE}${
   URL_BASE.includes("localhost") ? " (локальная сборка)" : " (AUDIT_URL)"
 }\n`;
-md += `- фронт HEAD: ${git(WEB, "log -1 --format=%h %s")}\n`;
+// Формат В КАВЫЧКАХ. Без них «%s» уезжает отдельным аргументом, git считает
+// его ревизией и падает («ambiguous argument '%s'»), catch подставляет «—» —
+// и обе строки HEAD во ВСЕХ отчётах были «—». То есть архив прогонов не знал,
+// против какого кода снят, ради чего эти строки и заводились.
+md += `- фронт HEAD: ${git(WEB, 'log -1 --format="%h %s"')}\n`;
 md += `- бэк HEAD: ${git(
   join(WEB, "..", "aocg-ai-office"),
-  "log -1 --format=%h %s",
+  'log -1 --format="%h %s"',
 )}\n`;
 md += `- самопроверка T11 (тонкая проба +5px): ${
   self.ok ? "ловится ✓" : "НЕ ЛОВИТСЯ ✗"
