@@ -1328,8 +1328,40 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete, narrow }) {
               {card4 ? ` •••${card4}` : ""}
             </span>
           </div>
+          {/* Пилюля категории переехала из правой колонки СЮДА. Замер показал:
+              плавающая кнопка «+» занимает x=311..367 при экране 383, то есть
+              правые 56px каждой карточки лежат под ней, и прижатая к правому
+              краю пилюля закрывалась на 39px. Дефект «плавающий» — под кнопку
+              попадает та карточка, что сейчас в её полосе прокрутки.
+              Сужать список отступом не стали (отняло бы ширину у всех ради
+              1-2 видимых карточек), поведение кнопки не трогали. Вместо этого
+              правые 56px карточки больше не несут читаемой информации:
+              там остаётся только сумма, а она короткая и выше полосы кнопки.
+              maxWidth+многоточие — не косметика: в узкой левой колонке
+              длинная категория иначе повторила бы переполнение мета-строки. */}
+          <span
+            style={{
+              alignSelf: "flex-start",
+              maxWidth: "100%",
+              boxSizing: "border-box",
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: FONT,
+              padding: "5px 10px",
+              borderRadius: 999,
+              background: col.bg,
+              color: col.fg,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {catName(r)}
+          </span>
         </div>
-        {/* right — сумма + пилюля категории */}
+        {/* right — только сумма. Пилюля переехала в левую колонку: правые 56px
+            карточки лежат под плавающей кнопкой, и там не должно остаться
+            ничего читаемого. Сумма короткая и выше полосы кнопки. */}
         <div
           style={{
             display: "flex",
@@ -1350,20 +1382,6 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete, narrow }) {
             }}
           >
             {fmt(r.amount)}
-          </span>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 500,
-              fontFamily: FONT,
-              padding: "5px 10px",
-              borderRadius: 999,
-              background: col.bg,
-              color: col.fg,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {catName(r)}
           </span>
         </div>
       </div>
