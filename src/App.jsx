@@ -342,7 +342,7 @@ function Block({ children, style: s }) {
     <div
       style={{
         background: C.lightGray,
-        borderLeft: `3px solid ${C.cherryM}`,
+        borderLeft: `3px solid ${theme.cherryMuted}`,
         padding: "10px 14px",
         marginBottom: 10,
         ...s,
@@ -523,7 +523,7 @@ function SectionCard({ title, children }) {
 }
 
 function Donut({ title, data, num, sliceColor }) {
-  const pal = [C.cherry, C.cherryM, "#C45558", "#E8A0A2", "#D4888A"];
+  const pal = [C.cherry, theme.cherryMuted, "#C45558", "#E8A0A2", "#D4888A"];
   // sliceColor(d) — раскраска по группе (донат «Категории»); иначе вишнёвая палитра.
   const colorAt = (d, i) => (sliceColor ? sliceColor(d) : pal[i % pal.length]);
   const sectionTotal = data.reduce((s, d) => s + d.value, 0);
@@ -5776,7 +5776,7 @@ function NastroykiPage({
                   style={{
                     border: "none",
                     background: "none",
-                    color: C.cherryM,
+                    color: theme.cherryMuted,
                     fontSize: 16,
                     cursor: "pointer",
                     flexShrink: 0,
@@ -5913,7 +5913,7 @@ function NastroykiPage({
                   background: "none",
                   border: "none",
                   padding: 0,
-                  color: C.cherryM,
+                  color: theme.cherryMuted,
                   fontSize: 14,
                   cursor: "pointer",
                   flexShrink: 0,
