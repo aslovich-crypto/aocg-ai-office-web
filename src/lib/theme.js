@@ -1,22 +1,53 @@
-// Канонические токены палитры и шрифта (зеркало colors_and_type.css дизайн-системы).
-// Вынесено из App.jsx, чтобы переиспользовать в выделяемых компонентах
-// (ReceiptDetailModal, CategorySheet и далее по ходу дробления монолита).
+// Палитра и шрифт приложения.
+//
+// ИСТОЧНИК ЗНАЧЕНИЙ — дизайн-система, а не этот файл. Здесь только ре-экспорт
+// вендорной копии `design/theme.mjs` (машинная выгрузка ДС, см. design/README.md)
+// плюс СТАРЫЕ ИМЕНА КАК АЛИАСЫ канонных токенов.
+//
+// ЗАЧЕМ АЛИАСЫ, А НЕ ПЕРЕИМЕНОВАНИЕ СРАЗУ (T10, этап 1): в коде 480 обращений
+// вида C.silver / C.gray / C.white. Механизм — единый источник — включается
+// ЗДЕСЬ и СЕЙЧАС, без единой правки в компонентах; переименования идут отдельным
+// шагом (этап 2) под присмотром сторожа scripts/check-theme-tokens.mjs, который
+// ловит каждое незамеченное обращение как «такого ключа нет».
+// Сверка перед включением: 11 из 13 значений совпали с каноном ПОБАЙТНО,
+// 2 (cherryD, white) различались только регистром записи hex — тот же цвет.
+// Видимых изменений этот файл не вносит.
+//
+// НОВЫЙ КОД ПИШЕТ КАНОННЫЕ ИМЕНА: `import { theme } from "../lib/theme"`
+// и `theme.fg1`, `theme.errorBd`, `theme.surfaceSunk`. Объект `C` — только
+// для уже написанного, он временный.
+import { theme } from "../../design/theme.mjs";
+
+export { theme };
+
 export const C = {
-  cherry: "#A4161A",
-  cherryD: "#7a1014",
-  cherryL: "#F2E0E0",
-  cherryM: "#D4888A",
-  cherryTint: "#FDF2F2", // Brand Tint — фон подсветки/выделения
-  dark: "#161A1D", // mark field / neutral-900 (text uses #111318)
+  // ── бренд ─────────────────────────────────────────────────────────────
+  cherry: theme.cherry,
+  cherryD: theme.cherryDark,
+  cherryL: theme.cherrySoft,
+  cherryM: theme.cherryMuted,
+  cherryTint: theme.cherryTint,
+
+  // ── нейтральные ───────────────────────────────────────────────────────
+  // ВНИМАНИЕ, ДОЛГ (T10, этап 3): C.dark — это #161A1D, канонически
+  // --surface-inverse, то есть ФОН тёмных плашек. В коде им покрашен ТЕКСТ
+  // (75 мест), а канонный текст — fg1 #111318. Значение сейчас сохранено
+  // один в один, чтобы этап 1 ничего не менял; замена C.dark → theme.fg1
+  // идёт отдельным шагом, она видна глазом.
+  dark: theme.surfaceInverse,
+  // ВНИМАНИЕ, ДОЛГ (T10, этап 3): канона нет. ДС отвечает, что промежуточного
+  // уровня в лестнице нет ПО РЕШЕНИЮ (fg1 основной / fg2 вторичный / fg3
+  // плейсхолдер), а #404040 нейтрально-серый рядом с холодной нейтралью
+  // читается грязным. 11 мест разбираются по смыслу: основной текст → fg1,
+  // подпись → fg2. До разбора — литерал, единственный в этом файле.
   mid: "#404040",
-  gray: "#636B7D", // secondary text / labels (cool)
-  grayL: "#9CA3AF", // tertiary / placeholder
-  silver: "#EEF0F4", // hairline borders & dividers (cool)
-  lightGray: "#EEF0F4", // sunk fills — search field, table headers, chips (cool)
-  light: "#F6F7F9", // default page background (cool)
-  borderD: "#E2E5EB", // in-card divider, one step darker than --border
-  white: "#ffffff",
+  gray: theme.fg2,
+  grayL: theme.fg3,
+  silver: theme.border,
+  lightGray: theme.surfaceSunk,
+  light: theme.bg,
+  borderD: theme.borderStrong,
+  white: theme.surface,
 };
 
-export const FONT =
-  "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+export const FONT = theme.fontSans;

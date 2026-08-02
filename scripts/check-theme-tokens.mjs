@@ -31,7 +31,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "src");
-const THEME_FILE = join(SRC, "lib", "theme.js");
+const THEME_FILE = join(SRC, "lib", "theme.js"); // объект C (алиасы, T10 этап 1)
+const CANON_FILE = join(ROOT, "design", "theme.mjs"); // канон ДС, объект theme
 
 // Карта считается картой токенов, если объявлена как `const ИМЯ = {…}` и имя
 // набрано заглавными (C, T, TOK, TAG_1199). Узкое имя из одной-двух букв —
@@ -106,6 +107,28 @@ function stripComments(src) {
         continue;
       }
       i++;
+      continue;
+    }
+    i++;
+  }
+  return out.join("");
+}
+
+// Второй проход: то же самое, плюс СОДЕРЖИМОЕ строк в кавычках.
+// Нужен только для поиска ОБРАЩЕНИЙ. Иначе путь импорта
+// `from "../../design/theme.mjs"` читается как обращение theme.mjs —
+// поймал себя на этом сразу после расширения регулярки на строчные имена.
+// Для разбора КЛЮЧЕЙ этот проход не годится: ключи бывают в кавычках
+// («На проверке»: …), и погасив строки, мы потеряли бы их.
+function blankStrings(src) {
+  const out = Array.from(src);
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '"' || c === "'") {
+      const end = skipQuoted(src, i, c);
+      for (let j = i + 1; j < end - 1; j++) if (out[j] !== "\n") out[j] = " ";
+      i = end;
       continue;
     }
     i++;
@@ -250,6 +273,22 @@ function walk(dir, acc = []) {
 const themeSrc = stripComments(readFileSync(THEME_FILE, "utf8"));
 const themeMaps = findMaps(themeSrc);
 
+// Канон ДС объявлен как `export const theme = {…}` — имя строчное, под общее
+// правило «карта = ИМЯ ЗАГЛАВНЫМИ» не подходит, поэтому разбираем отдельно.
+const canonSrc = stripComments(readFileSync(CANON_FILE, "utf8"));
+const canonAt = canonSrc.indexOf("export const theme = {");
+const canonDef =
+  canonAt >= 0
+    ? objectKeys(canonSrc, canonSrc.indexOf("{", canonAt))
+    : { skip: "не найден" };
+if (canonDef.skip) {
+  console.error(
+    `✖ design/theme.mjs: объект theme не разобран — ${canonDef.skip}`,
+  );
+  process.exit(1);
+}
+const canonKeys = canonDef.keys;
+
 // --verbose печатает, ЧТО именно проверено. Прогон без находок сам по себе
 // ничего не доказывает: он одинаково выглядит и когда всё чисто, и когда
 // сторож ничего не нашёл (не разобрал карту, не дошёл до файла). Разбивка
@@ -264,7 +303,8 @@ let mapsChecked = 0;
 
 for (const file of walk(SRC)) {
   const raw = readFileSync(file, "utf8");
-  const src = stripComments(raw);
+  const src = stripComments(raw); // для разбора карт: ключи в кавычках нужны
+  const reads = blankStrings(src); // для поиска обращений: пути импорта — не код
   const rel = relative(ROOT, file);
 
   const local = findMaps(src);
@@ -284,6 +324,11 @@ for (const file of walk(SRC)) {
   if (!known.has("C") && themeMaps.get("C")?.keys) {
     known.set("C", themeMaps.get("C").keys);
   }
+  // То же для канонного `theme` из вендорной копии ДС: новый код пишет
+  // theme.fg1 / theme.errorBd, и опечатка там ровно так же даст undefined.
+  // Ключей 88, среди них близнецы (fg2/fg3, successBg/-Fg/-Bd, chart1…6) —
+  // риск опечатки ВЫШЕ, чем был на 13 ключах объекта C.
+  if (!known.has("theme") && canonKeys) known.set("theme", canonKeys);
 
   // Импортированные из lib/theme карты — ключи берём оттуда.
   const imports = [
@@ -307,21 +352,27 @@ for (const file of walk(SRC)) {
   if (known.size === 0) continue;
 
   // Присваивание в карту (T.x = …) — тоже объявление ключа, а не ошибка.
-  for (const [, name, key] of src.matchAll(
-    /\b([A-Z][A-Z0-9_]*)\.([A-Za-z_$][\w$]*)\s*=[^=]/g,
+  for (const [, name, key] of reads.matchAll(
+    /\b([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*=[^=]/g,
   )) {
     if (known.has(name)) known.get(name).add(key);
   }
 
+  // Ищем обращения по ЛЮБОМУ имени, а не только по ЗАГЛАВНЫМ: канон ДС
+  // называется `theme` строчными. Раньше регулярка требовала [A-Z]…, карта
+  // theme в known попадала — а её чтения не проверялись вовсе. Классический
+  // ложнозелёный: прогон выглядел так же, как если бы всё было чисто.
+  // Отсев делает known: чужие объекты (Math.max, JSON.parse, res.status)
+  // в него не попадают и молча пропускаются.
   const perFile = new Map();
-  for (const m of src.matchAll(/\b([A-Z][A-Z0-9_]*)\.([A-Za-z_$][\w$]*)/g)) {
+  for (const m of reads.matchAll(/\b([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)/g)) {
     const [, name, key] = m;
     const keys = known.get(name);
     if (!keys) continue; // карта не наша (Math.max, JSON.parse, React.Fragment)
     readsChecked++;
     perFile.set(name, (perFile.get(name) || 0) + 1);
     if (keys.has(key)) continue;
-    const line = src.slice(0, m.index).split("\n").length;
+    const line = reads.slice(0, m.index).split("\n").length;
     problems.push({
       file: rel,
       line,
