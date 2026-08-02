@@ -3265,6 +3265,10 @@ function OperaciiPage({
         style={{
           ...fabHiddenStyle(fabHidden),
           position: "fixed",
+          // Слой ЯВНО: раньше его не было вовсе, и кнопка оказывалась под
+          // оверлеями по случайности порядка в DOM, а не по правилу.
+          // Диапазоны слоёв — в CLAUDE.md, раздел «Слои интерфейса».
+          zIndex: 40,
           bottom: "calc(env(safe-area-inset-bottom) + 88px)",
           right: 16,
           width: 56,
@@ -6664,7 +6668,10 @@ function AppSwitcher({ onClose, onPick }) {
     <>
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, zIndex: 40 }}
+        // 50/51, а не 40/41: на 40 живут плавающие кнопки, и меню
+        // приложений сталкивалось с кнопкой «Новый отчёт» — кто выше,
+        // решал порядок в DOM. Теперь порядок задан правилом.
+        style={{ position: "fixed", inset: 0, zIndex: 50 }}
       />
       <div
         role="menu"
@@ -6672,7 +6679,7 @@ function AppSwitcher({ onClose, onPick }) {
           position: "absolute",
           top: "calc(100% + 2px)",
           left: 8,
-          zIndex: 41,
+          zIndex: 51,
           width: 256,
           background: theme.surface,
           border: `1px solid ${theme.border}`,

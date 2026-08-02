@@ -669,6 +669,9 @@ export default function OtchetyPage({
           justifyContent: "center",
           border: "none",
           cursor: "pointer",
+          // Тот же слой, что у кнопки на «Чеках»: обе плавающие кнопки
+          // живут на 40 и обязаны быть ниже любого оверлея.
+          // Диапазоны — в CLAUDE.md, раздел «Слои интерфейса».
           zIndex: 40,
         }}
       >
