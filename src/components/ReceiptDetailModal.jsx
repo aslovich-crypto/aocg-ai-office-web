@@ -37,6 +37,7 @@ const T = {
   successFg: "#15803D",
   errorFg: "#B91C1C",
   cherry: C.cherry,
+  cherryTint: C.cherryTint, // Brand Tint — подсветка выбранного пункта
   cherryHover: "#8B1218",
   white: C.white,
 };
@@ -191,7 +192,7 @@ const optStyle = (sel) => ({
   justifyContent: "space-between",
   gap: 12,
   width: "100%",
-  background: sel ? "#FDF2F2" : "none",
+  background: sel ? T.cherryTint : "none",
   border: "none",
   cursor: "pointer",
   padding: "14px 12px",

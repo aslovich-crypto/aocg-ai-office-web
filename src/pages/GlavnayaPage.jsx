@@ -127,7 +127,7 @@ export default function GlavnayaPage({
           width: 38,
           height: 38,
           borderRadius: 10,
-          background: C.cherryTint || "#FDF2F2",
+          background: C.cherryTint,
           color: C.cherry,
           display: "flex",
           alignItems: "center",

@@ -28,7 +28,12 @@ repos:
       - id: prettier
         types_or: [javascript, jsx, css, json]
 
-  # --- ESLint (T8) ---
+  # --- ESLint (T8) + сторож токенов темы (T9) ---
+  # `npm run lint` = eslint + scripts/check-theme-tokens.mjs. Второй ловит то,
+  # чего eslint не видит: обращение к несуществующему ключу карты токенов
+  # (C.bg, T.warningFg) — оно даёт undefined, и стиль молча не применяется.
+  # Тем же вызовом это работает и в CI, дублировать шаг не нужно.
+  #
   # Конфиг (eslint.config.js) существовал давно и включает no-undef, но
   # линтер нигде не запускался: в хуках был только prettier, CI на фронте
   # не было. Из-за этого до прода дошёл ReferenceError — setReceipts
@@ -39,7 +44,7 @@ repos:
   - repo: local
     hooks:
       - id: eslint
-        name: eslint (no-undef и правила React)
+        name: eslint (no-undef и правила React) + токены темы
         entry: npm run lint
         language: system
         types_or: [javascript, jsx]

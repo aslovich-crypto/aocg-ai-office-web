@@ -6,6 +6,7 @@ export const C = {
   cherryD: "#7a1014",
   cherryL: "#F2E0E0",
   cherryM: "#D4888A",
+  cherryTint: "#FDF2F2", // Brand Tint — фон подсветки/выделения
   dark: "#161A1D", // mark field / neutral-900 (text uses #111318)
   mid: "#404040",
   gray: "#636B7D", // secondary text / labels (cool)
