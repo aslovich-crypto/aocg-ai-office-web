@@ -229,6 +229,7 @@ export default function OtchetyPage({
         return;
       }
       setReports((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      return updated; // деталям нужен свежий отчёт: они остаются открытыми
     } catch {
       failToast();
     }
@@ -688,8 +689,21 @@ export default function OtchetyPage({
             );
           }}
           onStatus={async (id, status) => {
-            await changeStatus(id, status);
-            setOpenRep(null); // решение принято — возвращаемся к списку
+            const updated = await changeStatus(id, status);
+            // Детали НЕ закрываем: пользователь смотрит состав и после смены
+            // статуса чаще всего продолжает смотреть. Раньше экран схлопывался
+            // после «Одобрить», и чтобы просто отправить черновик, приходилось
+            // выходить в список — ровно то, из-за чего действия автора сюда
+            // и добавлены. Ошибку показал changeStatus тостом, updated пуст —
+            // тогда ничего не трогаем.
+            if (updated)
+              setOpenRep((prev) => (prev ? { ...prev, ...updated } : prev));
+          }}
+          onDelete={(rep) => {
+            // Подтверждение с объяснением про освобождение чеков живёт
+            // в списке — переиспользуем его, а не заводим второе.
+            setOpenRep(null);
+            setConfirmDel(rep);
           }}
         />
       )}

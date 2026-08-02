@@ -30,26 +30,91 @@ function receiptWhen(r) {
   return fmtDate(r.date);
 }
 
-// Что показать внизу экрана у отчёта «На проверке». Кнопок нет — объясняем
-// причину, иначе пустой низ читается как поломка.
+// Пояснения, когда действий нет. Пустой низ экрана читается как поломка.
 const FOOTER_NOTE = {
   elsewhere: "Отчёт ждёт решения — одобряют и отклоняют в разделе «Отчёты»",
   noRights: "Отчёт на проверке у бухгалтера",
 };
 
-// Единственный узел решения: кнопки, объяснение или ничего.
-// Порядок веток важен — сначала право, потом место. Иначе сотруднику,
-// открывшему отчёт из карточки чека, написали бы «одобряют в разделе
-// „Отчёты“», хотя одобрить он не может нигде.
-function footerFor({ status, role, onStatus }) {
-  if (status !== "На проверке") return null;
-  // Роль ещё не пришла (/api/users/me в полёте): не рисуем ни кнопок, ни
-  // «нет прав». Показать отказ по незагруженным данным — соврать, а потом
-  // молча переобуться, когда роль придёт.
-  if (role == null) return null;
-  if (!canApprove(role)) return "noRights";
-  return onStatus ? "buttons" : "elsewhere";
+// ЕДИНСТВЕННЫЙ УЗЕЛ РЕШЕНИЯ про низ экрана. Возвращает {approve, withdraw,
+// send, fix, remove, note} — что показать. Собрано в одном месте, потому что
+// иначе условия «роль × статус × откуда открыли» расползаются по разметке
+// и расходятся между собой.
+//
+// ЗАЧЕМ ДЕЙСТВИЯ АВТОРА ЗДЕСЬ, А НЕ ТОЛЬКО В СПИСКЕ: открыть отчёт, проверить
+// состав и не иметь возможности отправить — тупик. Приходилось выходить назад
+// в список ради кнопки, которая должна быть под рукой там, где смотрят.
+// «Одобрить/Отклонить» остаются ТОЛЬКО здесь (решение по деньгам требует
+// увидеть состав), а безопасные действия автора продублированы.
+function footerFor({ status, role, onStatus, onDelete }) {
+  // onStatus не передан — отчёт открыт из карточки чека, это справка
+  // «куда делся мой чек», а не рабочее место. Кнопок нет вовсе.
+  if (!onStatus) {
+    if (status !== "На проверке") return null;
+    // Роль ещё не пришла — молчим: показать «нет прав» по незагруженным
+    // данным значит соврать и потом молча переобуться.
+    if (role == null) return null;
+    return { note: canApprove(role) ? "elsewhere" : "noRights" };
+  }
+  if (status === "Черновик") return { send: true, remove: !!onDelete };
+  if (status === "Отклонён") return { fix: true, remove: !!onDelete };
+  if (status === "На проверке") {
+    if (role == null) return { withdraw: true }; // отзыв правом не гейтится
+    return canApprove(role)
+      ? { approve: true, withdraw: true }
+      : { withdraw: true, note: "noRights" };
+  }
+  return null; // «Одобрен» — принят к учёту, действий нет
 }
+
+// Вид кнопок повторяет действия в списке отчётов (Btn small / Pill там):
+// одно и то же действие не должно выглядеть по-разному в двух местах.
+const BTN_BASE = {
+  flex: 1,
+  height: 46,
+  borderRadius: 8,
+  font: `600 15px/1 ${FONT}`,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+const BTN = {
+  primary: {
+    ...BTN_BASE,
+    border: "none",
+    background: theme.cherry,
+    color: theme.surface,
+  },
+  success: {
+    ...BTN_BASE,
+    border: "none",
+    background: theme.successFg,
+    color: theme.surface,
+  },
+  danger: {
+    ...BTN_BASE,
+    border: `1px solid ${theme.errorBd}`,
+    background: theme.surface,
+    color: theme.errorFg,
+  },
+  dangerGhost: {
+    ...BTN_BASE,
+    border: `1px solid ${theme.errorBd}`,
+    background: theme.surface,
+    color: theme.errorFg,
+  },
+  warning: {
+    ...BTN_BASE,
+    border: `1px solid ${theme.warningBd}`,
+    background: theme.warningBg,
+    color: theme.warningFg,
+  },
+  neutral: {
+    ...BTN_BASE,
+    border: `1px solid ${theme.border}`,
+    background: theme.surface,
+    color: theme.slateFg,
+  },
+};
 
 export default function ReportDetailModal({
   // Отчёт: из списка приходит целиком (показываем сразу, без спиннера), из
@@ -59,6 +124,7 @@ export default function ReportDetailModal({
   onClose,
   onChanged, // обновлённый отчёт → в список (из карточки чека не нужен)
   onStatus, // (id, status) → смена статуса; НЕ передан — решения тут не принимают
+  onDelete, // (отчёт) → удаление; подтверждение и объяснение живут в списке
   role, // роль текущего юзера; null = ещё не загрузилась (не «нет прав»)
   reloadReceipts, // состав изменился → чек освободился/занялся
   zIndex = 120, // из карточки чека открываемся поверх неё (у неё 150)
@@ -193,7 +259,7 @@ export default function ReportDetailModal({
     if (aliveRef.current) setBusyId(null);
   }
 
-  const footer = footerFor({ status: rep.status, role, onStatus });
+  const footer = footerFor({ status: rep.status, role, onStatus, onDelete });
 
   const dialogRef = useModalA11y(onClose);
 
@@ -547,8 +613,11 @@ export default function ReportDetailModal({
           </div>
         )}
 
-        {/* Решение по деньгам — только здесь, после просмотра состава. */}
-        {footer === "buttons" && (
+        {/* Низ экрана: действия и/или объяснение. Что именно — решает
+          footerFor, здесь только отрисовка. Кнопки повторяют вид тех же
+          действий в списке отчётов, чтобы одно и то же не выглядело
+          по-разному в двух местах. */}
+        {footer && (
           <div
             style={{
               flexShrink: 0,
@@ -556,57 +625,79 @@ export default function ReportDetailModal({
               borderTop: `1px solid ${theme.border}`,
               padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
               display: "flex",
-              gap: 8,
+              flexDirection: "column",
+              gap: 10,
             }}
           >
-            <button
-              onClick={() => onStatus(rep.id, "Отклонён")}
-              style={{
-                flex: 1,
-                height: 46,
-                borderRadius: 8,
-                border: "1px solid #FECACA",
-                background: theme.surface,
-                color: "#B91C1C",
-                font: `600 15px/1 ${FONT}`,
-                cursor: "pointer",
-              }}
-            >
-              Отклонить
-            </button>
-            <button
-              onClick={() => onStatus(rep.id, "Одобрен")}
-              style={{
-                flex: 1,
-                height: 46,
-                borderRadius: 8,
-                border: "none",
-                background: "#15803D",
-                color: theme.surface,
-                font: `600 15px/1 ${FONT}`,
-                cursor: "pointer",
-              }}
-            >
-              ✓ Одобрить
-            </button>
-          </div>
-        )}
-
-        {/* Кнопок нет — объясняем почему. Молчание читалось бы как поломка:
-          пользователь видит «На проверке» и пустой низ экрана. */}
-        {FOOTER_NOTE[footer] && (
-          <div
-            style={{
-              flexShrink: 0,
-              background: theme.surface,
-              borderTop: `1px solid ${theme.border}`,
-              padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
-              font: `400 13px/1.4 ${FONT}`,
-              color: theme.fg2,
-              textAlign: "center",
-            }}
-          >
-            {FOOTER_NOTE[footer]}
+            {(footer.approve ||
+              footer.withdraw ||
+              footer.send ||
+              footer.fix) && (
+              <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                {footer.send && (
+                  <button
+                    onClick={() => onStatus(rep.id, "На проверке")}
+                    style={BTN.primary}
+                  >
+                    На проверку →
+                  </button>
+                )}
+                {footer.fix && (
+                  <button
+                    onClick={() => onStatus(rep.id, "Черновик")}
+                    style={BTN.neutral}
+                  >
+                    Исправить
+                  </button>
+                )}
+                {footer.approve && (
+                  <button
+                    onClick={() => onStatus(rep.id, "Отклонён")}
+                    style={BTN.danger}
+                  >
+                    Отклонить
+                  </button>
+                )}
+                {footer.approve && (
+                  <button
+                    onClick={() => onStatus(rep.id, "Одобрен")}
+                    style={BTN.success}
+                  >
+                    ✓ Одобрить
+                  </button>
+                )}
+                {footer.withdraw && (
+                  <button
+                    onClick={() => onStatus(rep.id, "Черновик")}
+                    style={BTN.warning}
+                  >
+                    Отозвать
+                  </button>
+                )}
+                {footer.remove && (
+                  <button onClick={() => onDelete(rep)} style={BTN.dangerGhost}>
+                    Удалить
+                  </button>
+                )}
+              </div>
+            )}
+            {/* remove без других кнопок не бывает, но если появится — не потеряем */}
+            {footer.remove && !(footer.send || footer.fix) && (
+              <button onClick={() => onDelete(rep)} style={BTN.dangerGhost}>
+                Удалить
+              </button>
+            )}
+            {FOOTER_NOTE[footer.note] && (
+              <div
+                style={{
+                  font: `400 13px/1.4 ${FONT}`,
+                  color: theme.fg2,
+                  textAlign: "center",
+                }}
+              >
+                {FOOTER_NOTE[footer.note]}
+              </div>
+            )}
           </div>
         )}
       </div>
