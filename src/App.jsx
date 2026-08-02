@@ -24,7 +24,7 @@ import {
   Check,
   Plus,
 } from "lucide-react";
-import { C, FONT } from "./lib/theme";
+import { C, FONT, theme } from "./lib/theme";
 import { shortOrg, fmtDate } from "./lib/format";
 import {
   setCatalogMaps,
@@ -1869,7 +1869,7 @@ function FilterIcon({ active, onClick, size = 38 }) {
         width: size,
         height: size,
         border: "none",
-        background: active ? C.cherryL : "#EEF0F4",
+        background: active ? theme.cherrySoft : "#EEF0F4",
         cursor: "pointer",
         borderRadius: 10,
         display: "flex",
@@ -3524,7 +3524,8 @@ function OperaciiPage({
                       border: `1px solid ${
                         form.payment === m ? C.cherry : C.silver
                       }`,
-                      background: form.payment === m ? C.cherryL : C.white,
+                      background:
+                        form.payment === m ? theme.cherrySoft : C.white,
                       color: form.payment === m ? C.cherry : C.mid,
                       fontFamily: FONT,
                       fontSize: 11,
@@ -4469,7 +4470,7 @@ function AccountTab() {
         <span
           style={{
             display: "inline-block",
-            background: C.cherryL,
+            background: theme.cherrySoft,
             color: C.cherry,
             fontFamily: FONT,
             fontSize: 12,
@@ -6285,7 +6286,7 @@ function ConsentScreen({ onAccept }) {
         minHeight: "100dvh",
         display: "flex",
         flexDirection: "column",
-        background: C.light,
+        background: theme.bg,
         fontFamily: FONT,
         padding:
           "calc(env(safe-area-inset-top) + 48px) 24px calc(env(safe-area-inset-bottom) + 24px)",
@@ -8058,7 +8059,7 @@ export default function App() {
         height: "100dvh",
         display: "flex",
         flexDirection: "column",
-        background: C.light,
+        background: theme.bg,
         fontFamily: FONT,
         overflow: "hidden",
       }}

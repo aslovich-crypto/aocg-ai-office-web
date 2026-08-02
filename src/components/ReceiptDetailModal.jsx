@@ -16,7 +16,7 @@ import {
   Paperclip,
   Plus,
 } from "lucide-react";
-import { C, FONT } from "../lib/theme";
+import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
@@ -31,13 +31,13 @@ const T = {
   fg2: C.gray, // #636B7D
   fg3: C.grayL, // #9CA3AF
   border: C.silver, // #EEF0F4
-  borderStrong: C.borderD, // #E2E5EB
+  borderStrong: theme.borderStrong, // #E2E5EB
   chipBg: "#EEF0F4",
   successBg: "#F0FDF4",
   successFg: "#15803D",
   errorFg: "#B91C1C",
   cherry: C.cherry,
-  cherryTint: C.cherryTint, // Brand Tint — подсветка выбранного пункта
+  cherryTint: theme.cherryTint, // Brand Tint — подсветка выбранного пункта
   cherryHover: "#8B1218",
   white: C.white,
 };
@@ -716,7 +716,7 @@ export default function ReceiptDetailModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "relative",
-          background: C.light,
+          background: theme.bg,
           width: "100%",
           maxWidth: 480,
           maxHeight: "calc(100dvh - env(safe-area-inset-top) - 8px)",

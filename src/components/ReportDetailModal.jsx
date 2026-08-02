@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, X, Undo2 } from "lucide-react";
 
-import { C, FONT } from "../lib/theme";
+import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
@@ -208,7 +208,7 @@ export default function ReportDetailModal({
         position: "fixed",
         inset: 0,
         zIndex,
-        background: C.light,
+        background: theme.bg,
         display: "flex",
         flexDirection: "column",
         outline: "none",

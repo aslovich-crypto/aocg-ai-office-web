@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ClipboardList, Plus, Search } from "lucide-react";
 
-import { C, FONT } from "../lib/theme";
+import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate } from "../lib/format";
 import { catName } from "../lib/categories";
 import { BADGE } from "../lib/reports";
@@ -809,7 +809,7 @@ export default function OtchetyPage({
                     padding: "9px 10px",
                     marginBottom: 4,
                     border: `1px solid ${sel ? C.cherry : C.silver}`,
-                    background: sel ? C.cherryL : C.white,
+                    background: sel ? theme.cherrySoft : C.white,
                     cursor: "pointer",
                   }}
                 >
