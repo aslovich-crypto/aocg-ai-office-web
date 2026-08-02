@@ -1,0 +1,14 @@
+{
+  "name": "aocg-layout-audit",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Разовый прогон вёрстки по ширинам. Свой package.json, чтобы Playwright с браузером (~150 МБ) не попадал ни в бандл приложения, ни в npm ci нашего CI.",
+  "scripts": {
+    "setup": "npm install && npx playwright install chromium",
+    "audit": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

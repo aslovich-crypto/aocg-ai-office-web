@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Отчёты и скриншоты прогона вёрстки — результат, не исходник
+tools/layout-audit/out/
+tools/layout-audit/node_modules/
