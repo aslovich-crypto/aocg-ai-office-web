@@ -569,7 +569,7 @@ export default function OtchetyPage({
                     <Pill
                       onClick={() => setConfirmDel(rep)}
                       color="#B91C1C"
-                      border="1px solid #F5C2C2"
+                      border="1px solid #FECACA"
                     >
                       Удалить
                     </Pill>
@@ -633,7 +633,7 @@ export default function OtchetyPage({
                     <Pill
                       onClick={() => setConfirmDel(rep)}
                       color="#B91C1C"
-                      border="1px solid #F5C2C2"
+                      border="1px solid #FECACA"
                     >
                       Удалить
                     </Pill>

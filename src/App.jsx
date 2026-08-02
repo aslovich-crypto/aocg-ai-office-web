@@ -1490,7 +1490,7 @@ function FiltersModal({
               width: 36,
               height: 4,
               borderRadius: 2,
-              background: "#D5D7DD",
+              background: "#D7DAE0",
             }}
           />
         </div>
@@ -3373,7 +3373,7 @@ function OperaciiPage({
                   marginBottom: 12,
                   padding: "8px 12px",
                   background: "#ECFDF5",
-                  border: "1px solid #A7F3D0",
+                  border: "1px solid #BBF7D0",
                   borderRadius: 6,
                   fontFamily: FONT,
                   fontSize: 11,
@@ -4109,7 +4109,7 @@ function ChangePasswordModal({ onClose }) {
               width: 36,
               height: 4,
               borderRadius: 2,
-              background: "#D5D7DD",
+              background: "#D7DAE0",
             }}
           />
         </div>
@@ -4820,7 +4820,7 @@ function InviteSheet({ onClose }) {
               width: 36,
               height: 4,
               borderRadius: 2,
-              background: "#D5D7DD",
+              background: "#D7DAE0",
             }}
           />
         </div>
@@ -5078,7 +5078,7 @@ function BottomSheet({ title, onClose, children }) {
               width: 36,
               height: 4,
               borderRadius: 2,
-              background: "#D5D7DD",
+              background: "#D7DAE0",
             }}
           />
         </div>

@@ -101,7 +101,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
               width: 36,
               height: 4,
               borderRadius: 2,
-              background: "#D5D7DD",
+              background: "#D7DAE0",
             }}
           />
         </div>

@@ -545,7 +545,7 @@ export default function ReportDetailModal({
               flex: 1,
               height: 46,
               borderRadius: 8,
-              border: "1px solid #F5C2C2",
+              border: "1px solid #FECACA",
               background: C.white,
               color: "#B91C1C",
               font: `600 15px/1 ${FONT}`,

@@ -32,7 +32,7 @@ const T = {
   fg3: C.grayL, // #9CA3AF
   border: C.silver, // #EEF0F4
   borderStrong: C.borderD, // #E2E5EB
-  chipBg: "#F1F5F9",
+  chipBg: "#EEF0F4",
   successBg: "#F0FDF4",
   successFg: "#15803D",
   errorFg: "#B91C1C",
