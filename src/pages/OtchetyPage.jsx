@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+
+import { useFabHidden, fabHiddenStyle } from "../hooks/useFabHidden";
 import { ClipboardList, Plus, Search } from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
@@ -43,6 +45,7 @@ function Pill({ children, onClick, bg, color, border }) {
 }
 
 export default function OtchetyPage({
+  scrollRef,
   receipts,
   userId,
   role, // ЧП5б: гейт «Одобрить/Отклонить» в деталях отчёта
@@ -69,6 +72,7 @@ export default function OtchetyPage({
   // Открытый отчёт (детали). Одобрение/отклонение живёт ТОЛЬКО там —
   // чтобы решение принимали, увидев состав, а не вслепую из списка.
   const [openRep, setOpenRep] = useState(null);
+  const fabHidden = useFabHidden(scrollRef);
   const [toast, setToast] = useState(null); // {type,message,duration}
   // POST /reports in flight — blocks double-submit. Удаления отчётов пока нет
   // (REP-CRUD), поэтому дубль от двойного тапа убрать было бы нечем.
@@ -651,6 +655,7 @@ export default function OtchetyPage({
         onClick={openCreate}
         aria-label="Новый отчёт"
         style={{
+          ...fabHiddenStyle(fabHidden),
           position: "fixed",
           right: 16,
           bottom: "calc(env(safe-area-inset-bottom, 0px) + 84px)",

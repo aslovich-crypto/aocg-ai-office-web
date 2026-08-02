@@ -1,0 +1,82 @@
+import { useEffect, useState } from "react";
+
+// Плавающая кнопка «+» прячется при прокрутке вниз и возвращается при
+// прокрутке вверх и в покое.
+//
+// ЗАЧЕМ. Замер на устройстве: кнопка стоит fixed на x=311..367, y=493..549,
+// то есть правые 56px КАЖДОЙ карточки лежат под ней, и сумма чека
+// закрывалась на 39px. Полоса кнопки неподвижна, список движется — под неё
+// попадает верх примерно каждой второй позиции прокрутки. Прокрутка и есть
+// тот момент, когда кнопка не нужна, а содержимое нужно.
+//
+// РЕАЛИЗАЦИЯ ПО МАКЕТУ, НЕ СВОЯ: templates/reports/Отчёты.html, блок
+// «FAB hide-on-scroll — Material 3 pattern» и класс .fab.is-hidden.
+// Оттуда взяты и пороги (6px на движение, 4px «у самого верха»), и
+// возврат по бездействию (220ms), и величина ухода (96px вниз).
+//
+// ПОЧЕМУ ИМЕННО ТАКИЕ ПОРОГИ:
+// • 6px на шаг — палец никогда не стоит идеально ровно, без порога кнопка
+//   дребезжала бы на микродвижениях;
+// • возврат по таймеру, а НЕ по «отпустил палец»: на iOS прокрутка
+//   продолжается по инерции после отрыва, событий указателя при этом нет.
+//   Таймер сбрасывается каждым событием прокрутки, поэтому кнопка вернётся
+//   ровно тогда, когда инерция реально закончилась, а не когда убрали палец;
+// • y <= 4 — у самого верха списка кнопка показывается всегда, независимо
+//   от направления: там ничего не перекрывается, а прятать её нелогично.
+const STEP = 6; // порог движения, px
+const TOP = 4; // «у самого верха», px
+const IDLE = 220; // покой до возврата, мс
+
+export function useFabHidden(scrollRef) {
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let last = el.scrollTop;
+    let ticking = false;
+    let idle = null;
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = el.scrollTop;
+        const dy = y - last;
+        if (y <= TOP) setHidden(false);
+        else if (dy > STEP) setHidden(true);
+        else if (dy < -STEP) setHidden(false);
+        last = y;
+        ticking = false;
+        clearTimeout(idle);
+        idle = setTimeout(() => setHidden(false), IDLE);
+      });
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      clearTimeout(idle);
+    };
+  }, [scrollRef]);
+
+  return hidden;
+}
+
+// Стиль ухода. Держим рядом с хуком, чтобы кнопки на разных экранах
+// не разъехались: сегодня их две («Чеки», «Отчёты»), завтра больше.
+// prefers-reduced-motion — переход выключается целиком: для тех, кому
+// движение мешает, кнопка просто появляется и исчезает.
+export function fabHiddenStyle(hidden) {
+  const reduce =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return {
+    transform: hidden ? "translateY(96px)" : "translateY(0)",
+    opacity: hidden ? 0 : 1,
+    pointerEvents: hidden ? "none" : "auto",
+    // 150ms — середина нашего стандарта 100-180ms на микро-анимации.
+    transition: reduce ? "none" : "transform 150ms ease, opacity 150ms ease",
+  };
+}

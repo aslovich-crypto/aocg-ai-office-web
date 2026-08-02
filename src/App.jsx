@@ -1,6 +1,7 @@
 /* global __BUILD_TIME__ */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useModalA11y } from "./hooks/useModalA11y";
+import { useFabHidden, fabHiddenStyle } from "./hooks/useFabHidden";
 import OrganizationTab from "./pages/OrganizationTab";
 import GlavnayaPage from "./pages/GlavnayaPage";
 import OtchetyPage from "./pages/OtchetyPage";
@@ -2556,6 +2557,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
 }
 
 function OperaciiPage({
+  scrollRef,
   receipts,
   cards,
   catalog,
@@ -2588,6 +2590,7 @@ function OperaciiPage({
   // Ширину меряем у КОНТЕЙНЕРА списка — одним наблюдателем на все строки.
   const listRef = useRef(null);
   const narrowCard = useNarrowCard(listRef);
+  const fabHidden = useFabHidden(scrollRef);
   const [showAdd, setShowAdd] = useState(false);
   const [showReq, setShowReq] = useState(false); // экран ручного ввода реквизитов (проверка ФНС)
   const [reqPrefill, setReqPrefill] = useState(null); // парсинг QR при заходе с неудачного скана
@@ -3260,6 +3263,7 @@ function OperaciiPage({
         onClick={() => setShowScan(true)}
         aria-label="Добавить чек"
         style={{
+          ...fabHiddenStyle(fabHidden),
           position: "fixed",
           bottom: "calc(env(safe-area-inset-bottom) + 88px)",
           right: 16,
@@ -7911,6 +7915,7 @@ export default function App() {
   const [userId, setUserId] = useState(null);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
+  const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
 
   // ─── Auth & lightweight routing ───
   const [authed, setAuthed] = useState(() => {
@@ -8341,7 +8346,9 @@ export default function App() {
           </div>
         </div>
       </div>
-      <div style={{ flex: 1, overflow: "auto" }}>
+      {/* Единственный скроллер страниц: к нему привязано прятанье
+          плавающей кнопки на всех экранах, где она есть. */}
+      <div ref={scrollRef} style={{ flex: 1, overflow: "auto" }}>
         {page === "glavnaya" && (
           <GlavnayaPage
             receipts={receipts}
@@ -8370,6 +8377,7 @@ export default function App() {
         )}
         {page === "operacii" && (
           <OperaciiPage
+            scrollRef={scrollRef}
             receipts={receipts}
             cards={cards}
             catalog={catalog}
@@ -8385,6 +8393,7 @@ export default function App() {
         )}
         {page === "otchety" && (
           <OtchetyPage
+            scrollRef={scrollRef}
             receipts={receipts}
             userId={userId}
             role={role}
