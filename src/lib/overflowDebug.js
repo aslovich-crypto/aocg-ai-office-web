@@ -15,26 +15,46 @@
 // в проде: цена простоя нулевая, а польза появляется ровно тогда, когда
 // нужна.
 //
-// ГРАНИЦА: показывает элементы, чья ПРАВАЯ граница выходит за innerWidth.
-// Элемент, который сам помещается, но растягивает родителя косвенно
-// (например, из-за padding при content-box), тоже попадёт в список — потому
-// что его собственная граница уедет. А вот элемент, спрятанный под
-// overflow:hidden, виден не будет: он не создаёт прокрутку.
+// ДВА РАЗНЫХ ДЕФЕКТА, И ЛОВЯТСЯ ОНИ ПО-РАЗНОМУ:
+//
+//   ПРОКРУТКА  — элемент вылез за вьюпорт, документ стал шире экрана,
+//                каркас уезжает вбок. Признак: right > innerWidth.
+//   ОБРЕЗАНИЕ  — элемент шире своего родителя, но родитель его режет
+//                (overflow:hidden). Документ при этом РАВЕН экрану,
+//                прокрутки нет, а содержимое просто не видно: карточка
+//                срезана справа, пункт меню исчез.
+//                Признак: scrollWidth > clientWidth У РОДИТЕЛЯ.
+//
+// Первая версия искала только прокрутку и на обрезании честно писала
+// «переполнения нет» — при видимо срезанном экране. Отсюда вторая проверка:
+// без неё детектор отвечает не на тот вопрос.
 
 const MARK = "overflow";
 
 function scan() {
   const W = window.innerWidth;
-  const found = [];
+  const out = [];
+  const clip = [];
   document.querySelectorAll("*").forEach((el) => {
     if (el.dataset.ovfPanel) return; // сама панель не в счёт
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) return;
+
+    // (1) вылез за экран → прокрутка документа
     const over = Math.round(r.right - W);
-    if (over > 1) found.push({ el, over, r });
+    if (over > 1) out.push({ el, over });
+
+    // (2) содержимое шире собственной ширины → обрезано или скроллится внутри
+    const hidden = Math.round(el.scrollWidth - el.clientWidth);
+    if (hidden > 1) {
+      const ov = getComputedStyle(el).overflowX;
+      // auto/scroll — это НАМЕРЕННАЯ прокрутка (капсула фильтров), не дефект
+      if (ov === "hidden" || ov === "clip") clip.push({ el, hidden });
+    }
   });
-  found.sort((a, b) => b.over - a.over);
-  return found;
+  out.sort((a, b) => b.over - a.over);
+  clip.sort((a, b) => b.hidden - a.hidden);
+  return { out, clip };
 }
 
 function describe(el) {
@@ -73,24 +93,36 @@ export function initOverflowDebug() {
   let marked = [];
   function run() {
     marked.forEach((el) => (el.style.outline = ""));
-    const found = scan();
-    marked = found.slice(0, 12).map((f) => f.el);
-    marked.forEach((el, i) => {
-      el.style.outline = i === 0 ? "3px solid #FFD9DA" : "2px dashed #FDE68A";
-      el.style.outlineOffset = "-2px";
+    const { out, clip } = scan();
+    // Красным — то, что режется (его не видно на экране, это важнее);
+    // жёлтым — то, что вылезло за вьюпорт.
+    marked = [...clip.slice(0, 8), ...out.slice(0, 8)].map((f) => f.el);
+    clip.slice(0, 8).forEach((f, i) => {
+      f.el.style.outline = i === 0 ? "3px solid #FF3B30" : "2px dashed #FF9F0A";
+      f.el.style.outlineOffset = "-2px";
+    });
+    out.slice(0, 8).forEach((f) => {
+      f.el.style.outline = "2px dashed #FFD60A";
+      f.el.style.outlineOffset = "-2px";
     });
     const doc = Math.round(document.documentElement.scrollWidth);
-    panel.textContent =
-      `ШИРЕ ЭКРАНА: ${found.length}   экран ${window.innerWidth}   документ ${doc}\n` +
-      (found.length
-        ? found
-            .slice(0, 8)
-            .map(
-              (f, i) =>
-                `${i === 0 ? "▶" : " "} +${f.over}px  ${describe(f.el)}`,
-            )
-            .join("\n")
-        : "переполнения нет — прокрутка вбок не отсюда");
+    const lines = [
+      `экран ${window.innerWidth}  документ ${doc}  ` +
+        `${doc > window.innerWidth ? "→ ЕСТЬ ПРОКРУТКА" : "прокрутки нет"}`,
+      `ОБРЕЗАНО (содержимое не влезло, режет overflow:hidden): ${clip.length}`,
+      ...clip
+        .slice(0, 6)
+        .map(
+          (f, i) => `${i === 0 ? "▶" : " "} −${f.hidden}px  ${describe(f.el)}`,
+        ),
+      `ВЫЛЕЗЛО ЗА ЭКРАН: ${out.length}`,
+      ...out
+        .slice(0, 4)
+        .map(
+          (f, i) => `${i === 0 ? "▶" : " "} +${f.over}px  ${describe(f.el)}`,
+        ),
+    ];
+    panel.textContent = lines.join("\n");
   }
 
   run();
