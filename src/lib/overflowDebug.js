@@ -113,6 +113,46 @@ function reachableByScroll(el, r) {
 // бывает своя высота. Если торчащую часть режет предок, элемента в пробе тоже
 // не окажется — но этот случай ловит отдельная группа «срезан предком»,
 // дырки не возникает.
+// ФАНТОМ ИЗМЕРИТЕЛЯ: обёртка графика/карты, у которой родитель схлопнут.
+//
+// ЗАМЕР, ВЫЗВАВШИЙ ПРАВИЛО (Сводка @375, прод 03.08.2026):
+//     svg              307×160, правый край 341
+//     РОДИТЕЛЬ         схлопнут до 34px
+//     рядом с svg      div 22×22, visibility:hidden, position:absolute
+// То есть механика не «обёртка раздута», как казалось сначала, а обратная:
+// родитель потерял ширину, а график нарисован по месту. Скриншот это
+// подтвердил — на экране всё в габарите.
+//
+// ПОЧЕМУ НЕ ПРОБОЙ ТОЧКОЙ. График лежит ниже сгиба, elementFromPoint за
+// пределами кадра отдаёт null, и по правилу «не можем измерить — не фантом»
+// обёртка остаётся в отчёте. Прокручивать к ней перед замером нельзя:
+// прокрутка прячет плавающую кнопку и сдвигает полосу перекрытия — замер
+// испортил бы то, что меряет, ради одной группы.
+//
+// ПОЧЕМУ НЕ ПО ИМЕНИ КЛАССА. Класс библиотеки отвалится молча при смене её
+// вёрстки или при переходе на другую, и мы узнаем об этом через месяц
+// по ложным строкам. Условие описывает МЕХАНИКУ и переживёт замену.
+//
+// УСЛОВИЕ УЗКОЕ, обе части обязательны:
+//   • единственное ВИДИМОЕ содержимое — svg (скрытые и нулевые потомки
+//     не считаются: тот самый служебный div 22×22 с visibility:hidden);
+//   • svg не шире ЭКРАНА. Проверять «укладывается в родителя» нельзя —
+//     родитель как раз схлопнут, условие невыполнимо по построению.
+//     Шире экрана — это уже настоящий дефект, и правило не применяется.
+function svgMeasurerPhantom(el) {
+  const kids = [...el.children].filter((c) => {
+    const cs = getComputedStyle(c);
+    if (cs.visibility === "hidden" || cs.display === "none") return false;
+    const b = c.getBoundingClientRect();
+    return b.width > 0 || b.height > 0;
+  });
+  if (kids.length !== 1 || kids[0].tagName.toLowerCase() !== "svg")
+    return false;
+  for (const n of el.childNodes)
+    if (n.nodeType === 3 && n.textContent.trim()) return false;
+  return kids[0].getBoundingClientRect().width <= window.innerWidth + 1;
+}
+
 function paintedBeyond(el, r, edgeX) {
   const W = window.innerWidth;
   const H = window.innerHeight;
@@ -200,7 +240,12 @@ function scanInner() {
     const padR = parseFloat(cs.paddingRight) || 0;
     const edgeX = pr.right - padR;
     const diff = Math.round(r.right - edgeX);
-    if (diff > 1 && !reachableByScroll(el, r) && paintedBeyond(el, r, edgeX))
+    if (
+      diff > 1 &&
+      !reachableByScroll(el, r) &&
+      !svgMeasurerPhantom(el) &&
+      paintedBeyond(el, r, edgeX)
+    )
       outgrow.push({ el, diff });
   });
   outgrow.sort((a, b) => b.diff - a.diff);
@@ -291,6 +336,28 @@ function describe(el) {
 // за родителя и нарисован там. Нужна, чтобы проверить не только молчание
 // пробы, но и её ГОЛОС: без неё мы знаем лишь, что фантомы отсеиваются,
 // и не знаем, что настоящее не отсеивается заодно.
+// Проба «обёртка со svg ШИРЕ ЭКРАНА»: правило фантома не должно её глотать.
+// Без неё мы знаем лишь, что правило молчит на графиках, и не знаем,
+// что оно не молчит на настоящем переполнении той же формы.
+function injectSvgProbe() {
+  const host = [...document.querySelectorAll("div")].find((el) => {
+    const r = el.getBoundingClientRect();
+    return r.top >= 0 && r.bottom < window.innerHeight && r.width > 100;
+  });
+  if (!host) return "видимый контейнер не найден";
+  const wrap = document.createElement("div");
+  wrap.dataset.ovfProbe = "1";
+  wrap.style.cssText = "width:30px;height:20px;position:relative;";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const w = window.innerWidth + 80; // ЗАВЕДОМО шире экрана
+  svg.setAttribute("width", String(w));
+  svg.setAttribute("height", "20");
+  svg.style.cssText = "display:block;background:#BF5AF2;";
+  wrap.appendChild(svg);
+  host.appendChild(wrap);
+  return `проба «svg шире экрана» (${w}px) — ДОЛЖНА попасть в «шире родителя»`;
+}
+
 function injectPaintProbe() {
   const host = [...document.querySelectorAll("div")].find((el) => {
     const r = el.getBoundingClientRect();
@@ -469,7 +536,8 @@ export function initOverflowDebug() {
   const H = window.location.hash;
   const THIN = H.includes("overflow-test-thin");
   const PAINT = H.includes("overflow-test-paint");
-  const TEST = THIN || PAINT || H.includes("overflow-test");
+  const SVGP = H.includes("overflow-test-svg");
+  const TEST = THIN || PAINT || SVGP || H.includes("overflow-test");
   const WHY = H.includes("overflow-why");
   const HIT = H.includes("overflow-hit");
   let probeNote = "";
@@ -656,7 +724,7 @@ export function initOverflowDebug() {
       lines.unshift(
         "РЕЖИМ САМОПРОВЕРКИ (T11): " +
           (probeNote || "вставляю пробу…") +
-          (PAINT
+          (PAINT || SVGP
             ? "\nЕсли «шире родителя» = 0 — СТОРОЖ ОСЛЕП НА ВИДИМОЕ."
             : "\nЕсли «срезан предком» = 0 — СТОРОЖ НЕ РАБОТАЕТ."),
       );
@@ -667,7 +735,11 @@ export function initOverflowDebug() {
   run();
   if (TEST) {
     setTimeout(() => {
-      probeNote = PAINT ? injectPaintProbe() : injectProbe(THIN ? 5 : 120);
+      probeNote = SVGP
+        ? injectSvgProbe()
+        : PAINT
+          ? injectPaintProbe()
+          : injectProbe(THIN ? 5 : 120);
       run();
     }, 800);
   }
