@@ -51,6 +51,41 @@ function contentRight(el) {
   return r.left + el.clientLeft + el.clientWidth;
 }
 
+// ДОСТИЖИМ ЛИ ЭЛЕМЕНТ ПРОКРУТКОЙ. Внутри капсулы фильтров чипы намеренно
+// лежат за краем — до них доезжают пальцем, и это не дефект. Но исключать
+// ВСЁ содержимое горизонтальных скроллеров нельзя: сторож ослепнет ровно
+// там, где живут чипы периодов и статусов. Поэтому граница проходит
+// по scrollWidth: что внутри него — доступно прокруткой, что за ним —
+// не достать никаким жестом, и это настоящий дефект.
+function reachableByScroll(el, r) {
+  let p = el.parentElement;
+  while (p && p !== document.body && p !== document.documentElement) {
+    const ox = getComputedStyle(p).overflowX;
+    if (ox === "hidden" || ox === "clip") return false; // режет, а не листает
+    if (ox === "auto" || ox === "scroll") {
+      const pr = p.getBoundingClientRect();
+      // Левый край СОДЕРЖИМОГО скроллера во вьюпортных координатах:
+      // видимая левая граница минус то, что уже прокручено.
+      const contentLeft = pr.left + p.clientLeft - p.scrollLeft;
+      // ВНИМАНИЕ: эта ветка НЕ ПОКРЫТА МУТАЦИЕЙ, и проверить её
+      // синтетической пробой нельзя в принципе. Браузер расширяет
+      // прокручиваемую область под ЛЮБОЙ вставленный элемент: кладёшь
+      // пробу за край — край переезжает за ней, и она становится
+      // достижимой в тот же миг. Замер это показал прямо:
+      //     scrollWidth до вставки 411 → после 511, правый край пробы 511.
+      // То есть «вышел за scrollWidth» для правого переполнения почти
+      // недостижимо само по себе. Ветка оставлена ради реального случая,
+      // который она покрывает: промежуточный контейнер с overflow:hidden
+      // ВНУТРИ скроллера — тогда до содержимого действительно не добраться
+      // (цикл выше вернёт false, встретив режущий контейнер).
+      // Не считать эту строку проверенной наравне с остальными (T21).
+      return r.right - contentLeft <= p.scrollWidth + 1;
+    }
+    p = p.parentElement;
+  }
+  return false;
+}
+
 function scan() {
   const W = window.innerWidth;
   const over = new Map(); // элемент → на сколько вылез
@@ -61,7 +96,7 @@ function scan() {
     if (r.width === 0 && r.height === 0) return;
 
     const out = Math.round(r.right - W);
-    if (out > 1) over.set(el, out);
+    if (out > 1 && !reachableByScroll(el, r)) over.set(el, out);
 
     // Содержимое шире собственной ширины. Многоточие — НАМЕРЕННОЕ усечение
     // (подпись способа оплаты в строке чека), это не дефект вёрстки.
@@ -97,7 +132,7 @@ function scan() {
     const cs = getComputedStyle(p);
     const padR = parseFloat(cs.paddingRight) || 0;
     const diff = Math.round(r.right - (pr.right - padR));
-    if (diff > 1) outgrow.push({ el, diff });
+    if (diff > 1 && !reachableByScroll(el, r)) outgrow.push({ el, diff });
   });
   outgrow.sort((a, b) => b.diff - a.diff);
 
@@ -243,6 +278,21 @@ function geometry(el) {
 // четверти экрана. Полноэкранные оверлеи (модалки, шторки) перекрывают всё
 // намеренно, они не дефект.
 function overlapProbe() {
+  // Собственная панель лежит поверх всего и попадала в elementFromPoint как
+  // «то, что сверху» — сторож мерил сам себя. Из списка перекрытых мы её
+  // исключали, а из ответа «кто сверху» нет. На время замера делаем её
+  // прозрачной для попаданий и возвращаем как было.
+  const panelEl = document.querySelector("[data-ovf-panel]");
+  const prevPE = panelEl ? panelEl.style.pointerEvents : null;
+  if (panelEl) panelEl.style.pointerEvents = "none";
+  try {
+    return overlapProbeInner();
+  } finally {
+    if (panelEl) panelEl.style.pointerEvents = prevPE || "";
+  }
+}
+
+function overlapProbeInner() {
   const VW = window.innerWidth;
   const VH = window.innerHeight;
   const out = [];
