@@ -86,7 +86,46 @@ function reachableByScroll(el, r) {
   return false;
 }
 
+// ВИДНО ЛИ ЭЛЕМЕНТ В ТОРЧАЩЕЙ ПОЛОСЕ. Библиотеки графиков (recharts и любые
+// другие) держат свой внутренний размер в служебной обёртке, а рисуют
+// в габарите родителя: обёртка «шире родителя» на сотни пикселей, а глазом
+// всё в границах — подтверждено скриншотом Сводки @375.
+//
+// Проверяем не ИМЯ (класс отвалится молча при смене вёрстки библиотеки),
+// а ФАКТ: ставим пробы точкой в полосе, на которую элемент якобы вылез,
+// и спрашиваем, что там нарисовано. Вернулся сам элемент или его потомок —
+// он там есть, дефект настоящий. Вернулось другое — числа существуют только
+// в геометрии.
+//
+// Точек несколько: текст может попасть в промежуток между буквами, а у полосы
+// бывает своя высота. Если торчащую часть режет предок, элемента в пробе тоже
+// не окажется — но этот случай ловит отдельная группа «срезан предком»,
+// дырки не возникает.
+function paintedBeyond(el, r, edgeX) {
+  const xs = [0.25, 0.5, 0.75].map((k) => edgeX + (r.right - edgeX) * k);
+  const ys = [0.5, 0.25, 0.75].map((k) => r.top + r.height * k);
+  for (const x of xs)
+    for (const y of ys) {
+      const t = document.elementFromPoint(x, y);
+      if (t && (t === el || el.contains(t))) return true;
+    }
+  return false;
+}
+
 function scan() {
+  // Панель перекрывает верх экрана и попадала бы в пробы как «то, что
+  // сверху». На время замера делаем её прозрачной для попаданий.
+  const panelEl = document.querySelector("[data-ovf-panel]");
+  const prevPE = panelEl ? panelEl.style.pointerEvents : null;
+  if (panelEl) panelEl.style.pointerEvents = "none";
+  try {
+    return scanInner();
+  } finally {
+    if (panelEl) panelEl.style.pointerEvents = prevPE || "";
+  }
+}
+
+function scanInner() {
   const W = window.innerWidth;
   const over = new Map(); // элемент → на сколько вылез
   const clip = [];
@@ -131,8 +170,10 @@ function scan() {
     if (r.width === 0) return;
     const cs = getComputedStyle(p);
     const padR = parseFloat(cs.paddingRight) || 0;
-    const diff = Math.round(r.right - (pr.right - padR));
-    if (diff > 1 && !reachableByScroll(el, r)) outgrow.push({ el, diff });
+    const edgeX = pr.right - padR;
+    const diff = Math.round(r.right - edgeX);
+    if (diff > 1 && !reachableByScroll(el, r) && paintedBeyond(el, r, edgeX))
+      outgrow.push({ el, diff });
   });
   outgrow.sort((a, b) => b.diff - a.diff);
 
