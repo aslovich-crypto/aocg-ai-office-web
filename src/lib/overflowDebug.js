@@ -102,8 +102,24 @@ function reachableByScroll(el, r) {
 // не окажется — но этот случай ловит отдельная группа «срезан предком»,
 // дырки не возникает.
 function paintedBeyond(el, r, edgeX) {
-  const xs = [0.25, 0.5, 0.75].map((k) => edgeX + (r.right - edgeX) * k);
-  const ys = [0.5, 0.25, 0.75].map((k) => r.top + r.height * k);
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  // ТОЛЬКО ТОЧКИ В КАДРЕ. elementFromPoint возвращает null за пределами видимой
+  // области, и первая версия принимала это за «не нарисован» — то есть за
+  // фантом. На деле так отсеивалось ВСЁ, что ниже сгиба на любом прокручиваемом
+  // экране: дефект «Корпоративная 3950» на Главной вылезал на 107px и молча
+  // пропадал из отчёта, потому что список последних чеков лежит за кадром.
+  // Замер: три пробы из трёх вернули null при живом дефекте.
+  const xs = [0.25, 0.5, 0.75]
+    .map((k) => edgeX + (r.right - edgeX) * k)
+    .filter((x) => x >= 0 && x < W);
+  const ys = [0.5, 0.25, 0.75]
+    .map((k) => r.top + r.height * k)
+    .filter((y) => y >= 0 && y < H);
+  // НЕ МОЖЕМ ИЗМЕРИТЬ — НЕ ИМЕЕМ ПРАВА ОБЪЯВЛЯТЬ ФАНТОМОМ. Бремя лежит
+  // на пропуске, а не на срабатывании: лишняя строка в отчёте видна и
+  // разбирается, а слепота не видна никак.
+  if (!xs.length || !ys.length) return true;
   for (const x of xs)
     for (const y of ys) {
       const t = document.elementFromPoint(x, y);
@@ -259,6 +275,39 @@ function describe(el) {
 // заведомо широкую полосу внутрь первого режущего контейнера на странице:
 // панель ОБЯЗАНА показать её в группе «срезан предком». Не показала —
 // дыра подтверждена замером, а не рассуждением.
+// Проба «торчит и виден»: элемент В КАДРЕ, который реально вылезает
+// за родителя и нарисован там. Нужна, чтобы проверить не только молчание
+// пробы, но и её ГОЛОС: без неё мы знаем лишь, что фантомы отсеиваются,
+// и не знаем, что настоящее не отсеивается заодно.
+function injectPaintProbe() {
+  const host = [...document.querySelectorAll("div")].find((el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return (
+      r.top >= 0 &&
+      r.bottom < window.innerHeight &&
+      r.width > 120 &&
+      r.height > 24 &&
+      cs.overflowX === "visible"
+    );
+  });
+  if (!host) return "видимый контейнер без обрезания не найден";
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "width:40px;height:18px;position:relative;";
+  const kid = document.createElement("span");
+  kid.dataset.ovfProbe = "1";
+  kid.textContent = "ТОРЧИТ-И-ВИДЕН";
+  kid.style.cssText =
+    "display:inline-block;width:200px;white-space:nowrap;background:#BF5AF2;" +
+    "color:#fff;font:9px/18px sans-serif;";
+  wrap.appendChild(kid);
+  host.appendChild(wrap);
+  return `проба «торчит и виден» в ${describe(host).slice(
+    0,
+    20,
+  )} — ДОЛЖНА попасть в «шире родителя»`;
+}
+
 function injectProbe(extra) {
   const cand = [...document.querySelectorAll("div")].find((el) => {
     if (el.dataset.ovfPanel) return false;
@@ -407,7 +456,8 @@ export function initOverflowDebug() {
   // поймает ли его сторож. Вставка отложена — ждём, пока React отрисует.
   const H = window.location.hash;
   const THIN = H.includes("overflow-test-thin");
-  const TEST = THIN || H.includes("overflow-test");
+  const PAINT = H.includes("overflow-test-paint");
+  const TEST = THIN || PAINT || H.includes("overflow-test");
   const WHY = H.includes("overflow-why");
   const HIT = H.includes("overflow-hit");
   let probeNote = "";
@@ -594,7 +644,9 @@ export function initOverflowDebug() {
       lines.unshift(
         "РЕЖИМ САМОПРОВЕРКИ (T11): " +
           (probeNote || "вставляю пробу…") +
-          "\nЕсли «срезан предком» = 0 — СТОРОЖ НЕ РАБОТАЕТ.",
+          (PAINT
+            ? "\nЕсли «шире родителя» = 0 — СТОРОЖ ОСЛЕП НА ВИДИМОЕ."
+            : "\nЕсли «срезан предком» = 0 — СТОРОЖ НЕ РАБОТАЕТ."),
       );
     }
     panel.textContent = lines.join("\n");
@@ -603,7 +655,7 @@ export function initOverflowDebug() {
   run();
   if (TEST) {
     setTimeout(() => {
-      probeNote = injectProbe(THIN ? 5 : 120);
+      probeNote = PAINT ? injectPaintProbe() : injectProbe(THIN ? 5 : 120);
       run();
     }, 800);
   }
