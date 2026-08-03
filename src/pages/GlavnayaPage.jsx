@@ -276,10 +276,19 @@ export default function GlavnayaPage({
       {/* Требует внимания */}
       <div style={{ marginBottom: 22 }}>
         {secTitle("Требует внимания")}
+        {/* ТРИ ПЛИТКИ В РЯД НЕ ПОМЕЩАЮТСЯ ПРИ 320. Замер: плитка 88.7px,
+            внутри после отступов остаётся 62.7, а «10 780,00 ₽» занимает
+            65.9 — сумма торчала на 3px, и это НЕ косметика: она растёт
+            с суммой, при шестизначной вылезет на 20+.
+            Считать пришлось иначе, чем в карточке: там нехватку можно
+            переложить на соседа многоточием, здесь соседей нет — деньги
+            многоточием не режут, их либо видно целиком, либо нет.
+            auto-fit разворачивает ряд по месту: при 320 плиток в ряду две
+            (139px каждая), при 360 и шире — снова три, как в макете. */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3,1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))",
             gap: 10,
           }}
         >
@@ -461,7 +470,21 @@ export default function GlavnayaPage({
                   boxShadow: "0 1px 3px rgba(17,19,24,.08)",
                 }}
               >
-                <span style={{ flex: 1, minWidth: 0 }}>
+                {/* ПОЛ ЛЕВОЙ КОЛОНКИ — 148px. Число выведено из содержимого,
+                    а не подобрано на глаз: дата «02.08.2026» 74px + точка 3
+                    + два отступа 12 = 89px неприкосновенных (дата не уступает
+                    никогда), плюс способу оплаты нужно ≥40px, чтобы многоточие
+                    ещё что-то значило, плюс иконка карты 14 и её отступ 4.
+                    Итого 148. Порог тот же по смыслу, что META_FULL_MIN=309
+                    на «Чеках», только считается от колонки, а не от карточки.
+                    ЗАМЕР 03.08 @320, из-за которого пол понадобился: пилюля
+                    «Представительские расходы» занимала 193px из 242 доступных
+                    и левой колонке оставалось 46.9 — из неё торчали и оплата
+                    (+156), и дата (+28). Пол переносит нехватку на пилюлю:
+                    она теперь сжимается с многоточием, а не давит соседа.
+                    На 430 не меняется НИЧЕГО — там колонке и так достаётся
+                    159px, пол не срабатывает. */}
+                <span style={{ flex: 1, minWidth: 148 }}>
                   <span
                     style={{
                       display: "block",
@@ -483,36 +506,62 @@ export default function GlavnayaPage({
                       font: `400 13px/1.2 ${FONT}`,
                       color: theme.fg2,
                       fontVariantNumeric: "tabular-nums",
+                      minWidth: 0,
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    <span>{fmtDate(r.date)}</span>
+                    <span style={{ flexShrink: 0 }}>{fmtDate(r.date)}</span>
                     <span
                       style={{
                         width: 3,
                         height: 3,
                         borderRadius: "50%",
                         background: theme.fg3,
+                        flexShrink: 0,
                       }}
                     />
+                    {/* Оплата уступает ПЕРВОЙ и многоточием — как на «Чеках».
+                        Текст вынесен в отдельный span: многоточие работает
+                        в блочном боксе, а на анонимном flex-элементе рядом
+                        с иконкой оно не применилось бы вовсе. */}
                     <span
                       style={{
-                        display: "inline-flex",
+                        display: "flex",
                         alignItems: "center",
                         gap: 4,
+                        minWidth: 0,
+                        overflow: "hidden",
                       }}
                     >
-                      <CreditCard size={14} color={theme.fg2} strokeWidth={2} />
-                      {r.card_last4 || r.payment || "—"}
+                      <CreditCard
+                        size={14}
+                        color={theme.fg2}
+                        strokeWidth={2}
+                        style={{ flexShrink: 0 }}
+                      />
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          minWidth: 0,
+                        }}
+                      >
+                        {r.card_last4 || r.payment || "—"}
+                      </span>
                     </span>
                   </span>
                 </span>
+                {/* Правая колонка БОЛЬШЕ не «не сжимаемая»: именно flexShrink:0
+                    при длинной категории съедал левую колонку до 46.9px.
+                    Сжимается она только когда левая упёрлась в свой пол —
+                    сумме при 320 остаётся 94px при нужных 82. */}
                 <span
                   style={{
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "flex-end",
                     gap: 7,
-                    flexShrink: 0,
+                    minWidth: 0,
                   }}
                 >
                   <span
@@ -533,6 +582,10 @@ export default function GlavnayaPage({
                       background: pill.bg || theme.surfaceSunk,
                       color: pill.fg || theme.fg2,
                       whiteSpace: "nowrap",
+                      maxWidth: "100%",
+                      boxSizing: "border-box",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {catName(r)}

@@ -15,7 +15,7 @@
     },
     "src/pages/GlavnayaPage.jsx": {
       "flex-no-minwidth": 1,
-      "grid-1fr-no-minmax": 2,
+      "grid-1fr-no-minmax": 1,
       "full-width-padding": 3
     },
     "src/pages/OrganizationTab.jsx": {
