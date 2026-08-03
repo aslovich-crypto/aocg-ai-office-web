@@ -204,14 +204,35 @@ async function login() {
   return "вход выполнен";
 }
 
+// Открыть страницу С МЕТКОЙ и убедиться, что диагностика поднялась.
+//
+// ПОЧЕМУ ЧЕРЕЗ ПЕРЕЗАГРУЗКУ: переход на тот же адрес с другим якорем
+// НЕ перезагружает страницу — браузер лишь меняет фрагмент. А
+// initOverflowDebug() читает метку ОДИН РАЗ при загрузке модуля, поэтому
+// после такого перехода диагностики нет вовсе. На устройстве это незаметно:
+// человек вводит адрес с меткой и жмёт ввод, то есть грузит страницу заново.
+// Мы на этом застряли: самопроверка отрапортовала «проба не ловится», хотя
+// ловить было нечем — сторож не запускался. Красный результат без проверки
+// того, что проверка вообще выполнилась, ничего не значит (правило T11).
+async function openWithMark(mark) {
+  await page.goto(`${URL_BASE}/#${mark}`, { waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "networkidle" });
+  const ready = await page.evaluate(
+    () => typeof window.__overflowScan === "function",
+  );
+  if (!ready)
+    throw new Error(
+      `диагностика не поднялась на #${mark}: window.__overflowScan отсутствует.\n` +
+        "  Прод отдаёт бандл без неё — проверьте, что коммит с __overflowScan задеплоен.",
+    );
+}
+
 // САМОПРОВЕРКА ПО T11. Тонкая проба +5px, НЕ грубая +120px: грубая
 // доказывает лишь то, что грубый случай ловится — мы это уже проходили,
 // когда сторож пропускал реальные 30-40px и ловил синтетические 120.
 async function selfCheck() {
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto(`${URL_BASE}/#overflow-test-thin`, {
-    waitUntil: "networkidle",
-  });
+  await openWithMark("overflow-test-thin");
   await page.waitForTimeout(1600); // проба вставляется через 800мс
   const r = await page.evaluate(() => window.__overflowScan?.());
   const found = (r?.cutoff || []).some((c) => /ПРОБА/.test(c.el));
@@ -219,7 +240,7 @@ async function selfCheck() {
 }
 
 async function gotoScreen(nav) {
-  await page.goto(`${URL_BASE}/#overflow`, { waitUntil: "networkidle" });
+  await openWithMark("overflow");
   await page.getByRole("button", { name: nav, exact: true }).first().click();
   await page.waitForTimeout(600);
 }
