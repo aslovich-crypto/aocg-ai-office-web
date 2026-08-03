@@ -37,6 +37,13 @@ const SCREENS = [
 // Меряем ПОСЛЕ возврата: иначе кадр покажет пустоту и мы решим, что
 // перекрытий нет, — а нас интересует именно худший случай.
 const FAB_RETURN_MS = 500;
+// ЗАПРОСЫ И ЛИМИТ. Наш ограничитель — 60 запросов в минуту с IP (S-27).
+// Полная загрузка страницы поднимает ~8 обращений (me, receipts, cards, users,
+// категории, организация, отчёты). Загрузок теперь 4 (по одной на ширину) плюс
+// вход — это ~40 запросов на весь прогон. Переключение экрана кликом запросов
+// почти не делает, но пауза нужна и для догрузки, и для запаса по лимиту.
+// Арифметика записана в README, чтобы паузу не подбирали на ощупь.
+const SCREEN_PAUSE_MS = 900;
 
 // ── .env без зависимостей ────────────────────────────────────────────────────
 function loadEnv() {
@@ -239,12 +246,6 @@ async function selfCheck() {
   return { ok: found, cutoff: r?.cutoff?.length ?? "нет данных" };
 }
 
-async function gotoScreen(nav) {
-  await openWithMark("overflow");
-  await page.getByRole("button", { name: nav, exact: true }).first().click();
-  await page.waitForTimeout(600);
-}
-
 const scrollTo = (frac) =>
   page.evaluate((f) => {
     const el = [...document.querySelectorAll("div")].find(
@@ -256,6 +257,65 @@ const scrollTo = (frac) =>
 const measure = () => page.evaluate(() => window.__overflowScan());
 const withText = (m) =>
   (m.overlap || []).flatMap((o) => o.covered.filter((c) => c.leaf));
+
+// ── ПРИГОДНОСТЬ ЗАМЕРА ───────────────────────────────────────────────────────
+// Прогон 03.08 напечатал нули по всем экранам и выглядел победой. На деле наш
+// IP был забанен собственным ограничителем частоты (429, «IP temporarily
+// banned»): приложение открывалось, данные не грузились, мерить было нечего.
+// Нули читаются как результат — это хуже, чем отсутствие отчёта.
+//
+// Поэтому пригодность проверяется ЖЁСТКО и ПЕРЕД КАЖДЫМ сочетанием, а не один
+// раз в начале: бан прилетает в середине серии, и тогда первая половина отчёта
+// настоящая, а вторая пустая — по такому отчёту не отличить одно от другого.
+//
+// КРИТЕРИЙ (явно, чтобы не спорить потом):
+//   • на странице нет признаков отказа сервера («temporarily banned»,
+//     «Слишком много запросов», «Не удалось»);
+//   • на денежных экранах («Главная», «Сводка», «Чеки») есть хотя бы одна
+//     сумма в рублях — значит данные доехали;
+//   • «Отчёты» проверяются только на отказ: пустой список отчётов — законное
+//     состояние, а не сбой.
+const MONEY = /\d[\d\s\u00a0]*,\d\d\s*₽/;
+
+async function readiness(screenId) {
+  return page.evaluate(
+    ({ id, moneyRe }) => {
+      const re = new RegExp(moneyRe);
+      const body = document.body.innerText || "";
+      const refused =
+        /temporarily banned|Слишком много запросов|429/i.test(body) || null;
+      let money = 0;
+      document.querySelectorAll("span,div").forEach((e) => {
+        let own = "";
+        for (const n of e.childNodes)
+          if (n.nodeType === 3) own += n.textContent;
+        if (re.test(own.trim())) money++;
+      });
+      return {
+        refused,
+        money,
+        needsData: id !== "otchety",
+      };
+    },
+    { id: screenId, moneyRe: MONEY.source },
+  );
+}
+
+function assertUsable(screenId, size, r) {
+  if (r.refused)
+    throw new Error(
+      `замер невозможен: сервер отказывает (${screenId} @${size}).\n` +
+        "  На странице признак отказа — скорее всего сработал ограничитель\n" +
+        "  частоты по IP. Переждите и повторите: отчёт с нулями при пустом\n" +
+        "  экране читался бы как «всё чисто».",
+    );
+  if (r.needsData && r.money === 0)
+    throw new Error(
+      `замер невозможен: на экране нет данных (${screenId} @${size}).\n` +
+        "  Ни одной суммы в рублях — списки не загрузились. Мерить нечего,\n" +
+        "  отчёт не печатаю.",
+    );
+}
 
 const rows = [];
 const details = [];
@@ -273,10 +333,23 @@ if (!self.ok) {
   process.exit(1);
 }
 
-for (const s of SCREENS) {
-  for (const size of SIZES) {
-    await page.setViewportSize({ width: size.w, height: size.h });
-    await gotoScreen(s.nav);
+// Внешний цикл — ШИРИНА, а не экран: страница грузится ОДИН раз на ширину,
+// дальше экраны переключаются кликами по нижнему меню. Было 16 полных
+// перезагрузок, стало 4 — вчетверо меньше обращений к бэкенду, и именно
+// из-за них мы и словили бан.
+let cardsSeen = 0;
+for (const size of SIZES) {
+  await page.setViewportSize({ width: size.w, height: size.h });
+  await openWithMark("overflow");
+  for (const s of SCREENS) {
+    await page
+      .getByRole("button", { name: s.nav, exact: true })
+      .first()
+      .click();
+    await page.waitForTimeout(SCREEN_PAUSE_MS);
+    const ready = await readiness(s.id);
+    assertUsable(s.id, size.w, ready);
+    if (s.id === "operacii") cardsSeen = Math.max(cardsSeen, ready.money);
     const spots = s.scroll
       ? [
           ["верх", 0],
