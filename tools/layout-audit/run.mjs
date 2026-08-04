@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+import * as FP from "./fingerprint.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB = join(HERE, "..", "..");
@@ -106,6 +107,21 @@ const loginCalls = [];
 page.on("response", (r) => {
   if (r.url().includes("/api/auth/login"))
     loginCalls.push({ status: r.status() });
+});
+
+// ОТПЕЧАТОК СОСТАВА ДАННЫХ (T25) — из ответов, которые приложение получает
+// само. Ни одного лишнего запроса: прогон и без того идёт впритык к лимиту
+// 60/мин (T23). Разбор и вердикт — в fingerprint.mjs, там же причина.
+const FP_FILE = join(OUT, "data-fingerprint.json");
+let dataNow = { ...FP.EMPTY };
+page.on("response", async (r) => {
+  if (!r.ok()) return;
+  try {
+    const patch = FP.fromResponse(r.url(), await r.json());
+    if (patch) dataNow = { ...dataNow, ...patch };
+  } catch {
+    /* не JSON — не наш ответ */
+  }
 });
 
 // Разбор накопленного. Смысл различения: «сервер отверг» и «форма не ушла»
@@ -411,7 +427,18 @@ const cell = (r) =>
   `${r.doc}/${r.scr}` +
   ` · ${r.boundary}/${r.outgrow}/${r.clip}/${r.cutoff}/${r.overText}`;
 
-let md = `# Прогон вёрстки по ширинам\n\n`;
+const dataPrev = existsSync(FP_FILE)
+  ? JSON.parse(readFileSync(FP_FILE, "utf8"))
+  : null;
+const verdict = FP.compare(dataPrev, dataNow);
+writeFileSync(FP_FILE, JSON.stringify(dataNow, null, 1));
+
+// Вердикт сравнимости — ПЕРВОЙ строкой файла, до заголовка. Примечание внизу
+// читают после того, как вывод уже сделан (T25).
+let md = verdict.banner
+  ? `> **${verdict.banner.split("\n").join("**\n> **")}**\n\n`
+  : "";
+md += `# Прогон вёрстки по ширинам\n\n`;
 md += `- дата: ${new Date().toISOString().slice(0, 16).replace("T", " ")}\n`;
 md += `- гнали против: ${URL_BASE}${
   URL_BASE.includes("localhost") ? " (локальная сборка)" : " (AUDIT_URL)"
@@ -433,7 +460,14 @@ md += `- самопроверка T11 (тонкая проба +5px): ${
 // 03.08 именно так и выглядел победой при забаненном IP.
 md += `- данные загрузились: ${
   cardsSeen > 0 ? "да" : "НЕТ"
-}, сумм на «Чеках» видно ${cardsSeen}\n\n`;
+}, сумм на «Чеках» видно ${cardsSeen}\n`;
+// Состав данных — чтобы сравнение двух отчётов было самодостаточным (T25).
+md += `- состав данных: ${FP.format(dataNow)}\n`;
+// ГРАНИЦА — в шапку, а не только в README: README читают один раз, шапку
+// каждый раз. Нули в таблице не должны читаться как «проверено на телефоне».
+md += `- ГРАНИЦА: headless Chromium ≠ Safari на iPhone (нет safe-area, dvh ведёт\n`;
+md += `  себя иначе, шрифтовые метрики другие, зум не воспроизводится). Нули\n`;
+md += `  в таблице НЕ означают «проверено на устройстве»\n\n`;
 md += `Ячейка: \`документ/экран · вылезли(первопричин)/шире родителя/обрезано/срезан предком/перекрыто С ТЕКСТОМ\`.\n`;
 md += `Для «Чеков» и «Отчётов» берётся ХУДШЕЕ из трёх положений прокрутки.\n`;
 md += `Пустые оболочки в перекрытиях не считаются.\n\n`;
