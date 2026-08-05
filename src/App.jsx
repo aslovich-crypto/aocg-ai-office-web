@@ -1395,6 +1395,11 @@ function FiltersModal({
   cards,
   selectedCards,
   sources,
+  // Диапазон суммы {from, to}. Секция рисуется ТОЛЬКО при переданном
+  // пропе, как и остальные: «Чеки» и «Сводка» его не передают,
+  // «Отчёты» передают. Отдельный компонент фильтров не заводим —
+  // это была бы вторая копия того же самого (решение 05.08).
+  amount,
   onApply,
   onReset,
   onClose,
@@ -1403,6 +1408,7 @@ function FiltersModal({
   const hasCats = catalog != null && Array.isArray(catalog.groups);
   const hasCards = cards !== undefined;
   const hasSource = sources !== undefined;
+  const hasAmount = amount !== undefined;
 
   const [pFrom, setPFrom] = useState(from || monthStartISO());
   const [pTo, setPTo] = useState(to || todayISO());
@@ -1410,6 +1416,8 @@ function FiltersModal({
   const [selCats, setSelCats] = useState(selectedCats || []);
   const [selCards, setSelCards] = useState(selectedCards || []);
   const [selSources, setSelSources] = useState(sources || []);
+  const [amtFrom, setAmtFrom] = useState(amount?.from ?? "");
+  const [amtTo, setAmtTo] = useState(amount?.to ?? "");
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true));
@@ -1495,6 +1503,10 @@ function FiltersModal({
       cats: selCats,
       cards: selCards,
       sources: selSources,
+      // Пустая строка = «не задано», а не ноль: иначе «от 0» стало бы
+      // условием, которое ничего не отсекает, но выглядит заданным.
+      amountFrom: amtFrom === "" ? null : Number(amtFrom),
+      amountTo: amtTo === "" ? null : Number(amtTo),
     });
     close();
   };
@@ -1648,6 +1660,64 @@ function FiltersModal({
                     value={pTo}
                     onChange={(e) => setPTo(e.target.value)}
                     aria-label="Период: дата до"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {hasAmount && (
+            <div>
+              <div style={labelStyle}>Сумма, ₽</div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: theme.fg2,
+                      fontFamily: FONT,
+                      marginBottom: 4,
+                    }}
+                  >
+                    От
+                  </div>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    value={amtFrom}
+                    onChange={(e) => setAmtFrom(e.target.value)}
+                    aria-label="Сумма: от"
+                    placeholder="0"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: theme.fg2,
+                      fontFamily: FONT,
+                      marginBottom: 4,
+                    }}
+                  >
+                    До
+                  </div>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    value={amtTo}
+                    onChange={(e) => setAmtTo(e.target.value)}
+                    aria-label="Сумма: до"
+                    placeholder="без предела"
                     style={inputStyle}
                   />
                 </div>
@@ -8462,6 +8532,9 @@ export default function App() {
             scheduleUndo={scheduleUndo}
             scrollRef={scrollRef}
             receipts={receipts}
+            users={users}
+            FiltersModal={FiltersModal}
+            FilterIcon={FilterIcon}
             userId={userId}
             role={role}
             authFetch={authFetch}

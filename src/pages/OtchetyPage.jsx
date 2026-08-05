@@ -6,7 +6,7 @@ import { ClipboardList, Plus, Search, Trash2 } from "lucide-react";
 import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate } from "../lib/format";
 import { catName } from "../lib/categories";
-import { BADGE, isEditable } from "../lib/reports";
+import { BADGE, isEditable, canApprove } from "../lib/reports";
 import ReportDetailModal from "../components/ReportDetailModal";
 import SwipeRow from "../components/SwipeRow";
 
@@ -38,6 +38,9 @@ export default function OtchetyPage({
   scheduleUndo,
   scrollRef,
   receipts,
+  users, // для фильтра по автору: сопоставляем имя из фильтра с user_id отчёта
+  FiltersModal, // общий компонент фильтров из App.jsx — второй копии не заводим
+  FilterIcon,
   userId,
   role, // ЧП5б: гейт «Одобрить/Отклонить» в деталях отчёта
   authFetch,
@@ -60,6 +63,15 @@ export default function OtchetyPage({
   // Открытый отчёт (детали). Одобрение/отклонение живёт ТОЛЬКО там —
   // чтобы решение принимали, увидев состав, а не вслепую из списка.
   const [openRep, setOpenRep] = useState(null);
+  // Фильтры: период по created, автор и диапазон суммы. Статус НЕ дублируем —
+  // он в капсуле чипов сверху (решение 05.08). Значения храним здесь, а не
+  // в адресе: экран не имеет своего маршрута.
+  const [showFilters, setShowFilters] = useState(false);
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
+  const [fEmp, setFEmp] = useState(null); // имя сотрудника, как его отдаёт фильтр
+  const [fAmtFrom, setFAmtFrom] = useState("");
+  const [fAmtTo, setFAmtTo] = useState("");
   const fabHidden = useFabHidden(scrollRef);
   const [toast, setToast] = useState(null); // {type,message,duration}
   // POST /reports in flight — blocks double-submit. Удаления отчётов пока нет
@@ -284,11 +296,41 @@ export default function OtchetyPage({
     });
   }
 
-  const filtered = reports.filter(
-    (r) =>
-      (!statusFilter || r.status === statusFilter) &&
-      (!search || r.title.toLowerCase().includes(search.toLowerCase())),
-  );
+  // ── ФИЛЬТРЫ ────────────────────────────────────────────────────────────────
+  // Считаем на фронте: GET /api/reports/ параметров не принимает и отдаёт
+  // список целиком (с составом), а отчётов пока единицы. Когда их станет
+  // много, узким местом будет сама загрузка списка, а не этот filter.
+  const empId = (name) => {
+    if (!name || !Array.isArray(users)) return null;
+    const u = users.find(
+      (x) =>
+        `${x.first_name || ""} ${x.last_name || ""}`.trim() === name ||
+        x.email === name,
+    );
+    return u ? u.id : null;
+  };
+  const fEmpId = empId(fEmp);
+  const inRange = (rep) => {
+    // Период — по created: других дат у отчёта нет, месяц в названии это текст.
+    const d = (rep.created || "").slice(0, 10);
+    if (fFrom && d && d < fFrom) return false;
+    if (fTo && d && d > fTo) return false;
+    if (fEmp && fEmpId != null && rep.user_id !== fEmpId) return false;
+    const total = Number(rep.total || 0);
+    if (fAmtFrom !== "" && total < Number(fAmtFrom)) return false;
+    if (fAmtTo !== "" && total > Number(fAmtTo)) return false;
+    return true;
+  };
+  const filtersActive =
+    !!fFrom || !!fTo || !!fEmp || fAmtFrom !== "" || fAmtTo !== "";
+
+  const filtered = reports
+    .filter(
+      (r) =>
+        (!statusFilter || r.status === statusFilter) &&
+        (!search || r.title.toLowerCase().includes(search.toLowerCase())),
+    )
+    .filter(inRange);
 
   return (
     <div>
@@ -378,6 +420,16 @@ export default function OtchetyPage({
           >
             <Search size={20} color={showSearch ? theme.cherry : theme.fg2} />
           </button>
+          {/* Иконка фильтра — как на «Чеках» и «Сводке», тот же компонент.
+              В макете рядом с поиском она есть, но без поведения (UX-14);
+              состав полей — решение владельца продукта 05.08: период,
+              сотрудник, сумма. Статус не дублируем: он в чипах слева. */}
+          {FilterIcon && (
+            <FilterIcon
+              active={filtersActive}
+              onClick={() => setShowFilters(true)}
+            />
+          )}
         </div>
       </div>
 
@@ -646,6 +698,35 @@ export default function OtchetyPage({
             // себя по-разному в двух местах.
             removeWithUndo(rep);
           }}
+        />
+      )}
+
+      {showFilters && FiltersModal && (
+        <FiltersModal
+          dateBuilder
+          from={fFrom}
+          to={fTo}
+          amount={{ from: fAmtFrom, to: fAmtTo }}
+          // Секция «Сотрудник» — только тем, кто видит чужие отчёты.
+          // Сотруднику бэк отдаёт лишь его собственные (REP-ACL), фильтр
+          // по автору для него всегда одно и то же значение.
+          employees={canApprove(role) ? users : undefined}
+          selectedEmployee={fEmp}
+          onApply={(r) => {
+            setFFrom(r.from || "");
+            setFTo(r.to || "");
+            setFEmp(r.employee);
+            setFAmtFrom(r.amountFrom == null ? "" : String(r.amountFrom));
+            setFAmtTo(r.amountTo == null ? "" : String(r.amountTo));
+          }}
+          onReset={() => {
+            setFFrom("");
+            setFTo("");
+            setFEmp(null);
+            setFAmtFrom("");
+            setFAmtTo("");
+          }}
+          onClose={() => setShowFilters(false)}
         />
       )}
 
