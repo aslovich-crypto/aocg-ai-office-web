@@ -24,6 +24,8 @@ import {
   Bell,
   Check,
   Plus,
+  Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import { C, FONT, theme } from "./lib/theme";
 import { shortOrg, fmtDate } from "./lib/format";
@@ -800,9 +802,34 @@ function SvodkaPage({
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              // ⑤ 14, как на «Чеках» и «Отчётах» и как в макете (.actions).
+              // Было 8 — расхождение, заметное только рядом с ними.
+              gap: 14,
             }}
           >
+            {/* ③ ИКОНКА ПОИСКА БЕЗ ОБРАБОТЧИКА — намеренно, решение владельца
+                продукта 05.08. В макете «Сводки» поиск есть, но что он ищет
+                на аналитическом экране (чеки? категории? сотрудников?),
+                канон не описывает: раскрытого состояния в макете нет.
+                Ставим иконку по канону, смысл заводим строкой в трекер
+                (UX-15) — как только он определён, сюда приходит обработчик.
+                Это ровно тот случай, который в UX-14 назван «мёртвая кнопка
+                хуже её отсутствия»; здесь на него пошли осознанно, ради
+                единообразия трёх полос. */}
+            <button
+              type="button"
+              aria-label="Поиск"
+              aria-disabled="true"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "default",
+                display: "flex",
+              }}
+            >
+              <Search size={20} color={theme.fg2} />
+            </button>
             <FilterIcon
               active={filtersActive}
               onClick={() => setShowFilters(true)}
@@ -1990,8 +2017,12 @@ function FiltersModal({
   );
 }
 
-function FilterIcon({ active, onClick, size = 38 }) {
-  const stroke = active ? theme.cherry : "#636B7D";
+function FilterIcon({ active, onClick }) {
+  // ПО МАКЕТУ: простая иконка `SlidersHorizontal` 20px в ряду действий,
+  // без плашки и фона. Раньше это был квадрат 38×38 с заливкой #EEF0F4,
+  // скруглением 10 и самодельной svg 16px внутри — расхождение и по виду,
+  // и по размеру (38 против 20). Активное состояние показываем цветом,
+  // как у иконки поиска: вишнёвый вместо серого.
   return (
     <button
       type="button"
@@ -1999,55 +2030,18 @@ function FilterIcon({ active, onClick, size = 38 }) {
       aria-label="Фильтры"
       aria-pressed={active}
       style={{
-        position: "relative",
-        width: size,
-        height: size,
+        background: "none",
         border: "none",
-        background: active ? theme.cherrySoft : "#EEF0F4",
+        padding: 0,
         cursor: "pointer",
-        borderRadius: 10,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
       }}
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M2 4h12M4 8h8M6 12h4"
-          stroke={stroke}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
-      {active && (
-        <span
-          style={{
-            position: "absolute",
-            top: 6,
-            right: 6,
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            background: theme.cherry,
-            border: "1.5px solid #fff",
-          }}
-        />
-      )}
+      <SlidersHorizontal size={20} color={active ? theme.cherry : theme.fg2} />
     </button>
   );
 }
 
-// Compact period picker pill with a dropdown — Operacii header.
-// Mounts fresh on open, so the rAF flip plays the scale/opacity intro.
-// Транзитное уведомление сверху по центру (задача №9 фаза D). type: success
-// (зелёный) / warning (янтарный) / error (красный). Авто-скрытие — в OperaciiPage.
 function Toast({ toast }) {
   if (!toast) return null;
   const palette = {
@@ -3177,18 +3171,10 @@ function OperaciiPage({
               display: "flex",
             }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={showSearch ? theme.cherry : theme.fg2}
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            {/* Иконка одна на все экраны — lucide Search. Раньше здесь была
+                своя svg (круг + линия): выглядела похоже, но это была вторая
+                картинка, и при смене иконочного набора они бы разъехались. */}
+            <Search size={20} color={showSearch ? theme.cherry : theme.fg2} />
           </button>
           <FilterIcon
             active={filtersActive}
