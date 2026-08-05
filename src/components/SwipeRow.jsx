@@ -110,7 +110,18 @@ export default function SwipeRow({ actions = [], onTap, children }) {
   }
 
   return (
-    <div style={{ position: "relative", borderRadius: 12, overflow: "hidden" }}>
+    // Тень и радиус — на ОБЁРТКЕ, а не на строке внутри: обёртке нужен
+    // overflow:hidden (иначе панель действий торчит из-под строки), а он
+    // срезал бы тень внутреннего элемента. В макете сделано так же —
+    // `.swipe` несёт radius и box-shadow, `.card` только фон.
+    <div
+      style={{
+        position: "relative",
+        borderRadius: 12,
+        overflow: "hidden",
+        boxShadow: "0 1px 3px rgba(17,19,24,.08)",
+      }}
+    >
       {swipeable && (
         <div
           style={{

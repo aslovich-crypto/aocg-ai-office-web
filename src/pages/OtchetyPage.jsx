@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 
 import { useFabHidden, fabHiddenStyle } from "../hooks/useFabHidden";
-import { ClipboardList, Plus, Search } from "lucide-react";
+import { ClipboardList, Plus, Search, Trash2 } from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate } from "../lib/format";
 import { catName } from "../lib/categories";
-import { BADGE } from "../lib/reports";
+import { BADGE, isEditable } from "../lib/reports";
 import ReportDetailModal from "../components/ReportDetailModal";
+import SwipeRow from "../components/SwipeRow";
 
 // Экран «Отчёты» — вёрстка по макету templates/reports/Отчёты.html (ЧП2, INT).
 // Логика (статусы, PATCH, создание) — из кода, вёрстка — из макета.
@@ -24,27 +25,11 @@ const STATUS_CHIPS = [
   { chip: "Отклонён", value: "Отклонён" },
 ];
 
-// Кнопка-pill действия на карточке (цветовые пары — из макета).
-function Pill({ children, onClick, bg, color, border }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        font: `600 12px/1 ${FONT}`,
-        padding: "8px 14px",
-        borderRadius: 999,
-        border: border || "none",
-        background: bg || "transparent",
-        color,
-        cursor: "pointer",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
 export default function OtchetyPage({
+  // Отмена удаления живёт в ОБОЛОЧКЕ (App.jsx), а не здесь: тост и таймер
+  // обязаны пережить переход между вкладками нижнего меню, а этот экран
+  // при переходе размонтируется.
+  scheduleUndo,
   scrollRef,
   receipts,
   userId,
@@ -66,9 +51,6 @@ export default function OtchetyPage({
   const [showC, setShowC] = useState(false);
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState([]);
-  // Удаление отчёта: подтверждение + защита от двойного тапа.
-  const [confirmDel, setConfirmDel] = useState(null); // отчёт или null
-  const [deletingId, setDeletingId] = useState(null);
   // Открытый отчёт (детали). Одобрение/отклонение живёт ТОЛЬКО там —
   // чтобы решение принимали, увидев состав, а не вслепую из списка.
   const [openRep, setOpenRep] = useState(null);
@@ -252,28 +234,48 @@ export default function OtchetyPage({
   // возвращает 200 С ТЕЛОМ — обновлённый отчёт; не перепутать.)
   // Сами чеки не удаляются: уходит только связь (ON DELETE CASCADE на
   // report_items.report_id), чеки возвращаются в свободный пул.
-  async function deleteReport(rep) {
-    if (deletingId) return; // защита от двойного тапа
-    setDeletingId(rep.id);
+  async function deleteReportNow(rep) {
     try {
       const res = await authFetch(`/api/reports/${rep.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
         // 409 замороженного статуса придёт с готовым текстом бэка.
+        // Строку возвращаем на место: она была убрана заранее, «оптимистично».
         await failToast(res);
+        setReports((prev) =>
+          prev.some((r) => r.id === rep.id) ? prev : [rep, ...prev],
+        );
         return;
       }
-      setReports((prev) => prev.filter((r) => r.id !== rep.id));
-      setConfirmDel(null);
       // Чеки отчёта освободились: у них сменился in_report/report_title,
       // иначе карточка чека продолжила бы показывать пометку «В отчёте».
       if (reloadReceipts) reloadReceipts();
     } catch {
       failToast();
-    } finally {
-      setDeletingId(null);
+      setReports((prev) =>
+        prev.some((r) => r.id === rep.id) ? prev : [rep, ...prev],
+      );
     }
+  }
+
+  // Удаление свайпом: строка исчезает сразу, запрос уходит отложенно, пока
+  // висит тост с «Отменить». Подтверждения нет намеренно — смахнуть и тапнуть
+  // это уже два осознанных действия, а страховкой служит отмена (решение
+  // 05.08). Таймер и тост живут в ОБОЛОЧКЕ, поэтому переживают переход между
+  // вкладками нижнего меню; при закрытии страницы таймер умирает вместе с ней
+  // и отчёт остаётся — это принято осознанно, см. комментарий у scheduleUndo.
+  function removeWithUndo(rep) {
+    setReports((prev) => prev.filter((r) => r.id !== rep.id));
+    setOpenRep((prev) => (prev && prev.id === rep.id ? null : prev));
+    scheduleUndo?.({
+      message: `Отчёт «${rep.title}» удалён`,
+      commit: () => deleteReportNow(rep),
+      cancel: () =>
+        setReports((prev) =>
+          prev.some((r) => r.id === rep.id) ? prev : [rep, ...prev],
+        ),
+    });
   }
 
   const filtered = reports.filter(
@@ -454,197 +456,121 @@ export default function OtchetyPage({
         >
           {filtered.map((rep) => {
             const badge = BADGE[rep.status] || BADGE["Черновик"];
+            // Свайп несёт ТОЛЬКО удаление, и только там, где его разрешает бэк
+            // (EDITABLE_STATUSES: черновик и отклонённый; в остальных 409).
+            // Остальные действия автора — «Отправить», «Отозвать», «Исправить» —
+            // живут внутри открытого отчёта: отправлять состав, не заглянув
+            // в него, странно, а удалить черновик хочется быстро (решение 05.08).
+            const actions = isEditable(rep.status)
+              ? [
+                  {
+                    key: "del",
+                    label: "Удалить",
+                    Icon: Trash2,
+                    bg: "#B91C1C",
+                    onPress: () => removeWithUndo(rep),
+                  },
+                ]
+              : [];
             return (
-              <div
+              <SwipeRow
                 key={rep.id}
-                onClick={() => setOpenRep(rep)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  // Только когда фокус на самой карточке: иначе Enter/Пробел
-                  // на кнопке внутри («Отправить», «Удалить») всплыл бы сюда
-                  // и заодно открыл детали. Тапы гасит stopPropagation ниже.
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === "Enter" || e.key === " ") setOpenRep(rep);
-                }}
-                style={{
-                  background: theme.surface,
-                  borderRadius: 12,
-                  boxShadow: "0 1px 3px rgba(17,19,24,.08)",
-                  padding: "14px 16px",
-                  cursor: "pointer",
-                }}
+                actions={actions}
+                onTap={() => setOpenRep(rep)}
               >
                 <div
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    // Клавиатурный путь: тап обрабатывает SwipeRow, а Enter/Пробел
+                    // сюда, потому что у жеста клавиатурного эквивалента нет.
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") setOpenRep(rep);
+                  }}
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: 12,
+                    background: theme.surface,
+                    padding: "14px 16px",
+                    cursor: "pointer",
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
-                      flexDirection: "column",
-                      gap: 5,
-                      minWidth: 0,
-                      flex: 1,
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 12,
                     }}
                   >
                     <div
                       style={{
-                        font: `600 17px/1.25 ${FONT}`,
-                        color: C.dark,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 5,
+                        minWidth: 0,
+                        flex: 1,
                       }}
                     >
-                      {rep.title}
+                      <div
+                        style={{
+                          font: `600 17px/1.25 ${FONT}`,
+                          color: C.dark,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {rep.title}
+                      </div>
+                      <div
+                        style={{
+                          font: `400 13px/1.2 ${FONT}`,
+                          color: theme.fg2,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {fmtDate(rep.created)} · {(rep.receiptIds || []).length}{" "}
+                        {plural((rep.receiptIds || []).length, [
+                          "чек",
+                          "чека",
+                          "чеков",
+                        ])}
+                      </div>
                     </div>
                     <div
                       style={{
-                        font: `400 13px/1.2 ${FONT}`,
-                        color: theme.fg2,
-                        fontVariantNumeric: "tabular-nums",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: 7,
+                        flexShrink: 0,
                       }}
                     >
-                      {fmtDate(rep.created)} · {(rep.receiptIds || []).length}{" "}
-                      {plural((rep.receiptIds || []).length, [
-                        "чек",
-                        "чека",
-                        "чеков",
-                      ])}
+                      <div
+                        style={{
+                          font: `700 15px/1.2 ${FONT}`,
+                          color: C.dark,
+                          fontVariantNumeric: "tabular-nums",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {fmt(rep.total)}
+                      </div>
+                      <span
+                        style={{
+                          font: `500 12px/1 ${FONT}`,
+                          padding: "5px 10px",
+                          borderRadius: 999,
+                          whiteSpace: "nowrap",
+                          background: badge.bg,
+                          color: badge.color,
+                        }}
+                      >
+                        {rep.status}
+                      </span>
                     </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-end",
-                      gap: 7,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        font: `700 15px/1.2 ${FONT}`,
-                        color: C.dark,
-                        fontVariantNumeric: "tabular-nums",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {fmt(rep.total)}
-                    </div>
-                    <span
-                      style={{
-                        font: `500 12px/1 ${FONT}`,
-                        padding: "5px 10px",
-                        borderRadius: 999,
-                        whiteSpace: "nowrap",
-                        background: badge.bg,
-                        color: badge.color,
-                      }}
-                    >
-                      {rep.status}
-                    </span>
                   </div>
                 </div>
-
-                {/* действия по статусу — видимыми кнопками (решение S-27-стиля:
-                    управленческие действия не прячем в жест) */}
-                {rep.status === "Черновик" && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      marginTop: 12,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <Btn
-                      small
-                      onClick={() => changeStatus(rep.id, "На проверке")}
-                    >
-                      На проверку →
-                    </Btn>
-                    <Pill
-                      onClick={() => setConfirmDel(rep)}
-                      color="#B91C1C"
-                      border="1px solid #FECACA"
-                    >
-                      Удалить
-                    </Pill>
-                  </div>
-                )}
-                {rep.status === "На проверке" && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      marginTop: 12,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {/* «Одобрить»/«Отклонить» ЗДЕСЬ НЕТ намеренно: решение
-                        по деньгам принимают в деталях, увидев состав.
-                        Иначе одобрение вслепую — по названию и сумме. */}
-                    <Pill
-                      onClick={() => changeStatus(rep.id, "Черновик")}
-                      bg="#FFFBEB"
-                      color="#B45309"
-                      border="1px solid #FDE68A"
-                    >
-                      Отозвать
-                    </Pill>
-                    <span
-                      style={{
-                        font: `400 12px/1.3 ${FONT}`,
-                        color: theme.fg2,
-                      }}
-                    >
-                      Открыть, чтобы проверить и одобрить
-                    </span>
-                  </div>
-                )}
-                {rep.status === "Отклонён" && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      marginTop: 12,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {/* Возврат в работу: PATCH → «Черновик» (как «Отозвать»).
-                        Состава чеков не касается, поэтому REP-CRUD не ждёт —
-                        иначе «Отклонён» был бы тупиком с разорванным циклом. */}
-                    <Pill
-                      onClick={() => changeStatus(rep.id, "Черновик")}
-                      color="#475569"
-                      border={`1px solid ${theme.border}`}
-                    >
-                      Исправить
-                    </Pill>
-                    {/* Бэк разрешает удаление и в «Отклонён» (EDITABLE_STATUSES),
-                        а не только в черновике — даём ту же кнопку. */}
-                    <Pill
-                      onClick={() => setConfirmDel(rep)}
-                      color="#B91C1C"
-                      border="1px solid #FECACA"
-                    >
-                      Удалить
-                    </Pill>
-                  </div>
-                )}
-              </div>
+              </SwipeRow>
             );
           })}
         </div>
@@ -708,65 +634,15 @@ export default function OtchetyPage({
               setOpenRep((prev) => (prev ? { ...prev, ...updated } : prev));
           }}
           onDelete={(rep) => {
-            // Подтверждение с объяснением про освобождение чеков живёт
-            // в списке — переиспользуем его, а не заводим второе.
-            setOpenRep(null);
-            setConfirmDel(rep);
+            // Из деталей удаляют тем же путём, что свайпом: строка исчезает,
+            // запрос уходит отложенно, пока висит тост с «Отменить».
+            // Подтверждения нет ни там, ни здесь — иначе одно действие вело бы
+            // себя по-разному в двух местах.
+            removeWithUndo(rep);
           }}
         />
       )}
 
-      {/* Подтверждение удаления. Главное в тексте — что будет с ЧЕКАМИ:
-          они не пропадают, а возвращаются в свободный пул. Без этого
-          удаление отчёта выглядит как потеря первички. */}
-      {confirmDel && (
-        <Modal
-          title="Удалить отчёт?"
-          onClose={() => setConfirmDel(null)}
-          footer={
-            <div style={{ display: "flex", gap: 8 }}>
-              <Btn full outline onClick={() => setConfirmDel(null)}>
-                Отмена
-              </Btn>
-              <Btn
-                full
-                onClick={() => deleteReport(confirmDel)}
-                loading={deletingId === confirmDel.id}
-              >
-                {deletingId === confirmDel.id ? "Удаляю…" : "Удалить"}
-              </Btn>
-            </div>
-          }
-        >
-          <div style={{ paddingTop: 12 }}>
-            <div
-              style={{
-                font: `600 15px/1.35 ${FONT}`,
-                color: C.dark,
-                marginBottom: 8,
-              }}
-            >
-              «{confirmDel.title}»
-            </div>
-            <div style={{ font: `400 13px/1.5 ${FONT}`, color: C.mid }}>
-              {(confirmDel.receiptIds || []).length > 0 ? (
-                <>
-                  Чеки не удаляются: {(confirmDel.receiptIds || []).length}{" "}
-                  {plural((confirmDel.receiptIds || []).length, [
-                    "чек вернётся",
-                    "чека вернутся",
-                    "чеков вернутся",
-                  ])}{" "}
-                  в список свободных, их можно будет добавить в другой отчёт.
-                  Удалится только сам отчёт и его состав.
-                </>
-              ) : (
-                <>Отчёт пуст — удалится только он сам.</>
-              )}
-            </div>
-          </div>
-        </Modal>
-      )}
       {showC && (
         <Modal
           title="Новый отчёт"

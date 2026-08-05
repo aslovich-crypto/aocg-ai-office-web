@@ -2007,6 +2007,27 @@ function Toast({ toast }) {
       }}
     >
       {toast.message}
+      {/* Действие в тосте — это ОТМЕНА только что сделанного: удаление уходит
+          отложенным запросом, и пока тост висит, его можно вернуть. Кнопка,
+          а не ссылка: её жмут пальцем и находят скринридером. */}
+      {toast.action && (
+        <button
+          type="button"
+          onClick={toast.action.onClick}
+          style={{
+            marginLeft: 12,
+            border: "none",
+            background: "none",
+            padding: 0,
+            font: `700 12px/1 ${FONT}`,
+            color: palette.fg,
+            textDecoration: "underline",
+            cursor: "pointer",
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -7905,6 +7926,50 @@ export default function App() {
   });
   const [page, setPage] = useState("glavnaya");
   const [appMenu, setAppMenu] = useState(false); // Тип 2 header — app switcher dropdown
+
+  // ── ОТМЕНА ДЕЙСТВИЯ ────────────────────────────────────────────────────────
+  // Свайп — жест лёгкий, промахнуться легко, поэтому у удаления обязана быть
+  // либо модалка подтверждения, либо отмена. Модалку убрали (смахнуть и тапнуть
+  // — уже два осознанных действия), значит нужна отмена: запрос уходит не сразу,
+  // а через UNDO_MS, и всё это время висит тост с «Отменить».
+  //
+  // ЖИВЁТ В ОБОЛОЧКЕ, А НЕ НА ЭКРАНЕ, — намеренно: и таймер, и тост переживают
+  // переход между вкладками нижнего меню. Держи мы их внутри «Отчётов», уход
+  // на «Чеки» размонтировал бы экран, таймер бы умер и удаление не состоялось,
+  // а человек считал бы, что отчёт удалён.
+  //
+  // ЕСЛИ СТРАНИЦУ ЗАКРЫЛИ ИЛИ ОБНОВИЛИ, ПОКА ТОСТ ВИСИТ, — таймер умирает
+  // вместе со страницей, запрос не уходит, ОТЧЁТ ОСТАЁТСЯ. Это принято
+  // осознанно (05.08): цена — «удалил и сразу вышел» иногда значит «не удалил»;
+  // выигрыш — не трогаем схему БД (мягкое удаление потребовало бы колонки,
+  // фильтрации всех выборок и ручки восстановления). Это НЕ баг.
+  const UNDO_MS = 6000;
+  const [undo, setUndo] = useState(null); // {message, actionLabel} — только для тоста
+  const undoRef = useRef(null); // {commit, cancel} — актуальные обработчики
+  const undoTimer = useRef(null);
+
+  const finishUndo = useCallback((run) => {
+    clearTimeout(undoTimer.current);
+    const p = undoRef.current;
+    undoRef.current = null;
+    setUndo(null);
+    if (p && run) p[run]?.();
+  }, []);
+
+  // ВТОРОЕ УДАЛЕНИЕ, ПОКА ВИСИТ ПЕРВОЕ: очередь длиной один. Предыдущее
+  // действие подтверждается немедленно, и тост показывает уже новое. Два
+  // таймера и два тоста означали бы, что «Отменить» отменяет неизвестно что.
+  const scheduleUndo = useCallback(
+    ({ message, actionLabel = "Отменить", commit, cancel }) => {
+      finishUndo("commit");
+      undoRef.current = { commit, cancel };
+      setUndo({ message, actionLabel });
+      undoTimer.current = setTimeout(() => finishUndo("commit"), UNDO_MS);
+    },
+    [finishUndo],
+  );
+
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
   const [receipts, setReceipts] = useState([]);
   const [cards, setCards] = useState([]);
   const [users, setUsers] = useState([]);
@@ -8394,6 +8459,7 @@ export default function App() {
         )}
         {page === "otchety" && (
           <OtchetyPage
+            scheduleUndo={scheduleUndo}
             scrollRef={scrollRef}
             receipts={receipts}
             userId={userId}
@@ -8427,6 +8493,20 @@ export default function App() {
           />
         )}
       </div>
+      {/* Тост отмены — в ОБОЛОЧКЕ: переживает и прокрутку, и переход между
+          вкладками нижнего меню. Внутри экрана он умирал бы вместе с ним. */}
+      <Toast
+        toast={
+          undo && {
+            type: "success",
+            message: undo.message,
+            action: {
+              label: undo.actionLabel,
+              onClick: () => finishUndo("cancel"),
+            },
+          }
+        }
+      />
       <div
         style={{
           background: theme.surface,
