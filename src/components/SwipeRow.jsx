@@ -45,6 +45,22 @@ export default function SwipeRow({ actions = [], onTap, children }) {
   const [dragging, setDragging] = useState(false); // без перехода, пока палец ведёт
   const startX = useRef(0);
   const startY = useRef(0);
+  // База жеста — смещение НА МОМЕНТ КАСАНИЯ, а не текущее.
+  //
+  // ДЕФЕКТ, КОТОРЫЙ ЭТО ЛЕЧИТ (05.08.2026). Было `base = tx < 0 ? -max : 0`,
+  // то есть база читалась из живой позиции: первый же сдвиг делал tx
+  // отрицательным, и на следующем событии база скачком становилась −max.
+  // Замер при шаге пальца 18px: −18 → −72 → −72 → −72. Строка распахивалась
+  // целиком после ~19px, обратный ход не работал (база уже −max), а порог
+  // −max/2 при отпускании ничего не решал — он был перейдён почти всегда.
+  //
+  // ОТКУДА ОН ВЗЯЛСЯ: ошибка унаследована из SwipeableReceiptCard («Чеки»)
+  // при выносе жеста в общий компонент — там ровно та же строка
+  // `base = tx < 0 ? -REVEAL : 0`. Это важно знать при переводе «Чеков»
+  // на SwipeRow: там НЕ «работало иначе», там тот же самый дефект.
+  // В макете база берётся из зафиксированного состояния (`open ? -max : 0`,
+  // где `open` меняется только в settle) — здесь то же самое, только через ref.
+  const base = useRef(0);
   const active = useRef(false);
   const moved = useRef(false);
   const axis = useRef(null);
@@ -69,6 +85,7 @@ export default function SwipeRow({ actions = [], onTap, children }) {
     axis.current = null;
     startX.current = e.clientX;
     startY.current = e.clientY;
+    base.current = tx; // фиксируем базу один раз, на касании
     setDragging(true);
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
@@ -84,8 +101,7 @@ export default function SwipeRow({ actions = [], onTap, children }) {
     }
     if (axis.current !== "x") return; // вертикаль отдана прокрутке
     if (Math.abs(dx) > TAP_SUPPRESS) moved.current = true;
-    const base = tx < 0 ? -max : 0;
-    setTx(Math.min(0, Math.max(-max, base + dx)));
+    setTx(Math.min(0, Math.max(-max, base.current + dx)));
   }
 
   function onPointerUp() {
