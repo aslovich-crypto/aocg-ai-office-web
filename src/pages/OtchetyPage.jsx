@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-import { useFabHidden, fabHiddenStyle } from "../hooks/useFabHidden";
+import { useScreenAction } from "../hooks/useScreenAction";
 import { ClipboardList, Plus, Search } from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
@@ -45,7 +45,6 @@ function Pill({ children, onClick, bg, color, border }) {
 }
 
 export default function OtchetyPage({
-  scrollRef,
   receipts,
   userId,
   role, // ЧП5б: гейт «Одобрить/Отклонить» в деталях отчёта
@@ -72,7 +71,6 @@ export default function OtchetyPage({
   // Открытый отчёт (детали). Одобрение/отклонение живёт ТОЛЬКО там —
   // чтобы решение принимали, увидев состав, а не вслепую из списка.
   const [openRep, setOpenRep] = useState(null);
-  const fabHidden = useFabHidden(scrollRef);
   const [toast, setToast] = useState(null); // {type,message,duration}
   // POST /reports in flight — blocks double-submit. Удаления отчётов пока нет
   // (REP-CRUD), поэтому дубль от двойного тапа убрать было бы нечем.
@@ -245,6 +243,11 @@ export default function OtchetyPage({
     loadReports();
     setShowC(true);
   }
+
+  // Действие экрана ОБЪЯВЛЯЕТСЯ, рисует его оболочка полосой над нижним меню.
+  // Обработчик остаётся здесь, при своём состоянии: поднимать openCreate вверх
+  // ради инфраструктуры не пришлось.
+  useScreenAction({ label: "Новый отчёт", Icon: Plus, onClick: openCreate });
 
   // Удалить отчёт. ВНИМАНИЕ: DELETE /api/reports/{id} отвечает 204 БЕЗ ТЕЛА —
   // res.json() здесь бросил бы SyntaxError, и удалённый на сервере отчёт
@@ -426,21 +429,25 @@ export default function OtchetyPage({
           }}
         >
           <ClipboardList size={44} strokeWidth={1.25} color={theme.fg3} />
-          {statusFilter === null || statusFilter === "Черновик" ? (
-            <Btn onClick={openCreate}>Создать первый отчёт</Btn>
-          ) : (
-            <span
-              style={{
-                color: theme.fg3,
-                fontFamily: FONT,
-                fontSize: 11,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-              }}
-            >
-              Отчёты отсутствуют
-            </span>
-          )}
+          {/* Пустое состояние ТЕКСТОВОЕ: оно объясняет, ПОЧЕМУ пусто. Что
+              делать — уже сказано полосой внизу, одинаково на всех экранах.
+              Кнопка «Создать первый отчёт» стояла здесь и звала к тому же
+              действию той же вишнёвой заливкой: на пустом экране получалось
+              два одинаковых CTA, и человек узнавал, что действие живёт
+              в двух разных местах. */}
+          <span
+            style={{
+              color: theme.fg3,
+              fontFamily: FONT,
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            {statusFilter === null || statusFilter === "Черновик"
+              ? "Отчётов пока нет"
+              : "Отчёты отсутствуют"}
+          </span>
         </div>
       ) : (
         <div
@@ -649,34 +656,6 @@ export default function OtchetyPage({
           })}
         </div>
       )}
-
-      {/* FAB «+» — создание отчёта (заменяет кнопку «+ Новый») */}
-      <button
-        onClick={openCreate}
-        aria-label="Новый отчёт"
-        style={{
-          ...fabHiddenStyle(fabHidden),
-          position: "fixed",
-          right: 16,
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 84px)",
-          width: 56,
-          height: 56,
-          borderRadius: 999,
-          background: theme.cherry,
-          boxShadow: "0 2px 8px rgba(17,19,24,.16)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: "none",
-          cursor: "pointer",
-          // Тот же слой, что у кнопки на «Чеках»: обе плавающие кнопки
-          // живут на 40 и обязаны быть ниже любого оверлея.
-          // Диапазоны — в CLAUDE.md, раздел «Слои интерфейса».
-          zIndex: 40,
-        }}
-      >
-        <Plus size={26} color="#fff" />
-      </button>
 
       {/* Детали отчёта: состав, суммы, «убрать чек» и — только здесь —
           «Одобрить»/«Отклонить». */}

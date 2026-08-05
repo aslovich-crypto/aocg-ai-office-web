@@ -1,7 +1,8 @@
 /* global __BUILD_TIME__ */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useModalA11y } from "./hooks/useModalA11y";
-import { useFabHidden, fabHiddenStyle } from "./hooks/useFabHidden";
+import { ScreenActionSlot } from "./components/ActionBar";
+import { useScreenAction } from "./hooks/useScreenAction";
 import OrganizationTab from "./pages/OrganizationTab";
 import GlavnayaPage from "./pages/GlavnayaPage";
 import OtchetyPage from "./pages/OtchetyPage";
@@ -2557,7 +2558,6 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
 }
 
 function OperaciiPage({
-  scrollRef,
   receipts,
   cards,
   catalog,
@@ -2590,7 +2590,13 @@ function OperaciiPage({
   // Ширину меряем у КОНТЕЙНЕРА списка — одним наблюдателем на все строки.
   const listRef = useRef(null);
   const narrowCard = useNarrowCard(listRef);
-  const fabHidden = useFabHidden(scrollRef);
+  // Действие экрана ОБЪЯВЛЯЕТСЯ, а рисует его оболочка полосой над нижним
+  // меню. Своей кнопки у экрана больше нет — и поставить её некуда.
+  useScreenAction({
+    label: "Добавить чек",
+    Icon: Plus,
+    onClick: () => setShowScan(true),
+  });
   const [showAdd, setShowAdd] = useState(false);
   const [showReq, setShowReq] = useState(false); // экран ручного ввода реквизитов (проверка ФНС)
   const [reqPrefill, setReqPrefill] = useState(null); // парсинг QR при заходе с неудачного скана
@@ -3230,7 +3236,11 @@ function OperaciiPage({
                 <div
                   style={{ fontSize: 13, color: "#9CA3AF", fontFamily: FONT }}
                 >
-                  Нажмите + чтобы добавить первый чек
+                  {/* Подсказка называла «+» — круглую кнопку, которой больше
+                      нет. Действие переехало в полосу внизу экрана, и текст
+                      обязан называть его теми же словами, что написаны
+                      на самой полосе. */}
+                  Кнопка «Добавить чек» — внизу экрана
                 </div>
               </>
             )}
@@ -3258,35 +3268,6 @@ function OperaciiPage({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        onClick={() => setShowScan(true)}
-        aria-label="Добавить чек"
-        style={{
-          ...fabHiddenStyle(fabHidden),
-          position: "fixed",
-          // Слой ЯВНО: раньше его не было вовсе, и кнопка оказывалась под
-          // оверлеями по случайности порядка в DOM, а не по правилу.
-          // Диапазоны слоёв — в CLAUDE.md, раздел «Слои интерфейса».
-          zIndex: 40,
-          bottom: "calc(env(safe-area-inset-bottom) + 88px)",
-          right: 16,
-          width: 56,
-          height: 56,
-          background: theme.cherry,
-          color: theme.surface,
-          border: "none",
-          fontSize: 20,
-          cursor: "pointer",
-          boxShadow: `0 2px 8px rgba(17,19,24,0.16)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: "50%",
-        }}
-      >
-        <Plus size={26} aria-hidden="true" />
-      </button>
       {showScan && (
         <ScanReceiptModal
           onClose={() => setShowScan(false)}
@@ -8384,7 +8365,6 @@ export default function App() {
         )}
         {page === "operacii" && (
           <OperaciiPage
-            scrollRef={scrollRef}
             receipts={receipts}
             cards={cards}
             catalog={catalog}
@@ -8433,6 +8413,12 @@ export default function App() {
           />
         )}
       </div>
+      {/* Полоса основного действия экрана — В ПОТОКЕ, между списком и меню,
+          а не поверх него. Экраны объявляют действие хуком useScreenAction,
+          здесь единственное место отрисовки: скопировать кнопку некуда.
+          Нет объявленного действия («Главная», «Сводка») — полосы нет,
+          и высоты она не занимает. */}
+      <ScreenActionSlot />
       <div
         style={{
           background: theme.surface,
