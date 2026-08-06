@@ -26,9 +26,11 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  CreditCard,
+  Banknote,
 } from "lucide-react";
 import { C, FONT, theme } from "./lib/theme";
-import { shortOrg, fmtDate } from "./lib/format";
+import { shortOrg, fmtDate, paymentShort, isCash } from "./lib/format";
 import {
   setCatalogMaps,
   groupColor,
@@ -1114,66 +1116,13 @@ function SvodkaPage({
   );
 }
 
-function getCardLast4(raw) {
-  if (!raw || typeof raw !== "object") return null;
-  const candidates = [
-    raw?.paymentType?.cardNumber,
-    raw?.cardNumber,
-    raw?.data?.json?.paymentType?.cardNumber,
-    raw?.data?.json?.cardNumber,
-    raw?.json?.paymentType?.cardNumber,
-    raw?.json?.cardNumber,
-  ];
-  for (const v of candidates) {
-    if (v == null) continue;
-    const s = String(v).replace(/\D/g, "");
-    if (s.length >= 4) return s.slice(-4);
-  }
-  return null;
-}
-
 function shortPayment(p) {
   if (!p) return "Не указано";
   if (p === "Корпоративная карта") return "Корп.карта";
   return p;
 }
 
-// Источник чека → короткая метка для индикатора в карточке.
-const SOURCE_LABELS = {
-  fns: "ФНС",
-  qr_scan: "QR",
-  photo_ocr: "Фото",
-  manual: "Вручную",
-};
-const sourceLabel = (s) => SOURCE_LABELS[s] || null;
-
-// Узкая ли карточка списка. ОДНО измерение на весь список, а не наблюдатель
-// на каждую строку: строки одинаковые, а десятки ResizeObserver на мобильном —
-// это ровно та тяжесть, которую CLAUDE.md запрещает тащить на фронт.
-//
-// Порог выведен из содержимого мета-строки при 13px Inter, а не подобран
-// на глаз: дата «01.08.2026» ≈ 72px, две точки-разделителя с отступами ≈ 18px,
-// источник ≈ 50px в худшем случае («Вручную»), способу оплаты нужно ≥ 40px,
-// чтобы многоточие ещё что-то значило. Итого полной строке нужно ≈ 180px.
-// Доступное = ширина карточки − 32 (её padding) − 12 (gap) − ≈85 (сумма).
-// Отсюда 180 + 129 ≈ 309: уже — источник не помещается и скрывается ЦЕЛИКОМ.
-const META_FULL_MIN = 309;
-
-function useNarrowCard(ref) {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([e]) => {
-      setNarrow(e.contentRect.width < META_FULL_MIN);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ref]);
-  return narrow;
-}
-
-function SwipeableReceiptCard({ receipt, onClick, onDelete, narrow }) {
+function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
   const [tx, setTx] = useState(0);
   const [drag, setDrag] = useState(false); // render-safe mirror of dragging.current (no transition while dragging)
   const startX = useRef(0);
@@ -1185,8 +1134,6 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete, narrow }) {
   const r = receipt;
   const col = catColorById(r);
   const REVEAL = 72;
-  const card4 = getCardLast4(r.raw_data);
-  const payment = shortPayment(r.payment);
   const dot = {
     width: 3,
     height: 3,
@@ -1333,27 +1280,47 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete, narrow }) {
             }}
           >
             <span style={{ flexShrink: 0 }}>{fmtDate(r.date)}</span>
-            {/* Источник уступает ВТОРЫМ и ЦЕЛИКОМ, вместе со своей точкой:
-                метка в 2-4 символа («QR», «ФНС»), усекать её многоточием
-                бессмысленно. Первым уступает способ оплаты — он и сейчас
-                схлопывается в многоточие. Дата не уступает никогда.
-                Из макета источник НЕ удалён: на широком экране он на месте. */}
-            {!narrow && sourceLabel(r.source) && (
-              <>
-                <span style={dot} />
-                <span style={{ flexShrink: 0 }}>{sourceLabel(r.source)}</span>
-              </>
-            )}
             <span style={dot} />
+            {/* Способ оплаты — как в макете: иконка карты (или купюр
+                для наличных) и последние четыре цифры. Имя карты в списке
+                не показываем, оно остаётся в деталях чека.
+                ИСТОЧНИК ЧЕКА («ФНС», «QR», «Фото», «Вручную») УБРАН: этого
+                элемента в макете нет вовсе. Вместе с ним стала не нужна
+                механика «узкой карточки» (useNarrowCard, порог 309px) —
+                она существовала только ради него. */}
             <span
               style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
                 minWidth: 0,
+                overflow: "hidden",
               }}
             >
-              {payment}
-              {card4 ? ` •••${card4}` : ""}
+              {isCash(r) ? (
+                <Banknote
+                  size={14}
+                  color={theme.fg2}
+                  strokeWidth={2}
+                  style={{ flexShrink: 0 }}
+                />
+              ) : (
+                <CreditCard
+                  size={14}
+                  color={theme.fg2}
+                  strokeWidth={2}
+                  style={{ flexShrink: 0 }}
+                />
+              )}
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  minWidth: 0,
+                }}
+              >
+                {paymentShort(r)}
+              </span>
             </span>
           </div>
         </div>
@@ -2667,8 +2634,6 @@ function OperaciiPage({
   const [showSearch, setShowSearch] = useState(false); // поиск-иконка раскрывает поле
   const [showScan, setShowScan] = useState(false);
   // Ширину меряем у КОНТЕЙНЕРА списка — одним наблюдателем на все строки.
-  const listRef = useRef(null);
-  const narrowCard = useNarrowCard(listRef);
   const fabHidden = useFabHidden(scrollRef);
   const [showAdd, setShowAdd] = useState(false);
   const [showReq, setShowReq] = useState(false); // экран ручного ввода реквизитов (проверка ФНС)
@@ -3234,7 +3199,6 @@ function OperaciiPage({
         </div>
       )}
       <div
-        ref={listRef}
         style={{
           padding: "12px 16px 88px",
           display: "flex",
@@ -3245,7 +3209,6 @@ function OperaciiPage({
         {visible.map((r) => (
           <SwipeableReceiptCard
             key={r.id}
-            narrow={narrowCard}
             receipt={r}
             onClick={() => openDetail(r)}
             onDelete={() => handleDelete(r.id)}
