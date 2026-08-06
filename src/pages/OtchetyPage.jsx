@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import { useFabHidden, fabHiddenStyle } from "../hooks/useFabHidden";
 import { ClipboardList, Plus, Search, Trash2, Undo2 } from "lucide-react";
@@ -324,6 +324,32 @@ export default function OtchetyPage({
   const filtersActive =
     !!fFrom || !!fTo || !!fEmp || fAmtFrom !== "" || fAmtTo !== "";
 
+  // АКТИВНЫЙ ЧИП ДЕРЖИМ В КАДРЕ — приведение к макету
+  // (templates/reports/Отчёты.html: «keep the active chip («Все», far right)
+  // in view on load», rail.scrollLeft = active.offsetLeft + active.offsetWidth
+  // − rail.clientWidth + 4). У нас этой строки не было ни одной, а капсуле
+  // при 320 нужен 411px на 254 видимых — два чипа всегда за краем.
+  // Последствие: активен «Все» (он последний), человек возвращается на экран,
+  // видит слева «Черновик» без подсветки и решает, что фильтр сброшен.
+  //
+  // Отличие от макета намеренное: прокручиваем ТОЛЬКО если чип не виден
+  // целиком. Макет крутит безусловно при загрузке, из-за чего капсула
+  // дёргается даже когда всё и так в кадре.
+  const segRef = useRef(null);
+  useEffect(() => {
+    const rail = segRef.current;
+    if (!rail) return;
+    const active = rail.querySelector('[aria-pressed="true"]');
+    if (!active) return;
+    const r = rail.getBoundingClientRect();
+    const a = active.getBoundingClientRect();
+    if (a.left >= r.left - 0.5 && a.right <= r.right + 0.5) return; // уже виден
+    rail.scrollLeft =
+      a.left < r.left
+        ? active.offsetLeft - 4
+        : active.offsetLeft + active.offsetWidth - rail.clientWidth + 4;
+  }, [statusFilter]);
+
   const filtered = reports
     .filter(
       (r) =>
@@ -353,6 +379,7 @@ export default function OtchetyPage({
       >
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
+            ref={segRef}
             className="otch-seg"
             style={{
               display: "flex",
