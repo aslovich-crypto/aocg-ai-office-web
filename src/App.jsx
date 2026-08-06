@@ -30,7 +30,15 @@ import {
   Banknote,
 } from "lucide-react";
 import { C, FONT, theme } from "./lib/theme";
-import { shortOrg, fmtDate, paymentShort, isCash, money } from "./lib/format";
+import {
+  shortOrg,
+  fmtDate,
+  paymentShort,
+  isCash,
+  money,
+  moneyInput,
+  parseMoney,
+} from "./lib/format";
 import {
   setCatalogMaps,
   groupColor,
@@ -253,6 +261,11 @@ function RuleInput({
   label,
   value,
   onChange,
+  // onBlur — «привести введённое в порядок, когда человек ушёл из поля».
+  // Форматировать под пальцами нельзя: каретка прыгает на каждой вставке
+  // разделителя разрядов. Свой onBlur у инпута уже есть (гасит подчёркивание),
+  // поэтому внешний ДОПОЛНЯЕТ его, а не заменяет.
+  onBlur,
   type = "text",
   placeholder,
   inputMode,
@@ -282,7 +295,10 @@ function RuleInput({
         placeholder={placeholder}
         aria-label={label}
         onFocus={() => setF(true)}
-        onBlur={() => setF(false)}
+        onBlur={() => {
+          setF(false);
+          onBlur?.();
+        }}
         style={{
           width: "100%",
           border: "none",
@@ -2768,7 +2784,7 @@ function OperaciiPage({
     setForm((p) => ({
       ...p,
       date: parsed.date || p.date,
-      amount: parsed.amount || "",
+      amount: parsed.amount ? moneyInput(parsed.amount) : "",
       org: "",
       category: "Не указано",
       fn: parsed.fn || "",
@@ -2821,7 +2837,7 @@ function OperaciiPage({
     setForm((p) => ({
       ...p,
       org: body.org || p.org,
-      amount: body.total ? String(body.total) : p.amount,
+      amount: body.total ? moneyInput(body.total) : p.amount,
       category: body.category || p.category,
       raw_data: body.raw || body,
       payment,
@@ -2872,7 +2888,7 @@ function OperaciiPage({
     setForm((p) => ({
       ...p,
       org: d.org,
-      amount: String(d.amount),
+      amount: moneyInput(d.amount),
       date: d.date || p.date,
       category: d.category || "Не указано",
       fn: d.fn || p.fn,
@@ -2949,7 +2965,10 @@ function OperaciiPage({
 
   async function addR() {
     if (isSubmitting) return; // защита от двойного клика
-    if (!form.org || !form.amount) {
+    // Разбор ОДИН на форму: сравнение с пустотой по самой строке пропускало
+    // пробел (строка из пробела истинна) и чек сохранялся с суммой 0.
+    const amountNum = parseMoney(form.amount);
+    if (!form.org || amountNum === null) {
       setAddError("Заполните организацию и сумму");
       return;
     }
@@ -2962,8 +2981,10 @@ function OperaciiPage({
         org: form.org,
         category: form.category,
         payment: form.payment,
-        // iOS ru-клавиатура (inputMode="decimal") даёт запятую — приводим к точке
-        amount: Number(String(form.amount).replace(",", ".")),
+        // Разбор в parseMoney: клавиатура iOS даёт запятую или точку (зависит
+        // от РЕГИОНА устройства, не от нас), а автозаполнение кладёт в поле уже
+        // отформатированное «1 520,00» с неразрывным пробелом.
+        amount: amountNum,
         source: form.source || "manual",
       };
       if (form.fn) payload.kkt_fn = form.fn; // form.fn — внутреннее имя инпута; шлём как kkt_fn (канон)
@@ -3576,6 +3597,20 @@ function OperaciiPage({
               label="Сумма (₽)"
               value={form.amount}
               onChange={(v) => setForm((p) => ({ ...p, amount: v }))}
+              onBlur={() =>
+                setForm((p) => {
+                  const n = parseMoney(p.amount);
+                  // Пусто остаётся пустым: «0,00» вместо пустоты выглядит как
+                  // введённая сумма и проходит взглядом. Нечитаемое оставляем
+                  // КАК ВВЕДЕНО — стереть чужой ввод хуже, чем показать его
+                  // неверным; сохранение всё равно не пропустит.
+                  if (n === null)
+                    return String(p.amount).trim() === ""
+                      ? { ...p, amount: "" }
+                      : p;
+                  return { ...p, amount: moneyInput(n) };
+                })
+              }
               type="text"
               inputMode="decimal"
               placeholder="0.00"
