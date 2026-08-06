@@ -12,7 +12,7 @@ import {
 
 import { computeTaxAccounting, regimeFlags } from "../lib/tax";
 import { FONT, theme } from "../lib/theme";
-import { paymentShort } from "../lib/format";
+import { paymentShort, shortOrg } from "../lib/format";
 
 // Экран «Главная» (INT) — дашборд по образцу templates/home/Главная.html.
 // Зависимости (данные, навигация, форматтеры) приходят пропсами из App.jsx,
@@ -512,7 +512,10 @@ export default function GlavnayaPage({
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {r.org}
+                    {/* shortOrg: до 06.08.2026 здесь стояло сырое r.org, и
+                        строка читалась как «ОБЩЕСТВО С ОГР…». На «Чеках»
+                        сокращение было, на «Главной» — нет. */}
+                    {shortOrg(r.org)}
                   </span>
                   <span
                     style={{

@@ -407,7 +407,14 @@ export default function ReceiptDetailModal({
 
   // ── шапка: основа из колонок (работает для fns/qr/photo_ocr/manual) ──
   const mname = r.org_brand || shortOrg(r.org_legal || r.org) || "Чек";
-  const seller = r.org_legal && r.org_legal !== mname ? r.org_legal : "";
+  // Юрлицо — через shortOrg: до 06.08.2026 здесь стояло СЫРОЕ org_legal, и
+  // строка выглядела как «ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТС…». shortOrg в этом
+  // блоке была, но только в ЗАПАСНОЙ ветке заголовка — а org_brand заполнен
+  // у всех чеков прода, так что ветка не срабатывала никогда.
+  // Сравнение с заголовком — уже по сокращённому виду: без бренда заголовок
+  // сам становится сокращённым юрлицом, и строка иначе задвоилась бы.
+  const legalShort = r.org_legal ? shortOrg(r.org_legal) : "";
+  const seller = legalShort && legalShort !== mname ? legalShort : "";
   const inn = r.org_inn || "";
   const taxLabel = r.tax_system ? TAX_LABELS_RECEIPT[r.tax_system] || "" : "";
   const innLine = inn

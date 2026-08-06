@@ -2210,7 +2210,9 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                   textOverflow: "ellipsis",
                 }}
               >
-                {(d.org ? d.org + " · " : "") +
+                {/* shortOrg: строка и без того плотная (источник · название ·
+                    сумма · дата), сырое юрлицо вытесняло из неё всё остальное */}
+                {(d.org ? shortOrg(d.org) + " · " : "") +
                   fmt(d.amount) +
                   " · " +
                   fmtDate(d.date)}
