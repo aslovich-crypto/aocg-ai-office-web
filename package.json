@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . && node scripts/check-design-vendor.mjs && node scripts/check-theme-tokens.mjs && node scripts/check-layout-shrink.mjs",
+    "lint": "eslint . && node scripts/check-design-vendor.mjs && node scripts/check-theme-tokens.mjs && node scripts/check-layout-shrink.mjs && node scripts/check-org-forms.mjs",
     "preview": "vite preview",
     "start": "node server.js"
   },
