@@ -310,6 +310,19 @@ export default function OtchetyPage({
     return u ? u.id : null;
   };
   const fEmpId = empId(fEmp);
+
+  // «Фамилия И.» — формат из макета. Список сотрудников уже приходит пропом
+  // (он нужен фильтру). Нет фамилии — берём имя, нет и его — ничего
+  // не показываем: пустая метка хуже отсутствующей.
+  const authorName = (uid) => {
+    if (uid == null || !Array.isArray(users)) return "";
+    const u = users.find((x) => x.id === uid);
+    if (!u) return "";
+    const last = (u.last_name || "").trim();
+    const first = (u.first_name || "").trim();
+    if (last) return first ? `${last} ${first[0]}.` : last;
+    return first || "";
+  };
   const inRange = (rep) => {
     // Период — по created: других дат у отчёта нет, месяц в названии это текст.
     const d = (rep.created || "").slice(0, 10);
@@ -650,6 +663,13 @@ export default function OtchetyPage({
                           font: `400 13px/1.2 ${FONT}`,
                           color: theme.fg2,
                           fontVariantNumeric: "tabular-nums",
+                          // Как в макете (.card .meta): строка не переносится,
+                          // лишнее уходит в многоточие. Без этого автор
+                          // («Шукалович А.») уводит мету на вторую строку
+                          // и карточка растёт — проверено предпросмотром.
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                       >
                         {fmtDate(rep.created)} · {(rep.receiptIds || []).length}{" "}
@@ -658,6 +678,16 @@ export default function OtchetyPage({
                           "чека",
                           "чеков",
                         ])}
+                        {/* Автор — как в макете («дата · N чеков · Фамилия И.»),
+                            но ТОЛЬКО тем, кто видит чужие отчёты. Сотруднику
+                            бэк отдаёт лишь его собственные (REP-ACL), и автор
+                            в каждой строке был бы одинаковый — шум. В макете
+                            это лист бухгалтера.
+                            Пустой user_id (старые отчёты) не показываем вовсе:
+                            ни прочерка, ни «—» — решение владельца продукта. */}
+                        {canApprove(role) && authorName(rep.user_id)
+                          ? ` · ${authorName(rep.user_id)}`
+                          : ""}
                       </div>
                     </div>
                     <div
