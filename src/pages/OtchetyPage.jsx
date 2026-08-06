@@ -4,7 +4,7 @@ import { useFabHidden, fabHiddenStyle } from "../hooks/useFabHidden";
 import { ClipboardList, Plus, Search, Trash2, Undo2 } from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
-import { shortOrg, fmtDate } from "../lib/format";
+import { shortOrg, fmtDate, money } from "../lib/format";
 import { catName } from "../lib/categories";
 import { BADGE, isEditable, canApprove } from "../lib/reports";
 import ReportDetailModal from "../components/ReportDetailModal";
@@ -12,7 +12,7 @@ import SwipeRow from "../components/SwipeRow";
 
 // Экран «Отчёты» — вёрстка по макету templates/reports/Отчёты.html (ЧП2, INT).
 // Логика (статусы, PATCH, создание) — из кода, вёрстка — из макета.
-// Зависимости монолита (authFetch, fmt, Btn, Modal, RuleInput, Block)
+// Зависимости монолита (authFetch, Btn, Modal, RuleInput, Block)
 // приходят пропсами из App.jsx — как у GlavnayaPage.
 
 // Чипы фильтра: подпись «Проверка» — короткая (как в макете), в данных
@@ -45,7 +45,6 @@ export default function OtchetyPage({
   role, // ЧП5б: гейт «Одобрить/Отклонить» в деталях отчёта
   authFetch,
   reloadReceipts, // после удаления отчёта его чеки освободились
-  fmt,
   plural,
   Btn,
   Modal,
@@ -707,7 +706,7 @@ export default function OtchetyPage({
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {fmt(rep.total)}
+                        {money(rep.total)}
                       </div>
                       <span
                         style={{
@@ -942,7 +941,7 @@ export default function OtchetyPage({
                       fontWeight: 700,
                     }}
                   >
-                    {fmt(r.amount)}
+                    {money(r.amount)}
                   </span>
                 </div>
               );
@@ -965,7 +964,7 @@ export default function OtchetyPage({
                       fontWeight: 700,
                     }}
                   >
-                    {fmt(
+                    {money(
                       free
                         .filter((r) => selected.includes(r.id))
                         .reduce((s, r) => s + Number(r.amount), 0),

@@ -17,7 +17,7 @@ import {
   Plus,
 } from "lucide-react";
 import { FONT, theme } from "../lib/theme";
-import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
+import { shortOrg, fmtDate, fmtDateTime, money } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { authFetch } from "../lib/api";
@@ -41,12 +41,6 @@ const T = {
   cherryHover: "#8B1218",
   white: theme.surface,
 };
-
-const money = (n) =>
-  Number(n || 0).toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + " ₽";
 
 // Коды СНО колонки receipts.tax_system (мэппинг бэка fns_parser) → русские метки.
 // Это НЕ TAX_LABELS из lib/tax — там другой набор кодов (для организаций).

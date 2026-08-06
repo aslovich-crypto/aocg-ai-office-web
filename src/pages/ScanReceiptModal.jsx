@@ -11,7 +11,7 @@ import { Camera, ImageUp, PenLine, Flashlight, FileText } from "lucide-react";
 
 import { useModalA11y } from "../hooks/useModalA11y";
 import { C, FONT, theme } from "../lib/theme";
-import { fmtDate } from "../lib/format";
+import { fmtDate, money } from "../lib/format";
 import { parseQRString } from "../lib/qr";
 
 // Экран сканирования чека — вынесен из App.jsx как ЕДИНЫЙ кусок (ЧП1, INT).
@@ -1412,11 +1412,7 @@ export default function ScanReceiptModal({
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {qrParsed?.amount
-                    ? `${Number(qrParsed.amount).toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                      })} ₽`
-                    : "QR-код"}
+                  {qrParsed?.amount ? money(qrParsed.amount) : "QR-код"}
                   {qrParsed?.date ? ` · ${fmtDate(qrParsed.date)}` : ""}
                 </div>
               </div>

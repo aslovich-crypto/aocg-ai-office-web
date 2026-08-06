@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, X, Undo2 } from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
-import { shortOrg, fmtDate, fmtDateTime } from "../lib/format";
+import { shortOrg, fmtDate, fmtDateTime, money } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { authFetch } from "../lib/api";
@@ -15,12 +15,6 @@ import { BADGE, isEditable, FROZEN_HINT, canApprove } from "../lib/reports";
 // отчёт нужно открыть и увидеть состав. В списке остаются действия автора над
 // своим документом (отправить, отозвать, исправить, удалить) — они не требуют
 // изучения состава.
-
-const money = (n) =>
-  Number(n || 0).toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + " ₽";
 
 // Время покупки различает похожие чеки лучше всего (UX-4): у одного продавца
 // за день накапливаются чеки с близкими суммами, и минуты — единственное,

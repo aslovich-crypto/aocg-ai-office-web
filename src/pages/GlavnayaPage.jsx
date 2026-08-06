@@ -12,7 +12,7 @@ import {
 
 import { computeTaxAccounting, regimeFlags } from "../lib/tax";
 import { FONT, theme } from "../lib/theme";
-import { paymentShort, shortOrg } from "../lib/format";
+import { paymentShort, shortOrg, money, fmtDate } from "../lib/format";
 
 // Экран «Главная» (INT) — дашборд по образцу templates/home/Главная.html.
 // Зависимости (данные, навигация, форматтеры) приходят пропсами из App.jsx,
@@ -24,8 +24,6 @@ export default function GlavnayaPage({
   org,
   setPage,
   authFetch,
-  fmt,
-  fmtDate,
   plural,
   inPeriod,
   catName,
@@ -230,7 +228,7 @@ export default function GlavnayaPage({
           whiteSpace: "nowrap",
         }}
       >
-        {fmt(value)}
+        {money(value)}
       </span>
     </div>
   );
@@ -299,7 +297,7 @@ export default function GlavnayaPage({
             noCat.length,
             `${plural(noCat.length, ["чек", "чека", "чеков"])} без категории`,
             "Сумма",
-            fmt(noCatSum),
+            money(noCatSum),
             () => setPage("operacii"),
           )}
           {attn(
@@ -325,7 +323,7 @@ export default function GlavnayaPage({
               "отчётов",
             ])} на проверке`,
             "Сумма",
-            fmt(pendingSum),
+            money(pendingSum),
             () => setPage("otchety"),
           )}
         </div>
@@ -367,7 +365,7 @@ export default function GlavnayaPage({
                 letterSpacing: "-.015em",
               }}
             >
-              {fmt(monthTotal)}
+              {money(monthTotal)}
             </span>
             <span
               style={{
@@ -592,7 +590,7 @@ export default function GlavnayaPage({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {fmt(Number(r.amount))}
+                    {money(Number(r.amount))}
                   </span>
                   <span
                     style={{
