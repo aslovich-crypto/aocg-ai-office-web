@@ -379,7 +379,15 @@ export default function OtchetyPage({
                     padding: "7px 12px",
                     border: on ? "1px solid #EEF0F4" : "1px solid transparent",
                     borderRadius: 6,
-                    font: `${on ? 600 : 500} 13px/1 ${FONT}`,
+                    // 11px, как на «Чеках» и «Сводке». Канон макета — 13px,
+                    // и на «Отчётах» они помещались (чипы по содержимому,
+                    // капсула прокручивается), но тогда шрифт полосы
+                    // отличался бы от двух других экранов, где 13px
+                    // не влезают: при 320 капсула даёт 38-45px на чип,
+                    // а «Квартал» при 13px/600 занимает 55 (UX-17).
+                    // Решение владельца продукта 05.08: единый кегль важнее
+                    // канонного размера на одном экране из трёх.
+                    font: `${on ? 600 : 500} 11px/1 ${FONT}`,
                     color: on ? theme.cherry : C.mid,
                     background: on ? theme.surface : "transparent",
                     boxShadow: on ? "0 1px 3px rgba(17,19,24,0.12)" : "none",
