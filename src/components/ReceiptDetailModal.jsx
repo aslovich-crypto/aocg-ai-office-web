@@ -910,6 +910,14 @@ export default function ReceiptDetailModal({
                         font: `400 13px/1.4 ${FONT}`,
                         color: T.fg2,
                         fontVariantNumeric: "tabular-nums",
+                        // Одна строка с многоточием — как в макете (.hero-top
+                        // .legal: white-space nowrap). Без этого «ИНН … · УСН
+                        // «Доходы−Расходы»» переносилось на второй ряд, и герой
+                        // рос, хотя соседние строки блока уже были в одну.
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: "100%",
                       }}
                     >
                       {innLine}
