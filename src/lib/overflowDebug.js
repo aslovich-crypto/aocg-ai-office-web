@@ -79,18 +79,22 @@ function reachableByScroll(el, r) {
       // Левый край СОДЕРЖИМОГО скроллера во вьюпортных координатах:
       // видимая левая граница минус то, что уже прокручено.
       const contentLeft = pr.left + p.clientLeft - p.scrollLeft;
-      // ВНИМАНИЕ: эта ветка НЕ ПОКРЫТА МУТАЦИЕЙ, и проверить её
-      // синтетической пробой нельзя в принципе. Браузер расширяет
-      // прокручиваемую область под ЛЮБОЙ вставленный элемент: кладёшь
-      // пробу за край — край переезжает за ней, и она становится
-      // достижимой в тот же миг. Замер это показал прямо:
-      //     scrollWidth до вставки 411 → после 511, правый край пробы 511.
-      // То есть «вышел за scrollWidth» для правого переполнения почти
-      // недостижимо само по себе. Ветка оставлена ради реального случая,
-      // который она покрывает: промежуточный контейнер с overflow:hidden
-      // ВНУТРИ скроллера — тогда до содержимого действительно не добраться
-      // (цикл выше вернёт false, встретив режущий контейнер).
-      // Не считать эту строку проверенной наравне с остальными (T21).
+      // ВЕТКА ПОКРЫТА МУТАЦИЕЙ С 06.08.2026 (T21), и путь к этому стоит
+      // помнить. Считалось, что синтетической пробой её не проверить:
+      // браузер расширяет прокручиваемую область под ЛЮБОЙ вставленный
+      // в поток элемент — кладёшь пробу за край, край переезжает за ней,
+      // и она достижима в тот же миг (замер: scrollWidth 411 → 511, правый
+      // край пробы 511). Вывод «непроверяемо» был верен для ПОТОКА и неверен
+      // вообще: проба, вынутая из потока (position:fixed), в прокручиваемой
+      // области предка не участвует. Замер стенда: scrollWidth 400 → 400,
+      // правый край пробы 700 против 400 доступных — не достать жестом.
+      // Проба живёт в injectScrollProbe (метка #overflow-test-scroll),
+      // сама проверяет, что scrollWidth не изменился, а проверяет её
+      // tools/layout-audit/selfcheck-scroll.mjs.
+      // Второй случай, который эта ветка покрывает и который пробой не
+      // воспроизводится: промежуточный контейнер с overflow:hidden ВНУТРИ
+      // скроллера — до содержимого не добраться, и цикл выше вернёт false,
+      // встретив режущий контейнер.
       return r.right - contentLeft <= p.scrollWidth + 1;
     }
     p = p.parentElement;
@@ -387,6 +391,56 @@ function injectPaintProbe() {
   )} — ДОЛЖНА попасть в «шире родителя»`;
 }
 
+// Проба «ЗА ПРОКРУТКОЙ» — покрывает ветку reachableByScroll (задача T21).
+// Долгое время эта ветка считалась непроверяемой: положишь пробу в поток
+// скроллера — браузер тут же расширит под неё прокручиваемую область, и проба
+// станет достижимой (замер: scrollWidth 400 → 504, правый край 513). Выход —
+// вынуть пробу ИЗ ПОТОКА: position:fixed не участвует в прокручиваемой области
+// предка, и scrollWidth остаётся прежним. Замер того же стенда: scrollWidth
+// 400 → 400, правый край пробы 700, то есть 691 от начала содержимого против
+// 400 доступных — до неё не добраться никаким жестом. Это не выдумка ради
+// теста: так же ведут себя всплывающие элементы внутри капсулы фильтров.
+// ПРОБА САМА СЕБЯ ПРОВЕРЯЕТ: если scrollWidth всё-таки изменился, значит она
+// НЕ встала за прокрутку, и об этом говорится вслух — иначе «сторож молчит»
+// читалось бы как поломка сторожа, хотя ловить было нечего (правило T11).
+function injectScrollProbe() {
+  const sc = [...document.querySelectorAll("div")].find((el) => {
+    if (el.dataset.ovfPanel) return false;
+    const ox = getComputedStyle(el).overflowX;
+    if (ox !== "auto" && ox !== "scroll") return false;
+    return (
+      el.scrollWidth > el.clientWidth + 1 &&
+      el.getBoundingClientRect().width > 80
+    );
+  });
+  if (!sc) return "горизонтальный скроллер не найден — пробу вставить некуда";
+  const before = sc.scrollWidth;
+  const pr = sc.getBoundingClientRect();
+  const contentLeft = pr.left + sc.clientLeft - sc.scrollLeft;
+  const left = Math.max(
+    window.innerWidth + 20,
+    Math.round(contentLeft + before + 20),
+  );
+  const probe = document.createElement("div");
+  probe.dataset.ovfProbe = "1";
+  probe.textContent = "ПРОБА-ЗА-ПРОКРУТКОЙ";
+  probe.style.cssText =
+    "position:fixed;top:120px;width:120px;height:16px;background:#BF5AF2;" +
+    `color:#fff;font:9px/16px sans-serif;z-index:2;left:${left}px`;
+  sc.appendChild(probe);
+  const after = sc.scrollWidth;
+  if (after !== before)
+    return (
+      `ПРОБА НЕ ВСТАЛА ЗА ПРОКРУТКУ: scrollWidth ${before} → ${after}. ` +
+      "Проверять нечего — это НЕ повод считать сторож сломанным."
+    );
+  return (
+    `проба «за прокруткой» в ${describe(sc).slice(0, 20)} ` +
+    `(scrollWidth ${before}, левый край пробы ${left}) — ДОЛЖНА попасть ` +
+    "в «вылезли за экран»"
+  );
+}
+
 function injectProbe(extra) {
   const cand = [...document.querySelectorAll("div")].find((el) => {
     if (el.dataset.ovfPanel) return false;
@@ -537,7 +591,8 @@ export function initOverflowDebug() {
   const THIN = H.includes("overflow-test-thin");
   const PAINT = H.includes("overflow-test-paint");
   const SVGP = H.includes("overflow-test-svg");
-  const TEST = THIN || PAINT || SVGP || H.includes("overflow-test");
+  const SCROLLP = H.includes("overflow-test-scroll");
+  const TEST = THIN || PAINT || SVGP || SCROLLP || H.includes("overflow-test");
   const WHY = H.includes("overflow-why");
   const HIT = H.includes("overflow-hit");
   let probeNote = "";
@@ -735,11 +790,13 @@ export function initOverflowDebug() {
   run();
   if (TEST) {
     setTimeout(() => {
-      probeNote = SVGP
-        ? injectSvgProbe()
-        : PAINT
-          ? injectPaintProbe()
-          : injectProbe(THIN ? 5 : 120);
+      probeNote = SCROLLP
+        ? injectScrollProbe()
+        : SVGP
+          ? injectSvgProbe()
+          : PAINT
+            ? injectPaintProbe()
+            : injectProbe(THIN ? 5 : 120);
       run();
     }, 800);
   }
