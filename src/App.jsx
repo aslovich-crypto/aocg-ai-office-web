@@ -30,7 +30,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { C, FONT, theme } from "./lib/theme";
-import { shortOrg, fmtDate, paymentShort, isCash } from "./lib/format";
+import { shortOrg, fmtDate, paymentShort, isCash, money } from "./lib/format";
 import {
   setCatalogMaps,
   groupColor,
@@ -101,11 +101,6 @@ const ROLES = [
   },
 ];
 
-const fmt = (n) =>
-  Number(n).toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + " ₽";
 // Русские метки источника чека (как в фильтре «Источник») — для баннера дублей.
 const SRC_LABEL = {
   fns: "ФНС",
@@ -574,7 +569,7 @@ function Donut({ title, data, num, sliceColor }) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v) => fmt(v)}
+                formatter={(v) => money(v)}
                 contentStyle={{
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
@@ -608,7 +603,7 @@ function Donut({ title, data, num, sliceColor }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {fmt(sectionTotal)}
+              {money(sectionTotal)}
             </span>
           </div>
         </div>
@@ -658,7 +653,7 @@ function Donut({ title, data, num, sliceColor }) {
                 whiteSpace: "nowrap",
               }}
             >
-              {fmt(d.value)}
+              {money(d.value)}
             </span>
             <span
               style={{
@@ -777,7 +772,7 @@ function SvodkaPage({
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {fmt(value)}
+        {money(value)}
       </span>
     </div>
   );
@@ -871,7 +866,7 @@ function SvodkaPage({
               letterSpacing: "-0.015em",
             }}
           >
-            {fmt(total)}
+            {money(total)}
           </div>
           <div
             style={{
@@ -975,7 +970,7 @@ function SvodkaPage({
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {fmt(vatSum)}
+                    {money(vatSum)}
                   </div>
                   <div
                     style={{ fontSize: 12, color: theme.fg2, fontFamily: FONT }}
@@ -1073,7 +1068,7 @@ function SvodkaPage({
                   flexShrink: 0,
                 }}
               >
-                {fmt(d.value)}
+                {money(d.value)}
               </span>
             </div>
           ))}
@@ -1375,7 +1370,7 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
               flexShrink: 0,
             }}
           >
-            {fmt(r.amount)}
+            {money(r.amount)}
           </span>
           <span
             style={{
@@ -2235,7 +2230,7 @@ function DuplicateWarningBanner({ warning, onDelete, onClose }) {
                 {/* shortOrg: строка и без того плотная (источник · название ·
                     сумма · дата), сырое юрлицо вытесняло из неё всё остальное */}
                 {(d.org ? shortOrg(d.org) + " · " : "") +
-                  fmt(d.amount) +
+                  money(d.amount) +
                   " · " +
                   fmtDate(d.date)}
               </span>
@@ -3560,6 +3555,17 @@ function OperaciiPage({
                 Данные ФНС не загрузились. Заполните организацию вручную.
               </div>
             )}
+            {/* НАЗВАНИЕ ЗДЕСЬ НЕ ПРОПУСКАЕТСЯ ЧЕРЕЗ shortOrg — И ЭТО НЕ НЕДОСМОТР.
+                В семи местах показа (карточка «Чеков», кольцо «Организации»,
+                чеки отчёта, герой деталей, «Главная», баннер дублей, поиск)
+                shortOrg сокращает форму и ставит ёлочки. Здесь другой слой:
+                значение РЕДАКТИРУЕМОЕ и уходит в базу как есть — `org: form.org`
+                при сохранении. Прогнать его через shortOrg значит записать
+                в receipts.org сокращённый вид с ёлочками, а по этой колонке
+                матчатся ДЕДУП и АВТО-КАТЕГОРИЗАЦИЯ (`auto_categorize` на бэке
+                сравнивает org и org_brand). Разошедшееся написание там ломается
+                молча: чек не склеится с дублем, категория не подставится.
+                Показ сокращает, хранение — нет. Разобрано 06.08.2026. */}
             <RuleInput
               label="Организация"
               value={form.org}
@@ -8465,7 +8471,6 @@ export default function App() {
             org={org}
             setPage={setPage}
             authFetch={authFetch}
-            fmt={fmt}
             fmtDate={fmtDate}
             plural={plural}
             inPeriod={inPeriod}
@@ -8512,7 +8517,6 @@ export default function App() {
             role={role}
             authFetch={authFetch}
             reloadReceipts={reloadReceipts}
-            fmt={fmt}
             plural={plural}
             TabBar={TabBar}
             Btn={Btn}
