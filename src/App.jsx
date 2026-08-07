@@ -55,6 +55,8 @@ import { canApprove } from "./lib/reports";
 // Сетевой слой вынесен в src/lib/api.js (CLAUDE.md): компоненты вне монолита
 // импортируют authFetch оттуда, а не получают пропсом.
 import { API, authFetch, fetchWithTimeout, tokens } from "./lib/api";
+// S-34: текст согласия только с бэкенда, локальной копии нет.
+import { загрузитьСогласие } from "./lib/policy";
 
 // Sign out: revoke the refresh token server-side, clear local tokens, drop to login.
 async function logout() {
@@ -4872,7 +4874,14 @@ function AccountTab() {
               · Политика конфиденциальности v{consent.policy_version}
             </div>
             <button
-              onClick={() => alert(CONSENT_TEXT)}
+              // S-34: показываем текст ИЗ ЗАПИСИ (он приходит в consent.text),
+              // а не текущую редакцию: человек соглашался со своей.
+              onClick={() =>
+                alert(
+                  consent.text ||
+                    "Текст этой записи не сохранён (запись сделана до перехода на единый источник).",
+                )
+              }
               style={{
                 marginTop: 8,
                 background: "none",
@@ -6274,9 +6283,9 @@ function NastroykiPage({
 // (privacy policy + personal-data processing). Both must be ticked before
 // "Продолжить" enables. Tapping each link opens a bottom-sheet with the
 // frozen v1.0 text. The texts below are placeholders to be replaced by the
-// final lawyer-reviewed version — both the wording and POLICY_VERSION live
-// alongside the same constants on the backend (app/routers/consent.py).
-const POLICY_VERSION = "1.0";
+// S-34: текста согласия и его версии здесь БОЛЬШЕ НЕТ — они приходят
+// ручкой GET /api/consent/policy. Копия тут уже расходилась с бэкендом
+// молча, и в журнал сохранялась редакция, которой человек не видел.
 
 const POLICY_TEXT = `Политика конфиденциальности
 
@@ -6299,25 +6308,6 @@ AOCG AI Офис.
 Срок хранения: 5 лет.
 
 Вы вправе отозвать согласие в Настройках.
-
-[PLACEHOLDER — финальная редакция юриста]`;
-
-const CONSENT_TEXT = `Согласие на обработку персональных данных
-
-Я даю согласие ИП Шукалович Алексей Иванович
-(ОГРНИП: 324470400135929, ИНН: 470705591044)
-на обработку следующих персональных данных:
-ФИО, номер телефона, данные о финансовых операциях —
-в целях ведения управленческого учёта.
-
-Я уведомлён, что для распознавания фото чеков
-изображения передаются сервису Anthropic PBC (США)
-и не сохраняются третьими лицами.
-
-Согласие даётся на срок 5 лет и может быть
-отозвано в Настройках приложения.
-
-Версия: ${POLICY_VERSION} от 20.05.2026
 
 [PLACEHOLDER — финальная редакция юриста]`;
 
@@ -6511,7 +6501,20 @@ function ConsentScreen({ onAccept }) {
   const [dataChecked, setDataChecked] = useState(false);
   const [sheet, setSheet] = useState(null); // null | "policy" | "consent"
   const [submitting, setSubmitting] = useState(false);
-  const canSubmit = policyChecked && dataChecked && !submitting;
+  // S-34: текст согласия и его версия приходят С БЭКЕНДА — там единственный
+  // источник. Локальной копии здесь нет намеренно: две копии уже разошлись
+  // молча, и в журнал сохранялась редакция, которой человек не видел.
+  const [согласие, setСогласие] = useState(null); // {version, text}
+  const [ошибкаТекста, setОшибкаТекста] = useState(false);
+  useEffect(() => {
+    загрузитьСогласие()
+      .then(setСогласие)
+      .catch(() => setОшибкаТекста(true));
+  }, []);
+  // Согласиться с текстом, которого не видел, нельзя — поэтому кнопка ждёт
+  // загрузку. Подставлять локальную заглушку «чтобы не блокировать» значит
+  // вернуть вторую редакцию целиком.
+  const canSubmit = policyChecked && dataChecked && !submitting && !!согласие;
 
   async function handleAccept() {
     if (!canSubmit) return;
@@ -6530,7 +6533,7 @@ function ConsentScreen({ onAccept }) {
     }
     try {
       localStorage.setItem("consent_given", "true");
-      localStorage.setItem("consent_version", POLICY_VERSION);
+      localStorage.setItem("consent_version", согласие.version);
       localStorage.setItem("consent_at", new Date().toISOString());
     } catch {
       /* private mode / storage disabled */
@@ -6670,6 +6673,23 @@ function ConsentScreen({ onAccept }) {
       </div>
 
       <div style={{ marginTop: "auto" }}>
+        {/* S-34: отказ загрузки виден человеку, а не только в консоли —
+            иначе кнопка выглядит сломанной без объяснения. */}
+        {ошибкаТекста && (
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 13,
+              lineHeight: 1.4,
+              color: theme.errorFg,
+              textAlign: "center",
+              marginBottom: 12,
+            }}
+          >
+            Не удалось загрузить текст согласия. Проверьте связь и обновите
+            страницу — согласиться с непрочитанным текстом нельзя.
+          </div>
+        )}
         <button
           onClick={handleAccept}
           disabled={!canSubmit}
@@ -6702,7 +6722,7 @@ function ConsentScreen({ onAccept }) {
       {sheet === "consent" && (
         <ConsentBottomSheet
           title="Согласие на обработку ПДн"
-          text={CONSENT_TEXT}
+          text={согласие ? согласие.text : "Текст согласия не загрузился."}
           onClose={() => setSheet(null)}
         />
       )}
