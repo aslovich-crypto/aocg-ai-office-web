@@ -49,6 +49,9 @@ import {
 } from "./lib/categories";
 import CategorySheet from "./components/CategorySheet";
 import ReceiptDetailModal from "./components/ReceiptDetailModal";
+// S-28: тот же предикат роли, что уже гейтит фильтр автора на «Отчётах».
+// Вторая копия условия разошлась бы с первой при следующей правке ролей.
+import { canApprove } from "./lib/reports";
 // Сетевой слой вынесен в src/lib/api.js (CLAUDE.md): компоненты вне монолита
 // импортируют authFetch оттуда, а не получают пропсом.
 import { API, authFetch, fetchWithTimeout, tokens } from "./lib/api";
@@ -715,6 +718,7 @@ function SvodkaPage({
   cards,
   catalog,
   org,
+  role,
 }) {
   const [showFilters, setShowFilters] = useState(false);
   const [selEmployee, setSelEmployee] = useState(null);
@@ -1104,7 +1108,11 @@ function SvodkaPage({
       </div>
       {showFilters && (
         <FiltersModal
-          employees={users}
+          // S-28: секция «Сотрудник» рисуется только при переданном пропе
+          // (hasEmp в FiltersModal). Рядовому сотруднику она не только лишняя,
+          // но и бессмысленная: по A-ACL ему приходят только свои чеки, выбор
+          // коллеги дал бы пустой экран. Так же гейтится фильтр на «Отчётах».
+          employees={canApprove(role) ? users : undefined}
           selectedEmployee={selEmployee}
           catalog={catalog}
           cards={cards}
@@ -5899,7 +5907,12 @@ function NastroykiPage({
           "Аккаунт",
           "Организация",
           "Лицензии",
-          "Пользователи",
+          // Хвост S-29: управление людьми на бэкенде теперь только у админа
+          // (_require_admin). Без этого гейта бухгалтер видел вкладку и ловил
+          // 403 на первом же действии. role === null — это «ещё не пришла
+          // с /api/users/me», и вкладки в этот момент нет: умолчание должно
+          // быть закрытым, лишний кадр без вкладки дешевле мелькнувшей.
+          ...(role === "admin" ? ["Пользователи"] : []),
           "Сервисы",
           "Общие",
         ]}
@@ -5923,7 +5936,7 @@ function NastroykiPage({
           </div>
         </div>
       )}
-      {tab === "Пользователи" && (
+      {tab === "Пользователи" && role === "admin" && (
         <div style={{ padding: "12px 16px 80px" }}>
           <SectionHead title="Сотрудники" />
           {users.map((u) => (
@@ -8542,6 +8555,7 @@ export default function App() {
             cards={cards}
             catalog={catalog}
             org={org}
+            role={role}
           />
         )}
         {page === "operacii" && (
