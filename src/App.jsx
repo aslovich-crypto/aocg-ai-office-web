@@ -2499,8 +2499,28 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
       }
     >
       <div style={{ paddingTop: 12 }}>
-        <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
+        {/* ПАРА «ДАТА / ВРЕМЯ»: пол 118px и перенос вместо переполнения.
+            118 — ЗАМЕРЕННЫЙ собственный минимум поля ввода при 13px, а не
+            подобранное число: сужая строку по шагам, оба поля упираются
+            в 118 и дальше не сжимаются (208 → уже вылезают на 16.6px).
+            Паре нужно 118+12+118 = 248, сейчас у неё 288 при экране 320 —
+            ЗАПАС 40px, и сегодня НИЧЕГО НЕ ЛОМАЕТСЯ. Правка на будущее:
+            станет теснее 248 (третье поле в строке, выросшие отступы шторки,
+            экран уже 320) — пара переедет на две строки, каждое поле во всю
+            ширину, вместо того чтобы вылезти за край.
+            Почему не minWidth:0, как буквально просит сторож: поле ввода
+            не умеет усекаться многоточием — при 128px строки дата сжалась бы
+            до 58px и сегменты «08/06/2026» обрезались. Для текста лекарство
+            есть, для input — нет. Задача T27. */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 118 }}>
             <div style={{ ...lbl, marginBottom: 4 }}>Дата</div>
             <input
               type="date"
@@ -2510,7 +2530,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
               style={inp}
             />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 118 }}>
             <div style={{ ...lbl, marginBottom: 4 }}>Время</div>
             <input
               type="time"
