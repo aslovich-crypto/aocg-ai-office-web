@@ -49,6 +49,7 @@ import {
 } from "./lib/categories";
 import CategorySheet from "./components/CategorySheet";
 import ReceiptDetailModal from "./components/ReceiptDetailModal";
+import LegalText from "./components/LegalText";
 // S-28: тот же предикат роли, что уже гейтит фильтр автора на «Отчётах».
 // Вторая копия условия разошлась бы с первой при следующей правке ролей.
 import { canApprove } from "./lib/reports";
@@ -6283,36 +6284,12 @@ function NastroykiPage({
 // (privacy policy + personal-data processing). Both must be ticked before
 // "Продолжить" enables. Tapping each link opens a bottom-sheet.
 //
-// S-34: текста согласия и его версии здесь БОЛЬШЕ НЕТ — они приходят
-// ручкой GET /api/consent/policy (src/lib/policy.js). Копия тут уже
-// расходилась с бэкендом молча, и в журнал сохранялась редакция, которой
-// человек не видел. Ниже осталась только ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ:
-// она в журнал не сохраняется, поэтому расхождения не даёт, но тоже
-// помечена PLACEHOLDER и ждёт юриста (см. задачу «тексты для юриста»).
-
-const POLICY_TEXT = `Политика конфиденциальности
-
-Оператор персональных данных:
-ИП Шукалович Алексей Иванович
-ОГРНИП: 324470400135929 · ИНН: 470705591044
-
-Мы собираем: ФИО сотрудников, номера телефонов,
-данные финансовых операций.
-
-Цель: ведение управленческого учёта в приложении
-AOCG AI Офис.
-
-Обработчики данных:
-• Railway Inc. (США) — хостинг и база данных
-• Anthropic PBC (США) — распознавание фото чеков.
-  Anthropic не хранит изображения и не использует
-  их для обучения моделей.
-
-Срок хранения: 5 лет.
-
-Вы вправе отозвать согласие в Настройках.
-
-[PLACEHOLDER — финальная редакция юриста]`;
+// S-34/S-36: НИ ОДНОГО юридического текста здесь больше нет — ни согласия,
+// ни политики. Оба приходят ручкой GET /api/consent/policy (src/lib/policy.js),
+// оба живут файлами юриста в docs/ репозитория бэкенда. Копия в этом файле
+// уже расходилась с бэкендом молча, и в журнал сохранялась редакция, которой
+// человек не видел; политика объявлена неотъемлемой частью согласия, поэтому
+// держать её отдельно — та же мина с другой стороны.
 
 function ConsentBottomSheet({ title, text, onClose }) {
   const dialogRef = useModalA11y(onClose);
@@ -6385,18 +6362,11 @@ function ConsentBottomSheet({ title, text, onClose }) {
             <span aria-hidden="true">✕</span>
           </button>
         </div>
-        <div
-          style={{
-            overflow: "auto",
-            padding: "16px 18px",
-            fontFamily: FONT,
-            fontSize: 13,
-            color: C.dark,
-            lineHeight: 1.55,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {text}
+        <div style={{ overflow: "auto", padding: "16px 18px" }}>
+          {/* S-36: редакция юриста — markdown с заголовками и таблицами
+              правовых оснований. В простом тексте таблица приезжала бы
+              палками, а согласие принимается на ПОЛНЫЙ документ. */}
+          <LegalText text={text} />
         </div>
         <div
           style={{
@@ -6720,7 +6690,7 @@ function ConsentScreen({ onAccept }) {
       {sheet === "policy" && (
         <ConsentBottomSheet
           title="Политика конфиденциальности"
-          text={POLICY_TEXT}
+          text={согласие ? согласие.policy : "Текст политики не загрузился."}
           onClose={() => setSheet(null)}
         />
       )}

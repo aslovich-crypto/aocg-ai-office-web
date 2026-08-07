@@ -22,10 +22,19 @@ export async function загрузитьСогласие() {
   const res = await authFetch("/api/consent/policy");
   if (!res.ok) throw new Error(`policy ${res.status}`);
   const d = await res.json();
-  if (!d || typeof d.text !== "string" || !d.text.trim() || !d.version) {
+  // Политика проверяется наравне с согласием: она объявлена неотъемлемой
+  // частью документа, и показывать согласие без неё нельзя.
+  if (
+    !d ||
+    typeof d.text !== "string" ||
+    !d.text.trim() ||
+    typeof d.policy !== "string" ||
+    !d.policy.trim() ||
+    !d.version
+  ) {
     throw new Error("policy: пустой ответ");
   }
-  кэш = { version: d.version, text: d.text };
+  кэш = { version: d.version, text: d.text, policy: d.policy };
   return кэш;
 }
 
