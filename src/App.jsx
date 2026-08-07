@@ -6281,11 +6281,14 @@ function NastroykiPage({
 //
 // On first launch we present an opt-in screen with two unchecked boxes
 // (privacy policy + personal-data processing). Both must be ticked before
-// "Продолжить" enables. Tapping each link opens a bottom-sheet with the
-// frozen v1.0 text. The texts below are placeholders to be replaced by the
+// "Продолжить" enables. Tapping each link opens a bottom-sheet.
+//
 // S-34: текста согласия и его версии здесь БОЛЬШЕ НЕТ — они приходят
-// ручкой GET /api/consent/policy. Копия тут уже расходилась с бэкендом
-// молча, и в журнал сохранялась редакция, которой человек не видел.
+// ручкой GET /api/consent/policy (src/lib/policy.js). Копия тут уже
+// расходилась с бэкендом молча, и в журнал сохранялась редакция, которой
+// человек не видел. Ниже осталась только ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ:
+// она в журнал не сохраняется, поэтому расхождения не даёт, но тоже
+// помечена PLACEHOLDER и ждёт юриста (см. задачу «тексты для юриста»).
 
 const POLICY_TEXT = `Политика конфиденциальности
 
