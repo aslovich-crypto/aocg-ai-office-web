@@ -6499,7 +6499,7 @@ function ConsentCheckbox({ checked, onToggleCheck, onOpenSheet, label }) {
   );
 }
 
-function ConsentScreen({ onAccept, повтор = false }) {
+function ConsentScreen({ onAccept }) {
   const [policyChecked, setPolicyChecked] = useState(false);
   const [dataChecked, setDataChecked] = useState(false);
   const [sheet, setSheet] = useState(null); // null | "policy" | "consent"
@@ -6633,29 +6633,8 @@ function ConsentScreen({ onAccept, повтор = false }) {
           lineHeight: 1.45,
         }}
       >
-        {повтор
-          ? "Мы обновили текст согласия"
-          : "Перед началом работы ознакомьтесь с документами"}
+        Перед началом работы ознакомьтесь с документами
       </p>
-      {/* Строка 9: повтор без объяснения читается как сбой. Формулировка
-          согласована 07.08.2026; финальную проверит юрист вместе с текстом
-          согласия (S-36). */}
-      {повтор && (
-        <p
-          style={{
-            fontFamily: FONT,
-            fontSize: 14,
-            color: theme.fg2,
-            textAlign: "center",
-            margin: "-24px 0 32px",
-            lineHeight: 1.45,
-          }}
-        >
-          В новой редакции прямо сказано, что фотографии чеков отправляются на
-          распознавание сервису Anthropic PBC (США). Чтобы продолжить работу,
-          подтвердите новую редакцию.
-        </p>
-      )}
 
       <div
         style={{
@@ -8091,7 +8070,6 @@ export default function App() {
   // флагу в браузере. Флаг пропадает при чистке кэша и не переезжает на другое
   // устройство — по нему человек получил бы экран повторно без причины.
   // Сервер знает, на какой редакции он остановился; это и есть источник.
-  const [повторноеСогласие, setПовторноеСогласие] = useState(false);
   const [page, setPage] = useState("glavnaya");
   const [appMenu, setAppMenu] = useState(false); // Тип 2 header — app switcher dropdown
 
@@ -8227,16 +8205,14 @@ export default function App() {
         if (data && data.role) setRole(data.role);
         if (data && typeof data.id === "number") setUserId(data.id);
         // Строка 9: редакция, на которой человек остановился ПО СЕРВЕРУ,
-        // против действующей. Разошлись — показываем экран согласия снова,
-        // с объяснением причины (иначе повтор читается как сбой).
+        // против действующей. Разошлись — показываем экран согласия снова.
+        // Объяснения на экране нет намеренно: журнал очищен, для всех это
+        // первый раз. Механика останется нужной при следующей смене редакции.
         if (data) {
           загрузитьСогласие()
             .then((политика) => {
               const было = data.consent && data.consent.policy_version;
-              if (было !== политика.version) {
-                setПовторноеСогласие(!!было);
-                setConsentGiven(false);
-              }
+              if (было !== политика.version) setConsentGiven(false);
             })
             .catch(() => {}); // сеть упала — ворота не трогаем
         }
@@ -8430,15 +8406,7 @@ export default function App() {
 
   // Authed beyond this point.
   if (!consentGiven) {
-    return (
-      <ConsentScreen
-        повтор={повторноеСогласие}
-        onAccept={() => {
-          setПовторноеСогласие(false);
-          setConsentGiven(true);
-        }}
-      />
-    );
+    return <ConsentScreen onAccept={() => setConsentGiven(true)} />;
   }
 
   // Тип 2: нижнее меню — Главная · Сводка · Чеки · Отчёты.
