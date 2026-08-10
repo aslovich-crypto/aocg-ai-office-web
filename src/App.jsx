@@ -30,6 +30,14 @@ import {
   Banknote,
 } from "lucide-react";
 import { C, FONT, theme } from "./lib/theme";
+// Словарь категорий — ГЕНЕРИРУЕМЫЙ (источник: app/dictionaries/categories.json
+// в репозитории бэкенда). Руками сюда значения не переписывать: разошлись бы
+// молча, как это уже было (T39).
+import {
+  TAX_KINDS,
+  DEFAULT_FALLBACK,
+  DEFAULT_TAX_KIND,
+} from "./lib/dictionaries";
 import {
   shortOrg,
   fmtDate,
@@ -78,19 +86,6 @@ async function logout() {
     /* ignore */
   }
 }
-
-// D2: 9 видов расхода в налоговом учёте — зеркало CHECK-констрейнта categories.tax_kind на бэке.
-const TAX_KINDS = [
-  "Материальные расходы",
-  "Прочие расходы",
-  "Командировочные расходы",
-  "Представительские расходы",
-  "Расходы на рекламу (нормируемые)",
-  "Транспортные расходы",
-  "Оплата труда",
-  "Налоги и сборы",
-  "Не учитываемые в целях налогообложения",
-];
 
 const ROLES = [
   {
@@ -3721,7 +3716,7 @@ function OperaciiPage({
               </button>
               {(!form.category ||
                 form.category === "Не указано" ||
-                form.category === "Прочие хозрасходы") && (
+                form.category === DEFAULT_FALLBACK) && (
                 <div
                   style={{
                     marginTop: 6,
@@ -5419,7 +5414,7 @@ function CategoryFormSheet({ mode, group, groups, cat, onClose, onSaved }) {
     mode === "create" ? (group ? group.id : groups[0] && groups[0].id) : null,
   );
   const [taxKind, setTaxKind] = useState(
-    mode === "edit" ? cat.tax_kind || "Прочие расходы" : "Прочие расходы",
+    mode === "edit" ? cat.tax_kind || DEFAULT_TAX_KIND : DEFAULT_TAX_KIND,
   );
   const [advOpen, setAdvOpen] = useState(false);
   const [err, setErr] = useState("");
