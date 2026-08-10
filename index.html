@@ -5,9 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>AOCG AI Офис</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></head>
+    <!-- Inter — САМОХОСТИНГ (T43). Раньше здесь стояли два preconnect
+         и ссылка на fonts.googleapis.com: три строки, из-за которых браузер
+         открывал ДВА лишних TLS-соединения к зарубежным хостам в первые
+         миллисекунды загрузки. Файлы и правила перенесены дословно, отрисовка
+         не изменилась. Мера снимает зависимость от чужого CDN на старте.
+         Заодно приводит код в соответствие с документацией: в правилах
+         фронтенда шрифт уже был описан как self-hosted. -->
+    <link rel="stylesheet" href="/fonts/inter.css" />
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
