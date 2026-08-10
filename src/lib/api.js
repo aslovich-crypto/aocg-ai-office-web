@@ -4,8 +4,15 @@
 // React-состояния тут нет — только localStorage и fetch, поэтому модуль
 // импортируется откуда угодно, включая зону Финансов.
 
+// ?? , а не || — намеренно (T20). Пути ниже строятся как `API + "/api/…"`,
+// поэтому для локального прогона через прокси Vite нужен ПУСТОЙ префикс:
+// тогда запрос уходит на /api/auth/login того же происхождения, и прокси
+// отправляет его на бэкенд. С `||` пустая строка считалась бы «не задано»
+// и молча подставлялся бы боевой адрес — то есть сборка выглядела бы
+// настроенной, а ходила мимо прокси. Значение "/api" здесь НЕ годится:
+// получилось бы /api/api/auth/login.
 export const API =
-  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_URL ??
   "https://aocg-ai-office-production.up.railway.app";
 
 // fetch with an abort-based ceiling. The receipt scanner awaits several
