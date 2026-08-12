@@ -540,15 +540,27 @@ export default function ReceiptDetailModal({
       });
       const canvas = await snap.toCanvas();
       const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
-      const d = raw.dateTime
-        ? new Date(raw.dateTime * 1000)
-        : r.date
-          ? new Date(r.date)
-          : new Date();
+      // ДАТА В ИМЕНИ ФАЙЛА — ТА ЖЕ, ЧТО НА ЭКРАНЕ, И БЕЗ ПЕРЕВОДА ЗОН.
+      // Было `new Date(raw.dateTime * 1000)`, а dateTime приходит СТРОКОЙ
+      // ISO ("2026-08-11T21:34:00"): умножение строки на 1000 даёт NaN,
+      // и файл сохранялся с именем вида receipt-7085-NaN-NaN-NaN.png.
+      // Ошибка молчала, потому что имя файла никто не проверяет тестами.
+      // Берём поле datetime (его же показывает карточка) и читаем UTC-части
+      // по той же причине, что и в fmtDateTime: время чека — стенное.
       const pad = (n) => String(n).padStart(2, "0");
-      const datePart = `${pad(d.getDate())}-${pad(
-        d.getMonth() + 1,
-      )}-${d.getFullYear()}`;
+      const src = r.datetime || raw.dateTime || r.date || null;
+      const d = src ? new Date(src) : null;
+      const valid = d && !isNaN(d.getTime());
+      const datePart = valid
+        ? `${pad(d.getUTCDate())}-${pad(
+            d.getUTCMonth() + 1,
+          )}-${d.getUTCFullYear()}`
+        : (() => {
+            const now = new Date();
+            return `${pad(now.getDate())}-${pad(
+              now.getMonth() + 1,
+            )}-${now.getFullYear()}`;
+          })();
       const amountPart = String(Math.round(totalSum || 0)).replace(
         /[^0-9]/g,
         "",
