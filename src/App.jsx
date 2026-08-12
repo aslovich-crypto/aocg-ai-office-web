@@ -2732,6 +2732,7 @@ function OperaciiPage({
     date: todayISO(),
     fn: "",
     raw_data: null,
+    photo_key: null,
     source: "manual",
   });
   const [fnsStatus, setFnsStatus] = useState(null); // null | "loading" | "ok" | "partial"
@@ -2815,6 +2816,7 @@ function OperaciiPage({
       category: "Не указано",
       fn: parsed.fn || "",
       raw_data: null,
+      photo_key: null,
       source: "qr_scan",
     }));
     setFnsStatus("loading");
@@ -2911,6 +2913,26 @@ function OperaciiPage({
           : defaultCard || "Не указано";
     else if (suggested) payment = suggested;
 
+    // СНИМОК ТЕПЕРЬ ЖИВЁТ В ХРАНИЛИЩЕ, А НЕ В ЧЕКЕ (задача №3).
+    // Ручка OCR отдаёт ключ объекта отдельным полем; в raw_data ему не место —
+    // бэкенд читает photo_key с ВЕРХНЕГО уровня тела запроса, и ключ, забытый
+    // внутри raw_data, до колонки не доедет. Ровно на этом чуть не сорвался
+    // замер: снимок лежал бы в бакете, а чек на него не ссылался.
+    // photo_base64 из ответа тоже убираем: пока хранилище не настроено, ручка
+    // его ещё возвращает, и без вычистки он снова осел бы в базе — то есть
+    // ровно то, ради чего задача и затеяна.
+    const { photo_key, photo_saved, ...receiptData } = d;
+    delete receiptData.photo_base64;
+    if (photo_saved === false) {
+      // Отказ хранилища. Молчать нельзя: человек уверен, что фото приложено.
+      // Тост — минимум, он исчезает сам; видимая метка на карточке чека
+      // заведена отдельной строкой в трекере (дизайн, через Claude Design).
+      setToast({
+        type: "warning",
+        message: "Чек сохраним, но фото приложить не удалось",
+        duration: 5000,
+      });
+    }
     setForm((p) => ({
       ...p,
       org: d.org,
@@ -2918,7 +2940,8 @@ function OperaciiPage({
       date: d.date || p.date,
       category: d.category || "Не указано",
       fn: d.fn || p.fn,
-      raw_data: d,
+      raw_data: receiptData,
+      photo_key: photo_key || null,
       payment,
       source: "photo_ocr",
     }));
@@ -2949,6 +2972,7 @@ function OperaciiPage({
       category: "Не указано",
       fn: "",
       raw_data: null,
+      photo_key: null,
       source: "manual",
     }));
     setFnsStatus(null);
@@ -3015,6 +3039,10 @@ function OperaciiPage({
       };
       if (form.fn) payload.kkt_fn = form.fn; // form.fn — внутреннее имя инпута; шлём как kkt_fn (канон)
       if (form.raw_data) payload.raw_data = form.raw_data;
+      // Ключ объекта — ВЕРХНИМ уровнем: бэкенд читает его отсюда, а не
+      // из raw_data. Без этой строки снимок лежит в бакете, а чек на него
+      // не ссылается — сирота с обоих концов.
+      if (form.photo_key) payload.photo_key = form.photo_key;
       const res = await authFetch(`/api/receipts/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3043,6 +3071,7 @@ function OperaciiPage({
         date: todayISO(),
         fn: "",
         raw_data: null,
+        photo_key: null,
         source: "manual",
       });
       setFnsStatus(null);
@@ -3073,6 +3102,7 @@ function OperaciiPage({
           date: todayISO(),
           fn: "",
           raw_data: null,
+          photo_key: null,
           source: "manual",
         });
         setFnsStatus(null);
