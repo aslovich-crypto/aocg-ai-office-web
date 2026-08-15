@@ -524,6 +524,11 @@ export default function ScanReceiptModal({
   const [previewFile, setPreviewFile] = useState(null); // chosen photo/file awaiting confirmation
   const [previewUrl, setPreviewUrl] = useState(null); // object URL for the image preview (null for PDFs)
   const [previewNotice, setPreviewNotice] = useState(""); // OCR-failure notice on the preview screen
+  // ЧЕЙ отказ показываем на экране fnsError: "fns" | "ocr_failed" (S-54).
+  // Раньше экран говорил «Данные ФНС не загрузились» и после НЕУДАЧНОГО
+  // РАСПОЗНАВАНИЯ ФОТО — то есть про службу, которая в этом пути
+  // не участвует вовсе.
+  const [errKind, setErrKind] = useState("fns");
   const [step, setStep] = useState(null); // null|'qr'|'fns'|'ocr_noqr'|'ocr_fns'|'done' — photo-processing progress
   const [saveSheet, setSaveSheet] = useState(null); // {title,message,confirmText,cancelText} — FNS-fallback sheet
   const [fileSource, setFileSource] = useState(null); // 'camera' | 'gallery' | null — where the previewed file came from
@@ -786,7 +791,10 @@ export default function ScanReceiptModal({
     if (result === "ok") {
       releaseCamera();
       cbRef.current.onClose();
-    } else setPhase("fnsError");
+    } else {
+      setErrKind("fns");
+      setPhase("fnsError");
+    }
     // НЕ добавлять releaseCamera в зависимости. Пустой массив здесь
     // намеренный: колбэки живут в cbRef (см. комментарий у объявления
     // cbRef выше), а новая identity этого useCallback перезапустила бы
@@ -837,10 +845,15 @@ export default function ScanReceiptModal({
       result = "partial";
     }
     if (!mountedRef.current || cancelledRef.current) return;
-    if (result === "ok") {
+    // «Отключено» — терминальный исход: App.jsx уже открыл форму ручного
+    // ввода и показал причину. Держать человека в модалке незачем.
+    if (result === "ok" || result === "ocr_unavailable") {
       releaseCamera();
       onClose();
-    } else setPhase("fnsError");
+    } else {
+      setErrKind("ocr_failed");
+      setPhase("fnsError");
+    }
   }
 
   // ─── Photo upload: source sheet → preview → use ────────────────
@@ -958,7 +971,9 @@ export default function ScanReceiptModal({
   async function runOcr(file, fromFns) {
     if (!onOcrFile) {
       setStep(null);
-      setPreviewNotice("Не удалось распознать. Заполните вручную");
+      setPreviewNotice(
+        "Распознавание фото временно недоступно. Введите данные чека вручную",
+      );
       return;
     }
     setStep(fromFns ? "ocr_fns" : "ocr_noqr");
@@ -969,14 +984,20 @@ export default function ScanReceiptModal({
       result = "partial";
     }
     if (!mountedRef.current) return;
-    if (result === "ok") {
+    if (result === "ok" || result === "ocr_unavailable") {
+      // ocr_unavailable: форму ручного ввода уже открыл App.jsx, и там же
+      // показана причина. Оставлять человека на предпросмотре с надписью
+      // «не удалось» значило бы звать его переснимать чек, который
+      // не распознается никогда (S-54).
       setStep("done");
       clearPreview();
       releaseCamera();
       onClose();
     } else {
       setStep(null);
-      setPreviewNotice("Не удалось распознать. Заполните вручную");
+      setPreviewNotice(
+        "Не удалось разобрать снимок. Переснимите при хорошем свете или введите данные вручную",
+      );
     }
   }
 
@@ -1519,7 +1540,9 @@ export default function ScanReceiptModal({
                   marginBottom: 2,
                 }}
               >
-                Данные ФНС не загрузились
+                {errKind === "ocr_failed"
+                  ? "Не удалось разобрать снимок"
+                  : "Данные из ФНС не загрузились"}
               </div>
               {onOcrFile && (
                 <button

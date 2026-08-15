@@ -2735,7 +2735,13 @@ function OperaciiPage({
     photo_key: null,
     source: "manual",
   });
-  const [fnsStatus, setFnsStatus] = useState(null); // null | "loading" | "ok" | "partial"
+  // null | "loading" | "ok" | "partial" | "ocr_unavailable" | "ocr_failed"
+  // Три последних — РАЗНЫЕ причины, а не одна «не получилось» (S-54).
+  const [fnsStatus, setFnsStatus] = useState(null);
+  // null — про распознавание ещё ничего не знаем; false — бэкенд ответил,
+  // что оно отключено. Тогда кнопку «Распознать фото» больше не предлагаем:
+  // звать нажать то, что заведомо не сработает, — хуже, чем не предлагать.
+  const [ocrAvailable, setOcrAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // POST /receipts in flight — blocks double-submit
   const [addError, setAddError] = useState(""); // red banner above the submit button
   const [dupId, setDupId] = useState(null); // on 409: id of the receipt that already exists
@@ -2898,8 +2904,26 @@ function OperaciiPage({
     }
 
     if (!d || !d.org || d.amount == null) {
-      setFnsStatus("partial");
-      return "partial";
+      // ПРИЧИНА, а не общее «не получилось» (S-54). Бэкенд отдаёт её полем
+      // reason; старый ответ без поля трактуем как неудачу разбора — мы
+      // в ветке распознавания фото, и ФНС здесь ни при чём.
+      const причина =
+        d?.reason === "ocr_unavailable" ? "ocr_unavailable" : "ocr_failed";
+      setFnsStatus(причина);
+      if (причина === "ocr_unavailable") {
+        // Распознавать нечем — ведём человека к ручному вводу СРАЗУ, а не
+        // оставляем на экране предпросмотра с предложением повторить.
+        setOcrAvailable(false);
+        setShowScan(false);
+        setForm((p) => ({
+          ...p,
+          raw_data: null,
+          photo_key: null,
+          source: "manual",
+        }));
+        setShowAdd(true);
+      }
+      return причина;
     }
 
     const suggested = await _suggestPayment(d.org);
@@ -2921,8 +2945,12 @@ function OperaciiPage({
     // photo_base64 из ответа тоже убираем: пока хранилище не настроено, ручка
     // его ещё возвращает, и без вычистки он снова осел бы в базе — то есть
     // ровно то, ради чего задача и затеяна.
+    // reason — служебное поле ОТВЕТА (S-54), в чек ему не место: бэкенд
+    // читает тело запроса, и лишний ключ уехал бы в базу. Та же ловушка,
+    // что с photo_key в задаче №3.
     const { photo_key, photo_saved, ...receiptData } = d;
     delete receiptData.photo_base64;
+    delete receiptData.reason;
     // ПРЕДУПРЕЖДЕНИЯ РАСПОЗНАВАНИЯ ПОКАЗЫВАЛИСЬ НИКОМУ.
     // Бэкенд складывал их в d.warnings с самого начала (невалидный ИНН,
     // а с сегодня — неправдоподобная дата, строка 24), а фронт не читал это
@@ -3431,7 +3459,8 @@ function OperaciiPage({
           onClose={() => setShowScan(false)}
           onCapture={handleCapture}
           onPrefetch={prefetchFns}
-          onOcrFile={handleOcrFile}
+          // null → модалка не покажет кнопку «Распознать фото» (S-54, ③)
+          onOcrFile={ocrAvailable === false ? null : handleOcrFile}
           onManual={handleManual}
         />
       )}
@@ -3625,7 +3654,9 @@ function OperaciiPage({
                 Электронный чек загружен ✓
               </div>
             )}
-            {fnsStatus === "partial" && (
+            {(fnsStatus === "partial" ||
+              fnsStatus === "ocr_unavailable" ||
+              fnsStatus === "ocr_failed") && (
               <div
                 style={{
                   marginBottom: 12,
@@ -3638,7 +3669,11 @@ function OperaciiPage({
                   color: "#B45309",
                 }}
               >
-                Данные ФНС не загрузились. Заполните организацию вручную.
+                {fnsStatus === "ocr_unavailable"
+                  ? "Распознавание фото временно недоступно. Введите данные чека вручную — все поля ниже."
+                  : fnsStatus === "ocr_failed"
+                    ? "Не удалось разобрать снимок. Переснимите при хорошем свете или введите данные вручную."
+                    : "Данные из ФНС не загрузились. Проверьте реквизиты и заполните недостающее вручную."}
               </div>
             )}
             {/* НАЗВАНИЕ ЗДЕСЬ НЕ ПРОПУСКАЕТСЯ ЧЕРЕЗ shortOrg — И ЭТО НЕ НЕДОСМОТР.
