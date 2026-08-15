@@ -2738,10 +2738,6 @@ function OperaciiPage({
   // null | "loading" | "ok" | "partial" | "ocr_unavailable" | "ocr_failed"
   // Три последних — РАЗНЫЕ причины, а не одна «не получилось» (S-54).
   const [fnsStatus, setFnsStatus] = useState(null);
-  // null — про распознавание ещё ничего не знаем; false — бэкенд ответил,
-  // что оно отключено. Тогда кнопку «Распознать фото» больше не предлагаем:
-  // звать нажать то, что заведомо не сработает, — хуже, чем не предлагать.
-  const [ocrAvailable, setOcrAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // POST /receipts in flight — blocks double-submit
   const [addError, setAddError] = useState(""); // red banner above the submit button
   const [dupId, setDupId] = useState(null); // on 409: id of the receipt that already exists
@@ -2913,7 +2909,6 @@ function OperaciiPage({
       if (причина === "ocr_unavailable") {
         // Распознавать нечем — ведём человека к ручному вводу СРАЗУ, а не
         // оставляем на экране предпросмотра с предложением повторить.
-        setOcrAvailable(false);
         setShowScan(false);
         setForm((p) => ({
           ...p,
@@ -3459,8 +3454,7 @@ function OperaciiPage({
           onClose={() => setShowScan(false)}
           onCapture={handleCapture}
           onPrefetch={prefetchFns}
-          // null → модалка не покажет кнопку «Распознать фото» (S-54, ③)
-          onOcrFile={ocrAvailable === false ? null : handleOcrFile}
+          onOcrFile={handleOcrFile}
           onManual={handleManual}
         />
       )}
