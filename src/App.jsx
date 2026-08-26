@@ -7046,7 +7046,6 @@ function LoginScreen({ onAuthed, navigate }) {
     }
   }
   const oauthSoon = () => alert("OAuth скоро будет доступен");
-  const forgotSoon = () => alert("Восстановление пароля скоро будет доступно");
   const fieldStyle = {
     width: "100%",
     height: 48,
@@ -7250,7 +7249,7 @@ function LoginScreen({ onAuthed, navigate }) {
             }}
           >
             <button
-              onClick={forgotSoon}
+              onClick={() => navigate("/forgot-password")}
               type="button"
               className="aocg-cherry-link"
               style={{
@@ -7467,6 +7466,285 @@ function CheckEmailScreen({ email, navigate }) {
           }}
         >
           ← Ко входу
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+// ─── Восстановление пароля (S-56): ДВА экрана, у них разные входы ───
+// ForgotPasswordScreen открывают из приложения, ResetPasswordScreen — из письма.
+// Слить их в один с двумя состояниями значило бы связать пути, которые
+// никогда не встречаются.
+
+function ForgotPasswordScreen({ navigate }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [ответ, setОтвет] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetchWithTimeout(
+        API + "/api/auth/forgot-password",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        },
+        15000,
+      );
+      const d = await r.json().catch(() => ({}));
+      // ⚠️ ДОСЛОВНО ТО, ЧТО ОТВЕТИЛ СЕРВЕР, И НИ СЛОВОМ БОЛЬШЕ.
+      // Ручка отвечает ОДИНАКОВО на существующий и несуществующий адрес —
+      // это защита от перебора адресов, а не сухость формулировки. Написать
+      // здесь «письмо отправлено на ваш адрес» значит вернуть утечку через
+      // интерфейс: бэкенд промолчал, а фронт договорил за него.
+      setОтвет(d.message || "Запрос принят");
+    } catch {
+      setОтвет("Не удалось отправить запрос. Проверьте интернет");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AuthShell>
+      <div style={{ width: "100%", maxWidth: 340 }}>
+        <AocgLogo width={120} />
+        <div
+          style={{
+            marginTop: 22,
+            fontSize: 15,
+            color: C.dark,
+            fontFamily: FONT,
+          }}
+        >
+          Восстановление пароля
+        </div>
+        {ответ ? (
+          <div
+            style={{
+              marginTop: 18,
+              fontSize: 14,
+              color: C.dark,
+              fontFamily: FONT,
+              lineHeight: 1.5,
+            }}
+          >
+            {ответ}
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Ваш email"
+              aria-label="Email для восстановления пароля"
+              required
+              style={{
+                width: "100%",
+                height: 48,
+                border: "1px solid #EEF0F4",
+                borderRadius: 12,
+                padding: "14px 16px",
+                fontSize: 15,
+                fontFamily: FONT,
+                color: "#111318",
+                background: "#fff",
+                boxSizing: "border-box",
+                marginTop: 18,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                width: "100%",
+                height: 48,
+                marginTop: 14,
+                border: "none",
+                borderRadius: 12,
+                background: theme.cherry,
+                color: "#fff",
+                fontSize: 15,
+                fontFamily: FONT,
+                cursor: busy ? "default" : "pointer",
+                opacity: busy ? 0.6 : 1,
+              }}
+            >
+              {busy ? "Отправляем…" : "Прислать ссылку"}
+            </button>
+          </form>
+        )}
+        <button
+          onClick={() => navigate("/login")}
+          type="button"
+          style={{
+            marginTop: 16,
+            background: "none",
+            border: "none",
+            color: theme.cherry,
+            fontSize: 14,
+            cursor: "pointer",
+            fontFamily: FONT,
+          }}
+        >
+          ← Ко входу
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function ResetPasswordScreen({ navigate }) {
+  const token = new URLSearchParams(window.location.search).get("token");
+  const [пароль, setПароль] = useState("");
+  const [повтор, setПовтор] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(token ? "" : "Ссылка недействительна");
+  // ⚠️ ДВА РАЗНЫХ 400 ОТ ОДНОЙ РУЧКИ, И ОНИ ТРЕБУЮТ РАЗНОГО ОТ ЧЕЛОВЕКА:
+  // «Ссылка недействительна» — исправить здесь нечего, нужна новая ссылка;
+  // «не менее 8 символов» — поправимо тут же, форму убирать нельзя.
+  // Свалить оба в «что-то пошло не так» значит отправить человека за новым
+  // письмом из-за опечатки в пароле.
+  const [ссылкаМертва, setСсылкаМертва] = useState(!token);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (busy) return;
+    if (пароль !== повтор) {
+      setErr("Пароли не совпадают");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await fetchWithTimeout(
+        API + "/api/auth/reset-password",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, new_password: пароль }),
+        },
+        15000,
+      );
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        // Токенов ручка не возвращает намеренно: сброс гасит все сессии,
+        // выдавать новую тут же — обесценивать собственную защиту.
+        navigate("/login");
+        return;
+      }
+      const текст = d.detail || "Не удалось сменить пароль";
+      setErr(текст);
+      setСсылкаМертва(текст.includes("Ссылка"));
+    } catch {
+      setErr("Не удалось сменить пароль. Проверьте интернет");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const поле = {
+    width: "100%",
+    height: 48,
+    border: "1px solid #EEF0F4",
+    borderRadius: 12,
+    padding: "14px 16px",
+    fontSize: 15,
+    fontFamily: FONT,
+    color: "#111318",
+    background: "#fff",
+    boxSizing: "border-box",
+    marginTop: 12,
+  };
+
+  return (
+    <AuthShell>
+      <div style={{ width: "100%", maxWidth: 340 }}>
+        <AocgLogo width={120} />
+        <div
+          style={{
+            marginTop: 22,
+            fontSize: 15,
+            color: C.dark,
+            fontFamily: FONT,
+          }}
+        >
+          Новый пароль
+        </div>
+        {!ссылкаМертва && (
+          <form onSubmit={submit}>
+            <input
+              type="password"
+              value={пароль}
+              onChange={(e) => setПароль(e.target.value)}
+              placeholder="Новый пароль"
+              aria-label="Новый пароль"
+              required
+              style={поле}
+            />
+            <input
+              type="password"
+              value={повтор}
+              onChange={(e) => setПовтор(e.target.value)}
+              placeholder="Повторите пароль"
+              aria-label="Повторите новый пароль"
+              required
+              style={поле}
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                width: "100%",
+                height: 48,
+                marginTop: 14,
+                border: "none",
+                borderRadius: 12,
+                background: theme.cherry,
+                color: "#fff",
+                fontSize: 15,
+                fontFamily: FONT,
+                cursor: busy ? "default" : "pointer",
+                opacity: busy ? 0.6 : 1,
+              }}
+            >
+              {busy ? "Меняем…" : "Сменить пароль"}
+            </button>
+          </form>
+        )}
+        {err && (
+          <div
+            style={{
+              marginTop: 14,
+              fontSize: 14,
+              color: theme.cherry,
+              fontFamily: FONT,
+              lineHeight: 1.5,
+            }}
+          >
+            {err}
+          </div>
+        )}
+        <button
+          onClick={() => navigate(ссылкаМертва ? "/forgot-password" : "/login")}
+          type="button"
+          style={{
+            marginTop: 16,
+            background: "none",
+            border: "none",
+            color: theme.cherry,
+            fontSize: 14,
+            cursor: "pointer",
+            fontFamily: FONT,
+          }}
+        >
+          {ссылкаМертва ? "Запросить новую ссылку" : "← Ко входу"}
         </button>
       </div>
     </AuthShell>
@@ -8430,9 +8708,20 @@ export default function App() {
   const isRegister = route === "/register";
   const isVerify = route.startsWith("/verify-email");
   const isJoin = route.startsWith("/join/");
-  if (route === "/login" || (!authed && !isRegister && !isVerify && !isJoin)) {
+  // ⚠️ ОБА МАРШРУТА ВОССТАНОВЛЕНИЯ ОБЯЗАНЫ БЫТЬ ИМЕННО В ЭТОМ УСЛОВИИ.
+  // Оно решает, съест ли экран входа чужой путь. Ссылка из письма ведёт
+  // на /reset-password?token=…; не будь его здесь, человек попал бы на форму
+  // логина, а токен молча потерялся — ровно ту ошибку сторож и ловит.
+  const isForgot = route === "/forgot-password";
+  const isReset = route.startsWith("/reset-password");
+  if (
+    route === "/login" ||
+    (!authed && !isRegister && !isVerify && !isJoin && !isForgot && !isReset)
+  ) {
     return <LoginScreen onAuthed={onAuthed} navigate={navigate} />;
   }
+  if (isForgot) return <ForgotPasswordScreen navigate={navigate} />;
+  if (isReset) return <ResetPasswordScreen navigate={navigate} />;
   if (isRegister)
     return <RegisterScreen onAuthed={onAuthed} navigate={navigate} />;
   if (isVerify)
