@@ -7038,6 +7038,24 @@ function LoginScreen({ onAuthed, navigate }) {
           setErr(
             "Слишком много попыток входа. Подождите до 5 минут и попробуйте снова",
           );
+      } else if (res.status === 403 || d.code === "email_not_verified") {
+        // ⚠️ 403 НА ВХОДЕ ОЗНАЧАЕТ РОВНО ОДНО — почта не подтверждена.
+        // auth.py: после сброса счётчика попыток `if not
+        // u.get("is_email_verified")` → 403 «Подтвердите email». Других 403
+        // ручка входа не отдаёт, поэтому разбирать статус достаточно.
+        // Поля `code` в ответе СЕГОДНЯ НЕТ — условие по нему добавлено
+        // на случай, если бэк начнёт его слать, и пока не срабатывает.
+        //
+        // ⚠️ КНОПКИ «Отправить письмо повторно» ЗДЕСЬ НЕТ, И ЭТО НЕ ПРОПУСК:
+        // ручки переотправки в бэкенде не существует. Маршруты auth.py
+        // на 27.08.2026: register, verify-email, forgot-password,
+        // reset-password, login, refresh, logout, logout-all, me, invite/*.
+        // Кнопка, дёргающая несуществующий адрес, — кнопка, которая врёт;
+        // за то же самое уже откатывали «скоро будет доступно» (S-56).
+        // Появится POST /auth/resend-verification — место кнопки здесь.
+        setErr(
+          "Почта не подтверждена. Проверьте письмо со ссылкой подтверждения",
+        );
       } else setErr("Неверный телефон/email или пароль");
     } catch {
       setErr("Не удалось войти. Проверьте интернет");
@@ -7612,6 +7630,12 @@ function ResetPasswordScreen({ navigate }) {
   // Свалить оба в «что-то пошло не так» значит отправить человека за новым
   // письмом из-за опечатки в пароле.
   const [ссылкаМертва, setСсылкаМертва] = useState(!token);
+  // ⚠️ УСПЕХ БЫЛ НЕВИДИМ. Отправка (busy) и отказ (err) различались и до
+  // сегодня, а вот удача делала navigate("/login") молча: человек оказывался
+  // на форме входа без единого слова о том, что пароль сменился — то есть
+  // там же, куда его уводил и мёртвый токен. Третье состояние — не украшение,
+  // а единственное подтверждение, что смена вообще состоялась.
+  const [готово, setГотово] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
@@ -7635,8 +7659,9 @@ function ResetPasswordScreen({ navigate }) {
       const d = await r.json().catch(() => ({}));
       if (r.ok) {
         // Токенов ручка не возвращает намеренно: сброс гасит все сессии,
-        // выдавать новую тут же — обесценивать собственную защиту.
-        navigate("/login");
+        // выдавать новую тут же — обесценивать собственную защиту. Поэтому
+        // на вход человек уходит САМ, кнопкой, уже увидев подтверждение.
+        setГотово(true);
         return;
       }
       const текст = d.detail || "Не удалось сменить пароль";
@@ -7677,7 +7702,7 @@ function ResetPasswordScreen({ navigate }) {
         >
           Новый пароль
         </div>
-        {!ссылкаМертва && (
+        {!ссылкаМертва && !готово && (
           <form onSubmit={submit}>
             <input
               type="password"
@@ -7718,12 +7743,41 @@ function ResetPasswordScreen({ navigate }) {
             </button>
           </form>
         )}
-        {err && (
+        {готово && (
           <div
+            role="status"
             style={{
               marginTop: 14,
+              background: theme.successBg,
+              border: `1px solid ${theme.successBd}`,
+              color: theme.successFg,
+              padding: 12,
+              borderRadius: 8,
               fontSize: 14,
-              color: theme.cherry,
+              fontFamily: FONT,
+              lineHeight: 1.5,
+            }}
+          >
+            Пароль изменён, войдите с новым паролем
+          </div>
+        )}
+        {err && (
+          // ⚠️ ОТКАЗ КРАСИТСЯ ТОКЕНАМИ ОШИБКИ, А НЕ ВИШНЁВЫМ. Вишнёвый
+          // #A4161A по дизайн-системе — цвет CTA. Покрашенный им текст отказа
+          // стоял вплотную к вишнёвой кнопке «Сменить пароль» и читался как
+          // ещё одно действие, а не как сообщение о неудаче. Токены
+          // errorBg/errorFg/errorBd уже есть в ДС и уже так работают
+          // на экране входа — новых цветов не заведено.
+          <div
+            role="alert"
+            style={{
+              marginTop: 14,
+              background: theme.errorBg,
+              border: `1px solid ${theme.errorBd}`,
+              color: theme.errorFg,
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 14,
               fontFamily: FONT,
               lineHeight: 1.5,
             }}
@@ -7731,21 +7785,44 @@ function ResetPasswordScreen({ navigate }) {
             {err}
           </div>
         )}
-        <button
-          onClick={() => navigate(ссылкаМертва ? "/forgot-password" : "/login")}
-          type="button"
-          style={{
-            marginTop: 16,
-            background: "none",
-            border: "none",
-            color: theme.cherry,
-            fontSize: 14,
-            cursor: "pointer",
-            fontFamily: FONT,
-          }}
-        >
-          {ссылкаМертва ? "Запросить новую ссылку" : "← Ко входу"}
-        </button>
+        {готово ? (
+          <button
+            onClick={() => navigate("/login")}
+            type="button"
+            style={{
+              width: "100%",
+              height: 48,
+              marginTop: 16,
+              border: "none",
+              borderRadius: 12,
+              background: theme.cherry,
+              color: "#fff",
+              fontSize: 15,
+              fontFamily: FONT,
+              cursor: "pointer",
+            }}
+          >
+            Войти
+          </button>
+        ) : (
+          <button
+            onClick={() =>
+              navigate(ссылкаМертва ? "/forgot-password" : "/login")
+            }
+            type="button"
+            style={{
+              marginTop: 16,
+              background: "none",
+              border: "none",
+              color: theme.cherry,
+              fontSize: 14,
+              cursor: "pointer",
+              fontFamily: FONT,
+            }}
+          >
+            {ссылкаМертва ? "Запросить новую ссылку" : "← Ко входу"}
+          </button>
+        )}
       </div>
     </AuthShell>
   );
