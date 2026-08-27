@@ -7006,8 +7006,39 @@ function LoginScreen({ onAuthed, navigate }) {
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  // S-83: показывать ли кнопку «Выслать письмо ещё раз». Отдельный признак,
+  // а не разбор текста ошибки: текст правят когда угодно, и сверка строк
+  // развалилась бы молча — та же причина, по которой ниже ветвимся по `code`.
+  const [нужноПисьмо, setНужноПисьмо] = useState(false);
+  const [письмоОтправлено, setПисьмоОтправлено] = useState(false);
+  async function отправитьПисьмоЗаново() {
+    // Адрес берём из поля входа: другого у нас нет, а спрашивать второй раз
+    // то, что человек только что ввёл, — лишний шаг ровно там, где он уже
+    // раздражён. Если введён телефон, бэк ответит тем же общим сообщением.
+    if (busy || !ident.trim()) return;
+    setBusy(true);
+    try {
+      await fetch(API + "/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: ident.trim() }),
+      });
+      // ⚠️ ОТВЕТ НЕ РАЗБИРАЕМ И НЕ ПОКАЗЫВАЕМ РАЗНОГО. Бэк намеренно отвечает
+      // одинаково на известный и неизвестный адрес — иначе экран входа стал бы
+      // способом узнать, кто у нас зарегистрирован. Показываем то же самое.
+      setПисьмоОтправлено(true);
+      setErr("");
+    } catch {
+      setErr("Не удалось отправить письмо. Проверьте интернет");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     if (!ident.trim() || !password || busy) return;
+    setНужноПисьмо(false);
+    setПисьмоОтправлено(false);
     setBusy(true);
     setErr("");
     try {
@@ -7058,13 +7089,14 @@ function LoginScreen({ onAuthed, navigate }) {
         // отсюда дата и номер коммита в тексте выше, чтобы следующий
         // читатель мог проверить, а не поверить.
         //
-        // ⚠️ КНОПКИ «Отправить письмо повторно» ЗДЕСЬ НЕТ, И ЭТО НЕ ПРОПУСК:
-        // ручки переотправки в бэкенде не существует. Маршруты auth.py
-        // на 27.08.2026: register, verify-email, forgot-password,
-        // reset-password, login, refresh, logout, logout-all, me, invite/*.
-        // Кнопка, дёргающая несуществующий адрес, — кнопка, которая врёт;
-        // за то же самое уже откатывали «скоро будет доступно» (S-56).
-        // Появится POST /auth/resend-verification — место кнопки здесь.
+        // ⚠️ ЗДЕСЬ ДОЛГО НЕ БЫЛО КНОПКИ «Выслать письмо ещё раз», и это
+        // было верно: ручки переотправки в бэкенде не существовало, а кнопка,
+        // дёргающая несуществующий адрес, — кнопка, которая врёт (за то же
+        // самое откатывали «скоро будет доступно», S-56).
+        // POST /auth/resend-verification появился 28.08.2026 (S-83) — кнопка
+        // ниже, признак `нужноПисьмо`.
+        setНужноПисьмо(true);
+        setПисьмоОтправлено(false);
         setErr(
           "Почта не подтверждена. Проверьте письмо со ссылкой подтверждения",
         );
@@ -7296,6 +7328,51 @@ function LoginScreen({ onAuthed, navigate }) {
               Забыли пароль?
             </button>
           </div>
+
+          {/* S-83: выход из тупика «письмо не дошло» */}
+          {нужноПисьмо && (
+            <div style={{ marginBottom: 16 }}>
+              {письмоОтправлено ? (
+                <div
+                  style={{
+                    background: "#F0FDF4",
+                    color: "#15803D",
+                    padding: 12,
+                    borderRadius: 8,
+                    fontFamily: FONT,
+                    fontSize: 13,
+                  }}
+                >
+                  Если адрес есть и ещё не подтверждён, письмо отправлено.
+                  Ссылка действует 72 часа.
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={отправитьПисьмоЗаново}
+                  disabled={busy}
+                  style={{
+                    width: "100%",
+                    padding: 12,
+                    // Сторож вёрстки поймал: width:100% + padding при
+                    // content-box делает элемент шире родителя всегда.
+                    boxSizing: "border-box",
+                    borderRadius: 8,
+                    border: "1px solid #A4161A",
+                    background: "transparent",
+                    color: "#A4161A",
+                    fontFamily: FONT,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: busy ? "default" : "pointer",
+                    opacity: busy ? 0.6 : 1,
+                  }}
+                >
+                  Выслать письмо ещё раз
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Ошибка */}
           {err && (
