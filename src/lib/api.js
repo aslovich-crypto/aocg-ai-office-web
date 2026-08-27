@@ -11,9 +11,7 @@
 // и молча подставлялся бы боевой адрес — то есть сборка выглядела бы
 // настроенной, а ходила мимо прокси. Значение "/api" здесь НЕ годится:
 // получилось бы /api/api/auth/login.
-export const API =
-  import.meta.env.VITE_API_URL ??
-  "https://aocg-ai-office-production.up.railway.app";
+export const API = import.meta.env.VITE_API_URL ?? "https://api.aocgai.ru";
 
 // fetch with an abort-based ceiling. The receipt scanner awaits several
 // backend calls (FNS check, payment suggestion, OCR) while showing a blocking

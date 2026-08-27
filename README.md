@@ -6,7 +6,7 @@
 - React + Vite
 - lucide-react (иконки), recharts (графики), jsqr (QR)
 - Inter Variable (self-hosted)
-- Railway (хостинг, auto-deploy из main)
+- Timeweb Cloud, App Platform (хостинг, auto-deploy из `main`)
 
 ## Запуск локально
 ```bash
@@ -33,7 +33,7 @@ vite.config.js     allowedHosts
 - Полные правила — в `CLAUDE.md` и проектной документации (дизайн-система)
 
 ## Переменные окружения
-Список — в `.env.example`. Реальные значения в Railway → Variables, в репозиторий не коммитятся.
+Список — в `.env.example`. Реальные значения в панели Timeweb → Переменные, в репозиторий не коммитятся.
 
 ## Документация
 - `docs/development-workflow.md` — цикл разработки
@@ -41,4 +41,5 @@ vite.config.js     allowedHosts
 - `CLAUDE.md` — постоянные правила для AI-агента
 
 ## Деплой
-Push в `main` → Railway пересобирает и деплоит автоматически за 1–2 минуты.
+Push в `main` → Timeweb App Platform пересобирает и деплоит автоматически.
+(Длительность выката на новой площадке не замерялась — прежние «1–2 минуты» относились к Railway.)

@@ -17,7 +17,7 @@ import App from "./App.jsx";
 //
 // Как включить (нужно для прогона вёрстки tools/layout-audit):
 //     VITE_DIAG=1 npm run build && npm run preview
-// Прод собирается БЕЗ флага всегда. Ставить его в Railway — исключение,
+// Прод собирается БЕЗ флага всегда. Ставить его в панели Timeweb — исключение,
 // осознанное и с обязательным выключением обратно (см. tools/layout-audit/README.md).
 if (import.meta.env.VITE_DIAG === "1") {
   import("./lib/overflowDebug").then(({ initOverflowDebug }) =>

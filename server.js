@@ -1,5 +1,5 @@
 // Production static server with SPA history fallback.
-// Railway: Start Command = `npm run start`, Build Command = `npm run build`.
+// Timeweb App Platform: Start Command = `npm run start`, Build Command = `npm run build`.
 // This service's public domain routes to port 4173 (legacy from vite preview),
 // so we listen there — not on $PORT — to match the existing networking config.
 import express from "express";

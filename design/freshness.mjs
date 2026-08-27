@@ -28,7 +28,7 @@
  *   2 — сверить не с чем: канон не передан или не читается
  *
  * ЗАПУСК (канон достаёт агент коннектором к claude.ai и кладёт во временный
- * файл — из CI и с Railway коннектора нет, см. design/README.md):
+ * файл — из CI и со сборки на площадке коннектора нет, см. design/README.md):
  *   node design/freshness.mjs --canon /tmp/colors_and_type.css
  *   node design/freshness.mjs --canon /tmp/canon.css --export /tmp/theme.mjs
  *   node design/freshness.mjs --selfcheck
