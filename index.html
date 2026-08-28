@@ -5,6 +5,27 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>AOCG AI Офис</title>
+
+    <!-- ══ ИКОНКА НА ЭКРАНЕ «ДОМОЙ» (MOB-4) ══════════════════════════
+         До 28.08.2026 не было НИ ОДНОЙ пригодной иконки: только favicon.svg
+         и viewport. iOS не находила ничего и рисовала серую заглушку
+         с буквой «А» — замер владельца на iPhone 18.
+
+         apple-touch-icon.png собран из КАНОНА В КОДЕ (MarkPlate в App.jsx:
+         белая Λ на вишнёвой плашке; вишнёвый вырезан из design/theme.mjs),
+         а НЕ из присланного файла: файл расходится с кодом молча.
+         Пересобирается `node scripts/check-app-icon.mjs --build`.
+
+         ⚠️ МАНИФЕСТА ЗДЕСЬ НЕТ, И ЭТО РЕШЕНИЕ, А НЕ ЗАБЫВЧИВОСТЬ.
+         Замер владельца на iOS 18: тумблер «Открыть как веб-приложение»
+         при добавлении на «Домой» ВЫКЛЮЧЕН → камера работает; ВКЛЮЧЁН →
+         standalone → QR не сканируется вовсе. Манифест с
+         `display: standalone` сам ведёт человека в режим, где сканер мёртв.
+         По той же причине НЕТ и `apple-mobile-web-app-capable`.
+         Полноэкранный режим вынесен в MOB-5 и начинается не с кода,
+         а с пробы `<input capture>` в standalone. ══════════════════════ -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="AOCG Офис" />
     <!-- Inter — САМОХОСТИНГ (T43). Раньше здесь стояли два preconnect
          и ссылка на fonts.googleapis.com: три строки, из-за которых браузер
          открывал ДВА лишних TLS-соединения к зарубежным хостам в первые
