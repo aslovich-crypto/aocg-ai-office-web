@@ -15,6 +15,7 @@ const ИКОНКА = path.join(КОРЕНЬ, "public/apple-touch-icon.png");
 const INDEX = path.join(КОРЕНЬ, "index.html");
 const ТЕМА = path.join(КОРЕНЬ, "design/theme.mjs");
 
+const contour_len = (s) => s.trim().length;
 const беды = [];
 const сказать = (ok, текст) => {
   console.log(`  ${ok ? "✓" : "✗"} ${текст}`);
@@ -61,7 +62,33 @@ const html = fs.readFileSync(INDEX, "utf8").replace(/<!--[\s\S]*?-->/g, "");
   /rel="apple-touch-icon"[^>]*apple-touch-icon\.png/.test(html),
   "подключена в index.html",
 );
-сказать(/apple-mobile-web-app-title/.test(html), "имя на экране задано");
+// ⚠️ ИМЯ СВЕРЯЕТСЯ ДОСЛОВНО, А НЕ «ЕСТЬ ЛИ ТЕГ». Первая редакция проверяла
+// только присутствие — и пропустила «AOCG Офис» вместо канонного «AI Офис»
+// (preview/brand-appicon.html в проекте ДС). Проверка присутствия не отличает
+// верное значение от неверного, это T87 с другой стороны.
+const ИМЯ = "AI Офис";
+const найдено = html.match(/apple-mobile-web-app-title"\s+content="([^"]*)"/);
+сказать(
+  найдено?.[1] === ИМЯ,
+  `имя на экране «${найдено?.[1] ?? "НЕТ ТЕГА"}» (канон: «${ИМЯ}»)`,
+);
+
+// контур Λ обязан читаться из вендорной копии канона, а не быть вписан в код
+const МАРКА = path.join(КОРЕНЬ, "design/aocg-mark.svg");
+if (!fs.existsSync(МАРКА)) {
+  сказать(
+    false,
+    "НЕ НАЙДЕН design/aocg-mark.svg — генератору не из чего собирать",
+  );
+} else {
+  const контур = fs.readFileSync(МАРКА, "utf8").match(/\sd="([^"]+)"/);
+  сказать(
+    Boolean(контур) && contour_len(контур[1]) > 40,
+    `контур Λ читается из design/aocg-mark.svg${
+      контур ? ` (${контур[1].length} симв)` : ""
+    }`,
+  );
+}
 
 // ⚠️ ОТСУТСТВИЕ — ТОЖЕ ТРЕБОВАНИЕ
 сказать(
