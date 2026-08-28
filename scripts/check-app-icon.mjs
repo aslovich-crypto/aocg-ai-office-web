@@ -7,6 +7,7 @@
 // Добавить манифест «чтобы было полноэкранно» — сломать сканер, и заметит
 // это сотрудник у кассы, а не мы.
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,6 +41,39 @@ for (const [имя, путь] of [
 if (беды.length) {
   console.log(`\n  ⚠️ ПРОВЕРОК НЕ ВЫПОЛНЕНО: ${беды.join(" · ")}`);
   process.exit(1);
+}
+
+// ⚠️ ИКОНКА ОБЯЗАНА БЫТЬ КОПИЕЙ КАНОНА, А НЕ НАШЕЙ СБОРКОЙ.
+// До 28.08.2026 она собиралась генератором из спецификации и отличалась
+// от канонного файла на пиксель (глиф 89 против 90, поля 46/45 против
+// 45/45). «Почти совпало» — плохое состояние: либо файл канонный, либо
+// собран нами, смешивать нельзя. Сумма сверяется так же, как у токенов
+// в design/source.json.
+const ПРОИСХОЖДЕНИЕ = path.join(КОРЕНЬ, "design/app-icon.source.json");
+if (!fs.existsSync(ПРОИСХОЖДЕНИЕ)) {
+  сказать(
+    false,
+    "НЕ НАЙДЕН design/app-icon.source.json — канонность не проверить",
+  );
+} else {
+  const ист = JSON.parse(fs.readFileSync(ПРОИСХОЖДЕНИЕ, "utf8"));
+  for (const [отн, зап] of Object.entries(ист.files)) {
+    const файл = path.join(КОРЕНЬ, отн);
+    if (!fs.existsSync(файл)) {
+      сказать(false, `НЕ НАЙДЕН ${отн}`);
+      continue;
+    }
+    const сумма = createHash("sha256")
+      .update(fs.readFileSync(файл))
+      .digest("hex");
+    сказать(
+      сумма === зап.sha256,
+      `${отн} — канон из ДС (${сумма.slice(0, 12)} против ${зап.sha256.slice(
+        0,
+        12,
+      )})`,
+    );
+  }
 }
 
 // размер — из заголовка IHDR, байты 16..24
