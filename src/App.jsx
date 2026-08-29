@@ -6300,8 +6300,208 @@ function ProfileHub({ role, me, onOpen, onLogout }) {
   );
 }
 
+// ⚠️ ПОДЭКРАНЫ КАБИНЕТА — ОТДЕЛЬНЫЕ КОМПОНЕНТЫ, А НЕ ВЕТКИ ОДНОГО
+// RETURN. NastroykiPage разбух до маршрутизатора с шестью встроенными
+// экранами; теперь он только выбирает, что показать. Содержимое обоих
+// перенесено ДОСЛОВНО — этап ② про маршрут, не про правку экранов.
+// ⚠️ «Пользователи» СОЗНАТЕЛЬНО ОСТАВЛЕНЫ ВНУТРИ: их внутренности целиком
+// переписывает T104 (одна кнопка «Пригласить» вместо двух, статус
+// «приглашён, ожидает»). Двигать 126 строк за день до переписывания —
+// шум в diff и лишний повод для конфликта.
+function ServicesTab({ servicesList }) {
+  return (
+    <div style={{ padding: "12px 16px 80px" }}>
+      <SectionHead title="Интеграции" />
+      {servicesList.map((s) => (
+        <ServiceCard key={s.key} svc={s} />
+      ))}
+      {servicesList.length === 0 && (
+        <div
+          style={{
+            fontSize: 12,
+            color: theme.fg3,
+            fontFamily: FONT,
+            padding: "10px 0",
+          }}
+        >
+          Загрузка…
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GeneralTab({
+  role,
+  catalog,
+  onCatalogRefresh,
+  cards,
+  onAddCard,
+  onUpdateCard,
+  onDeleteCard,
+  onSetDefaultCard,
+}) {
+  const [newCard, setNewCard] = useState("");
+  return (
+    <div style={{ padding: "12px 16px 80px" }}>
+      <SectionHead id="разд-категории" title="Управление категориями" />
+      {role === "admin" || role === "accountant" ? (
+        <CategoriesSection
+          catalog={catalog}
+          onCatalogRefresh={onCatalogRefresh}
+        />
+      ) : (
+        <div
+          style={{
+            padding: "12px 2px",
+            color: theme.fg2,
+            fontSize: 13,
+            fontFamily: FONT,
+            lineHeight: 1.5,
+          }}
+        >
+          Управление категориями доступно администратору и бухгалтеру
+        </div>
+      )}
+      <SectionHead title="Мои карты" />
+      <div
+        style={{
+          fontSize: 11,
+          color: theme.fg2,
+          fontFamily: FONT,
+          marginBottom: 8,
+          lineHeight: 1.5,
+        }}
+      >
+        При сканировании чека карта подставляется по истории трат в той же
+        организации. Если истории нет — подставляется карта по умолчанию
+        (отмечена ★).
+      </div>
+      {cards.map((c, i) => (
+        <div
+          key={c.id}
+          style={{
+            background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
+            padding: "5px 14px",
+            borderBottom: `1px solid ${theme.border}`,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span
+            onClick={() => {
+              if (!c.is_default) onSetDefaultCard(c.id);
+            }}
+            title={
+              c.is_default
+                ? "Карта по умолчанию"
+                : "Сделать картой по умолчанию"
+            }
+            style={{
+              fontSize: 16,
+              cursor: c.is_default ? "default" : "pointer",
+              flexShrink: 0,
+              color: c.is_default ? theme.cherry : theme.fg3,
+              lineHeight: 1,
+            }}
+          >
+            {c.is_default ? "★" : "☆"}
+          </span>
+          <input
+            defaultValue={c.name}
+            aria-label="Название карты"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== c.name) onUpdateCard(c.id, v);
+              else e.target.value = c.name;
+            }}
+            style={{
+              flex: 1,
+              border: "none",
+              background: "transparent",
+              fontSize: 13,
+              fontFamily: FONT,
+              color: C.dark,
+              outline: "none",
+              padding: "4px 0",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => onDeleteCard(c.id)}
+            aria-label="Удалить карту"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: theme.cherryMuted,
+              fontSize: 14,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      ))}
+      {cards.length === 0 && (
+        <div
+          style={{
+            fontSize: 12,
+            color: theme.fg3,
+            fontFamily: FONT,
+            padding: "8px 0",
+          }}
+        >
+          Пока нет карт
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+        <input
+          value={newCard}
+          onChange={(e) => setNewCard(e.target.value)}
+          placeholder="Например: Личная Сбер"
+          aria-label="Название новой карты"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newCard.trim()) {
+              onAddCard(newCard.trim());
+              setNewCard("");
+            }
+          }}
+          style={{
+            flex: 1,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 6,
+            outline: "none",
+            padding: "7px 10px",
+            fontSize: 13,
+            fontFamily: FONT,
+            color: C.dark,
+            background: theme.surface,
+            boxSizing: "border-box",
+          }}
+        />
+        <Btn
+          small
+          onClick={() => {
+            if (newCard.trim()) {
+              onAddCard(newCard.trim());
+              setNewCard("");
+            }
+          }}
+        >
+          + Добавить
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
 function NastroykiPage({
   me,
+  экран,
+  наЭкран,
   cards,
   onAddCard,
   onUpdateCard,
@@ -6314,12 +6514,12 @@ function NastroykiPage({
   catalog,
   onCatalogRefresh,
 }) {
-  // ⚠️ null — это ХАБ. Лента вкладок заменена списком-хабом по канону
-  // design/handoff/templates/profile/Профиль.html: семь пунктов в трёх
-  // группах вместо шести плоских вкладок.
-  const [tab, setTab] = useState(null);
+  // ⚠️ СВОЕГО СОСТОЯНИЯ ЭКРАНА ЗДЕСЬ НЕТ — оно поднято в App, потому
+  // что подпись в шапке рисуется там. Компонент стал маршрутизатором:
+  // null — хаб по канону, иначе подэкран с возвратом.
+  const tab = экран;
+  const setTab = наЭкран;
   const [якорь, setЯкорь] = useState(null);
-  const [newCard, setNewCard] = useState("");
   const [showAddEmp, setShowAddEmp] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [servicesList, setServicesList] = useState([]);
@@ -6546,193 +6746,18 @@ function NastroykiPage({
           </div>
         </div>
       )}
-      {tab === "Сервисы" && (
-        <div style={{ padding: "12px 16px 80px" }}>
-          <SectionHead title="Интеграции" />
-          {servicesList.map((s) => (
-            <ServiceCard key={s.key} svc={s} />
-          ))}
-          {servicesList.length === 0 && (
-            <div
-              style={{
-                fontSize: 12,
-                color: theme.fg3,
-                fontFamily: FONT,
-                padding: "10px 0",
-              }}
-            >
-              Загрузка…
-            </div>
-          )}
-        </div>
-      )}
+      {tab === "Сервисы" && <ServicesTab servicesList={servicesList} />}
       {tab === "Общие" && (
-        <div style={{ padding: "12px 16px 80px" }}>
-          <SectionHead id="разд-категории" title="Управление категориями" />
-          {role === "admin" || role === "accountant" ? (
-            <CategoriesSection
-              catalog={catalog}
-              onCatalogRefresh={onCatalogRefresh}
-            />
-          ) : (
-            <div
-              style={{
-                padding: "12px 2px",
-                color: theme.fg2,
-                fontSize: 13,
-                fontFamily: FONT,
-                lineHeight: 1.5,
-              }}
-            >
-              Управление категориями доступно администратору и бухгалтеру
-            </div>
-          )}
-          <SectionHead title="Мои карты" />
-          <div
-            style={{
-              fontSize: 11,
-              color: theme.fg2,
-              fontFamily: FONT,
-              marginBottom: 8,
-              lineHeight: 1.5,
-            }}
-          >
-            При сканировании чека карта подставляется по истории трат в той же
-            организации. Если истории нет — подставляется карта по умолчанию
-            (отмечена ★).
-          </div>
-          {cards.map((c, i) => (
-            <div
-              key={c.id}
-              style={{
-                background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
-                padding: "5px 14px",
-                borderBottom: `1px solid ${theme.border}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <span
-                onClick={() => {
-                  if (!c.is_default) onSetDefaultCard(c.id);
-                }}
-                title={
-                  c.is_default
-                    ? "Карта по умолчанию"
-                    : "Сделать картой по умолчанию"
-                }
-                style={{
-                  fontSize: 16,
-                  cursor: c.is_default ? "default" : "pointer",
-                  flexShrink: 0,
-                  color: c.is_default ? theme.cherry : theme.fg3,
-                  lineHeight: 1,
-                }}
-              >
-                {c.is_default ? "★" : "☆"}
-              </span>
-              <input
-                defaultValue={c.name}
-                aria-label="Название карты"
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v && v !== c.name) onUpdateCard(c.id, v);
-                  else e.target.value = c.name;
-                }}
-                style={{
-                  flex: 1,
-                  border: "none",
-                  background: "transparent",
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  color: C.dark,
-                  outline: "none",
-                  padding: "4px 0",
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => onDeleteCard(c.id)}
-                aria-label="Удалить карту"
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  color: theme.cherryMuted,
-                  fontSize: 14,
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-              >
-                <span aria-hidden="true">✕</span>
-              </button>
-            </div>
-          ))}
-          {cards.length === 0 && (
-            <div
-              style={{
-                fontSize: 12,
-                color: theme.fg3,
-                fontFamily: FONT,
-                padding: "8px 0",
-              }}
-            >
-              Пока нет карт
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-            <input
-              value={newCard}
-              onChange={(e) => setNewCard(e.target.value)}
-              placeholder="Например: Личная Сбер"
-              aria-label="Название новой карты"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newCard.trim()) {
-                  onAddCard(newCard.trim());
-                  setNewCard("");
-                }
-              }}
-              style={{
-                flex: 1,
-                border: `1px solid ${theme.border}`,
-                borderRadius: 6,
-                outline: "none",
-                padding: "7px 10px",
-                fontSize: 13,
-                fontFamily: FONT,
-                color: C.dark,
-                background: theme.surface,
-                boxSizing: "border-box",
-              }}
-            />
-            <Btn
-              small
-              onClick={() => {
-                if (newCard.trim()) {
-                  onAddCard(newCard.trim());
-                  setNewCard("");
-                }
-              }}
-            >
-              + Добавить
-            </Btn>
-          </div>
-          <div
-            style={{
-              marginTop: 28,
-              paddingTop: 14,
-              borderTop: `1px solid ${theme.border}`,
-              fontSize: 10,
-              color: theme.fg3,
-              fontFamily: FONT,
-              textAlign: "center",
-              letterSpacing: "0.04em",
-            }}
-          >
-            Сборка от {__BUILD_TIME__}
-          </div>
-        </div>
+        <GeneralTab
+          role={role}
+          catalog={catalog}
+          onCatalogRefresh={onCatalogRefresh}
+          cards={cards}
+          onAddCard={onAddCard}
+          onUpdateCard={onUpdateCard}
+          onDeleteCard={onDeleteCard}
+          onSetDefaultCard={onSetDefaultCard}
+        />
       )}
       {showAddEmp && (
         <AddEmployeeSheet
@@ -9014,6 +9039,12 @@ export default function App() {
   // он выбрал бы чужой чек и упёрся в 409 «Чек другого сотрудника».
   const [userId, setUserId] = useState(null);
   const [me, setMe] = useState(null);
+  // ⚠️ ПОДЭКРАН КАБИНЕТА ЖИВЁТ ЗДЕСЬ, А НЕ ВНУТРИ NastroykiPage.
+  // Шапка Тип-2 рисуется на уровне App, и подпись экрана она берёт
+  // отсюда. Держать состояние ниже — значит либо дублировать его,
+  // либо оставить шапку без имени, а именно этого экран и лишился
+  // (T106). null — хаб «Профиль».
+  const [подэкран, setПодэкран] = useState(null);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
@@ -9400,7 +9431,7 @@ export default function App() {
                   я назвал экран «Настройки» по имени компонента, а на
                   экране не было НИКАКОГО слова. В каноне он «Профиль». */}
               {(NAV.find((n) => n.id === page) || {}).label ||
-                (page === "nastroyki" ? "Профиль" : "")}
+                (page === "nastroyki" ? подэкран || "Профиль" : "")}
             </span>
           </div>
           {appMenu && <AppSwitcher onClose={() => setAppMenu(false)} />}
@@ -9414,7 +9445,10 @@ export default function App() {
             }}
           >
             <button
-              onClick={() => setPage("nastroyki")}
+              onClick={() => {
+                setПодэкран(null);
+                setPage("nastroyki");
+              }}
               aria-label="Аккаунт"
               style={{
                 width: 40,
@@ -9558,6 +9592,8 @@ export default function App() {
             onDeleteUser={deleteUser}
             role={role}
             me={me}
+            экран={подэкран}
+            наЭкран={setПодэкран}
             catalog={catalog}
             onCatalogRefresh={loadCatalog}
           />
