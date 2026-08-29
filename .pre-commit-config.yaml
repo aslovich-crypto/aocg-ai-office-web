@@ -59,3 +59,27 @@ repos:
         language: system
         types_or: [javascript, jsx]
         pass_filenames: false
+
+      # ⚠️ ПРИБОР ИКОНКИ ЖИВЁТ ЗДЕСЬ, А НЕ В ОБЩЕМ `npm run lint`, И ЭТО
+      # РЕШЕНИЕ, А НЕ УДОБСТВО. Он требует python3 и PIL. Замер 29.08.2026:
+      # `npm run lint` вызывается в CI (.github/workflows/lint.yml:33,
+      # runs-on: ubuntu-latest), и НИ ОДИН шаг того workflow не ставит ни
+      # python, ни PIL — только checkout, setup-node и `npm ci`. Значит
+      # общий lint с этой зависимостью падал бы на каждом push в main.
+      # Что запускает Timeweb при автодеплое, из репозитория не видно
+      # вовсе — конфига деплоя здесь нет ни одного файла, площадка
+      # настраивается своей панелью. Ставить в общий lint зависимость,
+      # про которую нельзя сказать, есть ли она на площадке, значит
+      # узнать ответ падением деплоя.
+      #
+      # ⚠️ РАЗДЕЛЕНИЕ ПО СУЩЕСТВУ, А НЕ ПО СРЕДЕ. `check-app-icon.mjs`
+      # остаётся в общем lint: он на чистом Node и проверяет, что стоит
+      # КАНОННЫЙ файл (sha256) — это нужно везде, включая CI. Здешний
+      # прибор проверяет, что СБОРКА из спецификации не разошлась с
+      # каноном, — это нужно тому, кто трогает канон, то есть локально.
+      - id: app-icon-rebuild
+        name: "иконка — сборка из спецификации против канона (MOB-4)"
+        entry: npm run lint:icon
+        language: system
+        files: '^(design/app-icon\.source\.json|design/aocg-mark\.svg|design/theme\.mjs|public/apple-touch-icon\.png|scripts/build-app-icon\.py)$'
+        pass_filenames: false
