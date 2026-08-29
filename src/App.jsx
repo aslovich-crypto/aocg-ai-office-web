@@ -28,6 +28,14 @@ import {
   SlidersHorizontal,
   CreditCard,
   Banknote,
+  Shield,
+  Tag,
+  Plug,
+  Building2,
+  Users,
+  FileText,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { C, FONT, theme } from "./lib/theme";
 // Словарь категорий — ГЕНЕРИРУЕМЫЙ (источник: app/dictionaries/categories.json
@@ -172,9 +180,10 @@ function inPeriod(date, period) {
 
 // ─── ATOMS ────────────────────────────────────────────────
 
-function SectionHead({ num, title }) {
+function SectionHead({ num, title, id }) {
   return (
     <div
+      id={id}
       style={{
         display: "flex",
         alignItems: "center",
@@ -4837,7 +4846,7 @@ function AccountTab() {
         Роль изменяется Администратором на вкладке «Пользователи»
       </div>
 
-      <SectionHead title="Безопасность" />
+      <SectionHead id="разд-безопасность" title="Безопасность" />
       <div
         style={{
           display: "flex",
@@ -5954,7 +5963,345 @@ function CategoriesSection({ catalog, onCatalogRefresh }) {
   );
 }
 
+// ⚠️ КАНОН — design/handoff/templates/profile/Профиль.html, плотность
+// «Плотный» (в каноне это data-density="dense"): ряд 11×15, отступ между
+// группами 18, аватар 42. Значения взяты ИЗ ФАЙЛА, не на глаз.
+// ⚠️ Расхождение с макетом — дефект, а не вкус: подписи, порядок групп
+// и состав пунктов не меняются. Восьмого пункта здесь быть не может.
+const ГРУППЫ_КАБИНЕТА = [
+  {
+    title: "Личные данные",
+    items: [
+      {
+        key: "account",
+        name: "Аккаунт",
+        sub: "Имя, email, телефон",
+        Icon: User,
+        to: "Аккаунт",
+      },
+      // ⚠️ Своего экрана у «Безопасности» пока нет — она секция внутри
+      // AccountTab. Ведём на «Аккаунт» С ПРОКРУТКОЙ к нужному разделу:
+      // это не тупик и не подмена, человек попадает на своё содержимое.
+      // Отдельный экран — этап ③, разрез AccountTab.
+      {
+        key: "security",
+        name: "Безопасность",
+        sub: "Пароль и вход",
+        Icon: Shield,
+        to: "Аккаунт",
+        anchor: "разд-безопасность",
+      },
+    ],
+  },
+  {
+    title: "Настройки",
+    items: [
+      {
+        key: "cats",
+        name: "Категории",
+        sub: "Управление категориями",
+        Icon: Tag,
+        to: "Общие",
+        anchor: "разд-категории",
+      },
+      {
+        key: "integrations",
+        name: "Интеграции",
+        sub: "ФНС, банк, распознавание",
+        Icon: Plug,
+        to: "Сервисы",
+      },
+    ],
+  },
+  {
+    title: "Компания",
+    items: [
+      {
+        key: "org",
+        name: "Организация",
+        sub: "Реквизиты, налоговый режим",
+        Icon: Building2,
+        to: "Организация",
+      },
+      {
+        key: "users",
+        name: "Пользователи",
+        sub: "Сотрудники и приглашения",
+        Icon: Users,
+        to: "Пользователи",
+        adminOnly: true,
+      },
+      // ⚠️ У «Лицензий» подписи в каноне НЕТ — не дописываем свою.
+      { key: "lic", name: "Лицензии", Icon: FileText, to: "Лицензии" },
+    ],
+  },
+];
+
+function инициалы(имя) {
+  const части = (имя || "").trim().split(/\s+/).filter(Boolean);
+  if (!части.length) return "—";
+  return (части[0][0] + (части[1] ? части[1][0] : "")).toUpperCase();
+}
+
+function ProfileHub({ role, me, onOpen, onLogout }) {
+  const [запрос, setЗапрос] = useState("");
+  const текст = запрос.trim().toLowerCase();
+  const группы = ГРУППЫ_КАБИНЕТА
+    .map((г) => ({
+      ...г,
+      items: г.items.filter(
+        (п) =>
+          (!п.adminOnly || role === "admin") &&
+          (!текст ||
+            (п.name + " " + (п.sub || "")).toLowerCase().includes(текст)),
+      ),
+    }))
+    .filter((г) => г.items.length);
+
+  const имя =
+    [me?.last_name, me?.first_name].filter(Boolean).join(" ") ||
+    me?.email ||
+    "Профиль";
+  const РОЛИ = {
+    admin: "Администратор",
+    accountant: "Бухгалтер",
+    manager: "Руководитель",
+    employee: "Сотрудник",
+  };
+
+  return (
+    <div>
+      <div
+        style={{
+          background: theme.surface,
+          padding: "6px 16px 12px",
+          borderBottom: `1px solid ${theme.border}`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            background: theme.surfaceSunk,
+            borderRadius: 10,
+            padding: "11px 12px",
+          }}
+        >
+          <Search size={18} color={theme.fg3} aria-hidden="true" />
+          <input
+            value={запрос}
+            onChange={(e) => setЗапрос(e.target.value)}
+            placeholder="Поиск по настройкам"
+            aria-label="Поиск по настройкам"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              border: "none",
+              background: "none",
+              outline: "none",
+              font: `400 15px/1.2 ${FONT}`,
+              color: theme.fg1,
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: "16px 16px 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 18,
+        }}
+      >
+        <div
+          style={{
+            background: theme.surface,
+            borderRadius: 12,
+            boxShadow: "0 1px 3px rgba(17,19,24,.08)",
+            display: "flex",
+            alignItems: "center",
+            gap: 13,
+            padding: "12px 14px",
+          }}
+        >
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 999,
+              background: theme.surfaceSunk,
+              color: theme.fg2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              font: `600 15px/1 ${FONT}`,
+              flexShrink: 0,
+            }}
+          >
+            {инициалы(имя)}
+          </div>
+          <div>
+            <div style={{ font: `600 16px/1.25 ${FONT}`, color: theme.fg1 }}>
+              {имя}
+            </div>
+            {role && (
+              <span
+                style={{
+                  display: "inline-block",
+                  marginTop: 6,
+                  background: theme.cherry,
+                  color: "#fff",
+                  borderRadius: 999,
+                  font: `500 11px/1.3 ${FONT}`,
+                  padding: "3px 9px",
+                }}
+              >
+                {РОЛИ[role] || role}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {группы.map((г) => (
+          <div key={г.title}>
+            <div
+              style={{
+                font: `600 15px/1.2 ${FONT}`,
+                color: theme.fg1,
+                marginBottom: 10,
+              }}
+            >
+              {г.title}
+            </div>
+            <div
+              style={{
+                background: theme.surface,
+                borderRadius: 12,
+                boxShadow: "0 1px 3px rgba(17,19,24,.08)",
+                overflow: "hidden",
+              }}
+            >
+              {г.items.map((п, i) => (
+                <button
+                  key={п.key}
+                  onClick={() => onOpen(п.to, п.anchor)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "left",
+                    background: "none",
+                    border: "none",
+                    borderTop: i ? `1px solid #F1F3F6` : "none",
+                    cursor: "pointer",
+                    fontFamily: FONT,
+                    padding: "11px 15px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 999,
+                      background: theme.surfaceSunk,
+                      color: theme.fg2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <п.Icon size={18} strokeWidth={1.75} aria-hidden="true" />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        font: `500 15px/1.25 ${FONT}`,
+                        color: theme.fg1,
+                      }}
+                    >
+                      {п.name}
+                    </span>
+                    {п.sub && (
+                      <span
+                        style={{
+                          display: "block",
+                          font: `400 13px/1.2 ${FONT}`,
+                          color: theme.fg2,
+                          marginTop: 3,
+                        }}
+                      >
+                        {п.sub}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronRight
+                    size={18}
+                    color={theme.fg3}
+                    aria-hidden="true"
+                    style={{ flexShrink: 0 }}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {!группы.length && (
+          <div
+            style={{
+              padding: "28px 0",
+              textAlign: "center",
+              color: theme.fg2,
+              fontFamily: FONT,
+              fontSize: 13,
+            }}
+          >
+            Ничего не нашлось
+          </div>
+        )}
+
+        <button
+          onClick={onLogout}
+          style={{
+            display: "block",
+            width: "100%",
+            boxSizing: "border-box",
+            textAlign: "center",
+            background: "none",
+            border: "none",
+            font: `500 15px/1 ${FONT}`,
+            color: theme.fg2,
+            padding: "14px 0",
+            cursor: "pointer",
+          }}
+        >
+          Выйти
+        </button>
+
+        <div
+          style={{
+            fontSize: 10,
+            color: theme.fg3,
+            fontFamily: FONT,
+            textAlign: "center",
+            letterSpacing: "0.04em",
+          }}
+        >
+          Сборка от {__BUILD_TIME__}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NastroykiPage({
+  me,
   cards,
   onAddCard,
   onUpdateCard,
@@ -5967,11 +6314,25 @@ function NastroykiPage({
   catalog,
   onCatalogRefresh,
 }) {
-  const [tab, setTab] = useState("Аккаунт");
+  // ⚠️ null — это ХАБ. Лента вкладок заменена списком-хабом по канону
+  // design/handoff/templates/profile/Профиль.html: семь пунктов в трёх
+  // группах вместо шести плоских вкладок.
+  const [tab, setTab] = useState(null);
+  const [якорь, setЯкорь] = useState(null);
   const [newCard, setNewCard] = useState("");
   const [showAddEmp, setShowAddEmp] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [servicesList, setServicesList] = useState([]);
+  useEffect(() => {
+    if (!якорь) return;
+    const t = setTimeout(() => {
+      const у = document.getElementById(якорь);
+      if (у) у.scrollIntoView({ block: "start", behavior: "smooth" });
+      setЯкорь(null);
+    }, 60);
+    return () => clearTimeout(t);
+  }, [якорь, tab]);
+
   const [invites, setInvites] = useState([]);
   const [copiedToken, setCopiedToken] = useState(null);
 
@@ -6002,25 +6363,46 @@ function NastroykiPage({
     loadInvites();
   }, []);
 
+  // Хвост S-29: управление людьми на бэкенде только у админа
+  // (_require_admin). Гейт переехал из ленты вкладок в состав хаба —
+  // умолчание закрытое: role === null это «ещё не пришла с /api/users/me».
+  if (tab === null)
+    return (
+      <ProfileHub
+        role={role}
+        me={me}
+        onOpen={(куда, к) => {
+          setTab(куда);
+          setЯкорь(к || null);
+        }}
+        onLogout={() => {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          window.location.reload();
+        }}
+      />
+    );
+
   return (
     <div>
-      <TabBar
-        tabs={[
-          "Аккаунт",
-          "Организация",
-          "Лицензии",
-          // Хвост S-29: управление людьми на бэкенде теперь только у админа
-          // (_require_admin). Без этого гейта бухгалтер видел вкладку и ловил
-          // 403 на первом же действии. role === null — это «ещё не пришла
-          // с /api/users/me», и вкладки в этот момент нет: умолчание должно
-          // быть закрытым, лишний кадр без вкладки дешевле мелькнувшей.
-          ...(role === "admin" ? ["Пользователи"] : []),
-          "Сервисы",
-          "Общие",
-        ]}
-        active={tab}
-        onSelect={setTab}
-      />
+      <button
+        onClick={() => setTab(null)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: FONT,
+          fontSize: 14,
+          color: theme.fg2,
+          padding: "12px 14px",
+        }}
+      >
+        <ChevronLeft size={18} aria-hidden="true" />
+        Профиль
+      </button>
       {tab === "Аккаунт" && <AccountTab />}
       {tab === "Организация" && (
         <OrganizationTab
@@ -6186,7 +6568,7 @@ function NastroykiPage({
       )}
       {tab === "Общие" && (
         <div style={{ padding: "12px 16px 80px" }}>
-          <SectionHead title="Управление категориями" />
+          <SectionHead id="разд-категории" title="Управление категориями" />
           {role === "admin" || role === "accountant" ? (
             <CategoriesSection
               catalog={catalog}
@@ -8631,6 +9013,7 @@ export default function App() {
   // (инвариант АО-1 на бэке), а бухгалтер видит чеки всей орг — без этого id
   // он выбрал бы чужой чек и упёрся в 409 «Чек другого сотрудника».
   const [userId, setUserId] = useState(null);
+  const [me, setMe] = useState(null);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
@@ -8708,6 +9091,10 @@ export default function App() {
     authFetch(`/api/users/me`) // D2: роль текущего юзера для гейта управления категориями
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
+        // ⚠️ Карточка в каноне показывает ЧЕЛОВЕКА (инициалы, имя, бейдж
+        // роли), а не организацию — решение владельца по снимку канона.
+        // Ответ уже приходит, раньше из него брали только роль и id.
+        if (data) setMe(data);
         if (data && data.role) setRole(data.role);
         if (data && typeof data.id === "number") setUserId(data.id);
         // Строка 9: редакция, на которой человек остановился ПО СЕРВЕРУ,
@@ -9008,7 +9395,12 @@ export default function App() {
                 whiteSpace: "nowrap",
               }}
             >
-              {(NAV.find((n) => n.id === page) || {}).label || ""}
+              {/* ⚠️ У ЭКРАНА НАСТРОЕК ПОДПИСИ НЕ БЫЛО ВООБЩЕ: NAV его
+                  не содержит, и шапка показывала пустоту. Отсюда T106 —
+                  я назвал экран «Настройки» по имени компонента, а на
+                  экране не было НИКАКОГО слова. В каноне он «Профиль». */}
+              {(NAV.find((n) => n.id === page) || {}).label ||
+                (page === "nastroyki" ? "Профиль" : "")}
             </span>
           </div>
           {appMenu && <AppSwitcher onClose={() => setAppMenu(false)} />}
@@ -9165,6 +9557,7 @@ export default function App() {
             onUpdateUser={updateUser}
             onDeleteUser={deleteUser}
             role={role}
+            me={me}
             catalog={catalog}
             onCatalogRefresh={loadCatalog}
           />
