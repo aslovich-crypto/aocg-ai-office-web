@@ -184,6 +184,9 @@ function SectionHead({ num, title, id }) {
   return (
     <div
       id={id}
+      // ⚠️ признак для сторожа канона: он ищет заголовки ВНУТРИ
+      // отрисованного экрана и сверяет их с именем экрана в шапке
+      data-zagolovok={title}
       style={{
         display: "flex",
         alignItems: "center",
@@ -4575,7 +4578,7 @@ function ChangePasswordModal({ onClose }) {
   );
 }
 
-function AccountTab({
+export function AccountTab({
   cards,
   onAddCard,
   onUpdateCard,
@@ -6080,7 +6083,7 @@ function инициалы(имя) {
 // «Безопасность» встречается только в хабе. Поэтому экран собран
 // из существующей оболочки приложения — это не расхождение с макетом,
 // макет об этом молчит.
-function SecurityTab({ me }) {
+export function SecurityTab({ me }) {
   const [showPwModal, setShowPwModal] = useState(false);
   const oauthSoon = () => alert("Скоро");
   const PROVIDERS = [
@@ -6203,7 +6206,7 @@ function SecurityTab({ me }) {
   );
 }
 
-function ProfileHub({ role, me, onOpen, onLogout }) {
+export function ProfileHub({ role, me, onOpen, onLogout }) {
   const [запрос, setЗапрос] = useState("");
   const текст = запрос.trim().toLowerCase();
   const группы = ГРУППЫ_КАБИНЕТА
@@ -6353,6 +6356,7 @@ function ProfileHub({ role, me, onOpen, onLogout }) {
               {г.items.map((п, i) => (
                 <button
                   key={п.key}
+                  data-ekran={п.to}
                   onClick={() => onOpen(п.to, п.anchor)}
                   style={{
                     display: "flex",
@@ -6475,10 +6479,12 @@ function ProfileHub({ role, me, onOpen, onLogout }) {
 // переписывает T104 (одна кнопка «Пригласить» вместо двух, статус
 // «приглашён, ожидает»). Двигать 126 строк за день до переписывания —
 // шум в diff и лишний повод для конфликта.
-function ServicesTab({ servicesList }) {
+export function ServicesTab({ servicesList }) {
   return (
     <div style={{ padding: "12px 16px 80px" }}>
-      <SectionHead title="Интеграции" />
+      {/* ⚠️ Заголовка нет: экран уже назван «Интеграции» в шапке.
+          Четвёртый дубль того же класса — и первый, который нашёл
+          ПРИБОР, а не владелец глазами. */}
       {servicesList.map((s) => (
         <ServiceCard key={s.key} svc={s} />
       ))}
@@ -6502,7 +6508,7 @@ function ServicesTab({ servicesList }) {
 // две несвязанные вещи — категории и карты. Карты уехали в «Аккаунт»
 // (решение владельца: карта не интеграция, а личный справочник),
 // в каноне восьмого пункта нет и заводить его нельзя.
-function CategoriesTab({ role, catalog, onCatalogRefresh }) {
+export function CategoriesTab({ role, catalog, onCatalogRefresh }) {
   return (
     <div style={{ padding: "12px 16px 80px" }}>
       {/* ⚠️ Заголовка нет: экран уже назван «Категории» в шапке,

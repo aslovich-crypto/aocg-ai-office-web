@@ -10,7 +10,8 @@
     "lint:icon": "python3 scripts/build-app-icon.py",
     "check:diag": "node scripts/check-no-diagnostics.mjs --bundle dist",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "look": "node scripts/check-profile-canon.mjs"
   },
   "dependencies": {
     "@zumer/snapdom": "^2.12.8",

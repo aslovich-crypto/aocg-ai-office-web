@@ -1,0 +1,45 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>проба кабинета</title>
+<style>body{margin:0;background:#F6F7F9;width:402px}</style></head>
+<body><div id="root"></div><div id="ЗАМЕР"></div>
+<script>
+// ⚠️ ЗАМЕР СНИМАЕТСЯ ПО ГОТОВНОСТИ, А НЕ ПО ТАЙМЕРУ. Первая редакция
+// ждала 50 мс и снимала пустой «Аккаунт»: он рисуется только после
+// ответа сети, и снимок успевал раньше. Пустой экран прошёл бы
+// проверку молча — тот самый класс T87.
+(function(){
+  var осталось=120;
+  function готово(){
+    var а=document.querySelector('[data-imya="Аккаунт"]');
+    return а && а.querySelector('[data-zagolovok]');
+  }
+  function снять(){
+  var хаб=document.querySelector('[data-proba="хаб"]');
+  var группы=[], пункты=[];
+  хаб.querySelectorAll('button[data-ekran]').forEach(function(б){
+    var s=б.querySelectorAll('span');
+    var текст=[].slice.call(s).map(function(x){return x.children.length?"":x.textContent.trim();}).filter(Boolean);
+    пункты.push({имя:текст[0]||"", подпись:текст[1]||"", экран:б.getAttribute("data-ekran")});
+  });
+  хаб.querySelectorAll('div').forEach(function(d){
+    if(d.children.length===0 && d.textContent && d.nextElementSibling &&
+       d.nextElementSibling.querySelector && d.nextElementSibling.querySelector('button[data-ekran]'))
+      группы.push(d.textContent.trim());
+  });
+  var карточка=хаб.querySelector('div[style*="border-radius: 12px"] div div');
+  var имя=карточка?карточка.textContent.trim():"";
+  var экраны=[];
+  document.querySelectorAll('[data-proba="экран"]').forEach(function(э){
+    var н=э.getAttribute("data-imya");
+    var з=[].slice.call(э.querySelectorAll('[data-zagolovok]')).map(function(x){return x.getAttribute("data-zagolovok");});
+    экраны.push({экран:н, заголовки:з});
+  });
+  document.getElementById("ЗАМЕР").textContent=JSON.stringify({группы:группы,пункты:пункты,имя:имя,экраны:экраны});
+}
+  function тик(){
+    if(готово() || осталось-- <= 0) return снять();
+    requestAnimationFrame(тик);
+  }
+  тик();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>

@@ -10,7 +10,13 @@ export default defineConfig([
   // ⚠️ Без игнора eslint даёт 133 ошибки из 11 файлов выгрузки, и `npm run lint`
   // краснеет на том, чего мы не писали. Правило ПОСТОЯННОЕ — каталог без даты
   // в имени, поэтому следующая выгрузка попадёт под него сама.
-  globalIgnores(["dist", "design/handoff"]),
+  globalIgnores([
+    "dist",
+    "design/handoff",
+    // вывод сборки пробы для сторожа канона (npm run look) — чужой
+    // минифицированный код, линту там делать нечего
+    "scripts/probe/__dist",
+  ]),
   {
     files: ["**/*.{js,jsx}"],
     extends: [
