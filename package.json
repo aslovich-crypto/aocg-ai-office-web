@@ -11,7 +11,8 @@
     "check:diag": "node scripts/check-no-diagnostics.mjs --bundle dist",
     "preview": "vite preview",
     "start": "node server.js",
-    "look": "node scripts/check-profile-canon.mjs"
+    "look": "node scripts/check-profile-canon.mjs",
+    "behaviour": "node scripts/check-behaviour.mjs"
   },
   "dependencies": {
     "@zumer/snapdom": "^2.12.8",

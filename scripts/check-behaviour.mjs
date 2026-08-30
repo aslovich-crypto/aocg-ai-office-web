@@ -1,0 +1,178 @@
+// ⚠️ СТОРОЖ ПОВЕДЕНИЯ. Поднимает НАСТОЯЩЕЕ приложение, жмёт кнопки
+// по сценарию и сверяет, где оказался человек. Проверяет ЧТО ПРОИЗОШЛО,
+// а не что написано в исходнике.
+//
+// ⚠️ ЗАЧЕМ. 30.08.2026 владелец сказал: «вышел, зашёл — снова попадаю
+// в профиль». Сторож check-logout-return.mjs был ЗЕЛЁНЫМ: он читает
+// исходник и проверяет, что проводка НАПИСАНА. Правило после того случая
+// (docs/RULES-FRONTEND.md): читать исходник законно только там, где
+// у поведения нет наблюдаемого следствия. Здесь следствие есть —
+// человек видит экран.
+//
+// ⚠️ ШАГ ⑦ СУЩЕСТВУЕТ РАДИ ОДНОЙ ПОЛОМКИ: если явный выход не сбросил
+// ПОДЭКРАН, при page="glavnaya" это НЕНАБЛЮДАЕМО — подэкран просто
+// не виден. Он всплывает, только когда человек снова открывает профиль
+// и попадает сразу в «Аккаунт» вместо списка.
+//
+// ⚠️ ОТДЕЛЬНОЙ ЦЕЛЬЮ, НЕ В `npm run lint`: нужен Chrome. Но без него
+// проверка НЕ МОЛЧИТ — печатает «ПРОВЕРКА НЕ ВЫПОЛНЕНА» и краснеет.
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const КОРЕНЬ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ПРОБА = path.join(КОРЕНЬ, "scripts/probe-behaviour");
+// ⚠️ порт случайный: с постоянным два прогона подряд дрались за него
+const ПОРТ = 5000 + Math.floor(Math.random() * 280);
+
+const БРАУЗЕРЫ = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+];
+
+const ОЖИДАЕМО = [
+  ["① загрузка", "Главная"],
+  ["② открыт профиль", "Профиль"],
+  ["③ открыт подэкран", "Аккаунт"],
+  ["④ возврат в хаб", "Профиль"],
+  ["⑤ после выхода", "ЭКРАН ВХОДА"],
+  ["⑥ после входа", "Главная"],
+  ["⑦ профиль снова", "Профиль"],
+];
+
+const беды = [];
+console.log("\nПОВЕДЕНИЕ: ВЫХОД И ВОЗВРАТ (сценарий в живом приложении)");
+
+const браузер = БРАУЗЕРЫ.find((п) => existsSync(п));
+if (!браузер) {
+  console.log(
+    "  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: не найден Chrome ни по одному из путей:",
+  );
+  БРАУЗЕРЫ.forEach((п) => console.log(`      ${п}`));
+  console.log("    Кнопки жмёт браузер — без него проверять нечем.");
+  process.exit(1);
+}
+
+try {
+  execFileSync(
+    path.join(КОРЕНЬ, "node_modules/.bin/vite"),
+    ["build", "--config", path.join(ПРОБА, "vite.config.mjs")],
+    { cwd: КОРЕНЬ, stdio: "pipe", timeout: 120000 },
+  );
+} catch (е) {
+  console.log("  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: проба не собралась");
+  console.log(
+    String(е.stdout || е.message)
+      .split("\n")
+      .slice(-6)
+      .map((с) => "      " + с)
+      .join("\n"),
+  );
+  process.exit(1);
+}
+
+const сервер = spawn(
+  path.join(КОРЕНЬ, "node_modules/.bin/vite"),
+  [
+    "preview",
+    "--config",
+    path.join(ПРОБА, "vite.config.mjs"),
+    "--port",
+    String(ПОРТ),
+    "--strictPort",
+  ],
+  { cwd: КОРЕНЬ, stdio: "ignore" },
+);
+
+let замер = null;
+let ошибка = "";
+try {
+  let поднялся = false;
+  for (let i = 0; i < 60 && !поднялся; i++) {
+    await new Promise((г) => setTimeout(г, 250));
+    try {
+      поднялся = (await fetch(`http://localhost:${ПОРТ}/`)).ok;
+    } catch {
+      /* ещё не поднялся */
+    }
+  }
+  if (!поднялся) throw new Error("сервер пробы не поднялся за 15 с");
+
+  const dom = await new Promise((готово, споткнулись) => {
+    const дитя = spawn(
+      браузер,
+      [
+        "--headless",
+        "--disable-gpu",
+        "--virtual-time-budget=25000",
+        "--window-size=430,1400",
+        "--dump-dom",
+        `http://localhost:${ПОРТ}/`,
+      ],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    );
+    let вывод = "";
+    const часы = setTimeout(() => {
+      дитя.kill("SIGKILL");
+      споткнулись(new Error("браузер не ответил за 120 с"));
+    }, 120000);
+    дитя.stdout.on("data", (к) => (вывод += к));
+    дитя.on("error", (е) => {
+      clearTimeout(часы);
+      споткнулись(е);
+    });
+    дитя.on("close", () => {
+      clearTimeout(часы);
+      готово(вывод);
+    });
+  });
+  const м = dom.match(/<div id="ЗАМЕР">([\s\S]*?)<\/div>/);
+  if (м && м[1].trim())
+    замер = JSON.parse(
+      м[1]
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">"),
+    );
+  else ошибка = "браузер не вернул замер";
+} catch (е) {
+  ошибка = String(е.message).slice(0, 300);
+} finally {
+  сервер.kill("SIGKILL");
+}
+
+if (!замер) {
+  console.log(`  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: ${ошибка}`);
+  process.exit(1);
+}
+if (!Array.isArray(замер) || замер.length !== ОЖИДАЕМО.length) {
+  console.log(
+    `  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: шагов ${замер.length ?? "?"}, ждали ${
+      ОЖИДАЕМО.length
+    }`,
+  );
+  console.log("    Сценарий не доехал до конца — проверять нечего.");
+  process.exit(1);
+}
+
+console.log(`  шагов пройдено ${замер.length}`);
+ОЖИДАЕМО.forEach(([имя, ждём], i) => {
+  const было = String(замер[i]).split(": ").slice(1).join(": ");
+  const ок = было === ждём;
+  console.log(
+    `  ${ок ? "✓" : "✗"} ${имя}: ${было}${ок ? "" : `  ← ждали «${ждём}»`}`,
+  );
+  if (!ок) беды.push(`${имя}: «${было}» вместо «${ждём}»`);
+});
+
+if (беды.length) {
+  console.log(`\n  ⚠️ РАСХОЖДЕНИЙ ${беды.length}`);
+  process.exit(1);
+}
+console.log(
+  "  ИТОГ: явный выход возвращает на «Главную», профиль открывается списком",
+);
