@@ -4585,7 +4585,6 @@ function AccountTab() {
   });
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
-  const [showPwModal, setShowPwModal] = useState(false);
 
   // Phone is stored E.164 ("+79991234567") in the DB; mask it for display.
   const fromApi = (d) => ({
@@ -4648,7 +4647,6 @@ function AccountTab() {
       setErr("Не удалось сохранить");
     }
   }
-  const oauthSoon = () => alert("Скоро");
 
   if (!me)
     return (
@@ -4694,18 +4692,18 @@ function AccountTab() {
     outline: "none",
     padding: "7px 0",
   };
-  const PROVIDERS = [
-    ["yandex", "Я", "Яндекс", "#FC3F1D", "#fff"],
-    ["google", "G", "Google", "#fff", "#4285F4"],
-    ["mailru", "@", "Mail.ru", "#005FF9", "#fff"],
-  ];
-  const linked = me.linked_providers || [];
 
   return (
     <div
       style={{ padding: "12px 16px calc(env(safe-area-inset-bottom) + 80px)" }}
     >
-      <SectionHead title="Личные данные" />
+      {/* ⚠️ ЗАГОЛОВКА ЗДЕСЬ БОЛЬШЕ НЕТ. «Личные данные» — это остаток
+          отменённого макета ui_kits/mobile-app/settings.jsx, где так
+          называлась секция ВНУТРИ «Аккаунта». В действующем каноне
+          templates/profile/Профиль.html это ГРУППА хаба, куда входят
+          «Аккаунт» и «Безопасность» — и слово оказалось в двух ролях
+          сразу. Экран уже называется «Аккаунт», второй заголовок над
+          единственным блоком полей не нужен. Подробности — T109. */}
       <div style={rowStyle(0)}>
         <span style={lbl}>Имя</span>
         <input
@@ -4843,112 +4841,8 @@ function AccountTab() {
           marginTop: 6,
         }}
       >
-        Роль изменяется Администратором на вкладке «Пользователи»
+        Роль изменяется Администратором в разделе «Пользователи»
       </div>
-
-      <SectionHead id="разд-безопасность" title="Безопасность" />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: theme.surface,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 8,
-          padding: "12px 14px",
-          marginBottom: 14,
-        }}
-      >
-        <span style={{ fontFamily: FONT, fontSize: 14, color: C.dark }}>
-          Пароль ••••••••
-        </span>
-        <button
-          onClick={() => setShowPwModal(true)}
-          style={{
-            border: `1px solid ${theme.border}`,
-            background: theme.surface,
-            borderRadius: 8,
-            padding: "7px 14px",
-            fontFamily: FONT,
-            fontSize: 13,
-            color: theme.cherry,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Изменить
-        </button>
-      </div>
-      <div
-        style={{
-          fontSize: 10,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: theme.fg2,
-          fontFamily: FONT,
-          marginBottom: 8,
-        }}
-      >
-        Привязанные аккаунты
-      </div>
-      {PROVIDERS.map(([key, icon, name, bg, fg]) => {
-        const isLinked = linked.includes(key);
-        return (
-          <div
-            key={key}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: theme.surface,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 8,
-              padding: "8px 12px",
-              marginBottom: 6,
-            }}
-          >
-            <span
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background: bg,
-                color: fg,
-                border: bg === "#fff" ? `1px solid ${theme.border}` : "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: FONT,
-                fontSize: 14,
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              {icon}
-            </span>
-            <span
-              style={{ flex: 1, fontFamily: FONT, fontSize: 14, color: C.dark }}
-            >
-              {name}
-            </span>
-            <button
-              onClick={oauthSoon}
-              style={{
-                border: `1px solid ${theme.border}`,
-                background: theme.surface,
-                borderRadius: 8,
-                padding: "6px 12px",
-                fontFamily: FONT,
-                fontSize: 13,
-                color: isLinked ? theme.cherry : theme.fg2,
-                cursor: "pointer",
-              }}
-            >
-              {isLinked ? "Отвязать" : "Привязать"}
-            </button>
-          </div>
-        );
-      })}
 
       {consent && (
         <>
@@ -5041,9 +4935,6 @@ function AccountTab() {
         >
           Сохранено ✓
         </div>
-      )}
-      {showPwModal && (
-        <ChangePasswordModal onClose={() => setShowPwModal(false)} />
       )}
     </div>
   );
@@ -5979,17 +5870,12 @@ const ГРУППЫ_КАБИНЕТА = [
         Icon: User,
         to: "Аккаунт",
       },
-      // ⚠️ Своего экрана у «Безопасности» пока нет — она секция внутри
-      // AccountTab. Ведём на «Аккаунт» С ПРОКРУТКОЙ к нужному разделу:
-      // это не тупик и не подмена, человек попадает на своё содержимое.
-      // Отдельный экран — этап ③, разрез AccountTab.
       {
         key: "security",
         name: "Безопасность",
         sub: "Пароль и вход",
         Icon: Shield,
-        to: "Аккаунт",
-        anchor: "разд-безопасность",
+        to: "Безопасность",
       },
     ],
   },
@@ -6041,6 +5927,138 @@ function инициалы(имя) {
   const части = (имя || "").trim().split(/\s+/).filter(Boolean);
   if (!части.length) return "—";
   return (части[0][0] + (части[1] ? части[1][0] : "")).toUpperCase();
+}
+
+// ⚠️ ОТДЕЛЬНЫЙ ЭКРАН, А НЕ СЕКЦИЯ. В каноне
+// design/handoff/templates/profile/Профиль.html «Безопасность» — пункт
+// хаба с подписью «Пароль и вход». До этапа ③ она была секцией внутри
+// AccountTab, и пункт вёл на чужой экран с прокруткой — полумера,
+// которую владелец и поймал приёмкой.
+// ⚠️ САМОГО ЭКРАНА В КАНОНЕ НЕТ: во всём design/handoff/ слово
+// «Безопасность» встречается только в хабе. Поэтому экран собран
+// из существующей оболочки приложения — это не расхождение с макетом,
+// макет об этом молчит.
+function SecurityTab({ me }) {
+  const [showPwModal, setShowPwModal] = useState(false);
+  const oauthSoon = () => alert("Скоро");
+  const PROVIDERS = [
+    ["yandex", "Я", "Яндекс", "#FC3F1D", "#fff"],
+    ["google", "G", "Google", "#fff", "#4285F4"],
+    ["mailru", "@", "Mail.ru", "#005FF9", "#fff"],
+  ];
+  const linked = (me && me.linked_providers) || [];
+  return (
+    <div style={{ padding: "12px 16px 80px" }}>
+      {/* ⚠️ Заголовка «Безопасность» здесь нет намеренно: экран уже
+          так назван в шапке. Тот же дубль, что сняли в «Аккаунте»
+          вместе с «Личными данными» — T109. */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 8,
+          padding: "12px 14px",
+          marginBottom: 14,
+        }}
+      >
+        <span style={{ fontFamily: FONT, fontSize: 14, color: C.dark }}>
+          Пароль ••••••••
+        </span>
+        <button
+          onClick={() => setShowPwModal(true)}
+          style={{
+            border: `1px solid ${theme.border}`,
+            background: theme.surface,
+            borderRadius: 8,
+            padding: "7px 14px",
+            fontFamily: FONT,
+            fontSize: 13,
+            color: theme.cherry,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Изменить
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: theme.fg2,
+          fontFamily: FONT,
+          marginBottom: 8,
+        }}
+      >
+        Привязанные аккаунты
+      </div>
+      {PROVIDERS.map(([key, icon, name, bg, fg]) => {
+        const isLinked = linked.includes(key);
+        return (
+          <div
+            key={key}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
+              padding: "8px 12px",
+              marginBottom: 6,
+            }}
+          >
+            <span
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: "50%",
+                background: bg,
+                color: fg,
+                border: bg === "#fff" ? `1px solid ${theme.border}` : "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: FONT,
+                fontSize: 14,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </span>
+            <span
+              style={{ flex: 1, fontFamily: FONT, fontSize: 14, color: C.dark }}
+            >
+              {name}
+            </span>
+            <button
+              onClick={oauthSoon}
+              style={{
+                border: `1px solid ${theme.border}`,
+                background: theme.surface,
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontFamily: FONT,
+                fontSize: 13,
+                color: isLinked ? theme.cherry : theme.fg2,
+                cursor: "pointer",
+              }}
+            >
+              {isLinked ? "Отвязать" : "Привязать"}
+            </button>
+          </div>
+        );
+      })}
+      {showPwModal && (
+        <ChangePasswordModal onClose={() => setShowPwModal(false)} />
+      )}
+    </div>
+  );
 }
 
 function ProfileHub({ role, me, onOpen, onLogout }) {
@@ -6604,6 +6622,7 @@ function NastroykiPage({
         Профиль
       </button>
       {tab === "Аккаунт" && <AccountTab />}
+      {tab === "Безопасность" && <SecurityTab me={me} />}
       {tab === "Организация" && (
         <OrganizationTab
           authFetch={authFetch}
