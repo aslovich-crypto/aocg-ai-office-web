@@ -4575,7 +4575,14 @@ function ChangePasswordModal({ onClose }) {
   );
 }
 
-function AccountTab() {
+function AccountTab({
+  cards,
+  onAddCard,
+  onUpdateCard,
+  onDeleteCard,
+  onSetDefaultCard,
+}) {
+  const [newCard, setNewCard] = useState("");
   const [me, setMe] = useState(null);
   const [acc, setAcc] = useState({
     first_name: "",
@@ -4842,6 +4849,138 @@ function AccountTab() {
         }}
       >
         Роль изменяется Администратором в разделе «Пользователи»
+      </div>
+
+      <SectionHead title="Мои карты" />
+      <div
+        style={{
+          fontSize: 11,
+          color: theme.fg2,
+          fontFamily: FONT,
+          marginBottom: 8,
+          lineHeight: 1.5,
+        }}
+      >
+        При сканировании чека карта подставляется по истории трат в той же
+        организации. Если истории нет — подставляется карта по умолчанию
+        (отмечена ★).
+      </div>
+      {cards.map((c, i) => (
+        <div
+          key={c.id}
+          style={{
+            background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
+            padding: "5px 14px",
+            borderBottom: `1px solid ${theme.border}`,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span
+            onClick={() => {
+              if (!c.is_default) onSetDefaultCard(c.id);
+            }}
+            title={
+              c.is_default
+                ? "Карта по умолчанию"
+                : "Сделать картой по умолчанию"
+            }
+            style={{
+              fontSize: 16,
+              cursor: c.is_default ? "default" : "pointer",
+              flexShrink: 0,
+              color: c.is_default ? theme.cherry : theme.fg3,
+              lineHeight: 1,
+            }}
+          >
+            {c.is_default ? "★" : "☆"}
+          </span>
+          <input
+            defaultValue={c.name}
+            aria-label="Название карты"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== c.name) onUpdateCard(c.id, v);
+              else e.target.value = c.name;
+            }}
+            style={{
+              flex: 1,
+              border: "none",
+              background: "transparent",
+              fontSize: 13,
+              fontFamily: FONT,
+              color: C.dark,
+              outline: "none",
+              padding: "4px 0",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => onDeleteCard(c.id)}
+            aria-label="Удалить карту"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: theme.cherryMuted,
+              fontSize: 14,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      ))}
+      {cards.length === 0 && (
+        <div
+          style={{
+            fontSize: 12,
+            color: theme.fg3,
+            fontFamily: FONT,
+            padding: "8px 0",
+          }}
+        >
+          Пока нет карт
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+        <input
+          value={newCard}
+          onChange={(e) => setNewCard(e.target.value)}
+          placeholder="Например: Личная Сбер"
+          aria-label="Название новой карты"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newCard.trim()) {
+              onAddCard(newCard.trim());
+              setNewCard("");
+            }
+          }}
+          style={{
+            flex: 1,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 6,
+            outline: "none",
+            padding: "7px 10px",
+            fontSize: 13,
+            fontFamily: FONT,
+            color: C.dark,
+            background: theme.surface,
+            boxSizing: "border-box",
+          }}
+        />
+        <Btn
+          small
+          onClick={() => {
+            if (newCard.trim()) {
+              onAddCard(newCard.trim());
+              setNewCard("");
+            }
+          }}
+        >
+          + Добавить
+        </Btn>
       </div>
 
       {consent && (
@@ -5887,15 +6026,18 @@ const ГРУППЫ_КАБИНЕТА = [
         name: "Категории",
         sub: "Управление категориями",
         Icon: Tag,
-        to: "Общие",
-        anchor: "разд-категории",
+        to: "Категории",
       },
       {
         key: "integrations",
         name: "Интеграции",
         sub: "ФНС, банк, распознавание",
         Icon: Plug,
-        to: "Сервисы",
+        // ⚠️ Экран называется КАК ПУНКТ. Раньше вёл на "Сервисы",
+        // и шапка показывала «Сервисы» при нажатии на «Интеграции» —
+        // человек нажимал одно, попадал в другое. В каноне пункт
+        // «Интеграции», значит и экран «Интеграции».
+        to: "Интеграции",
       },
     ],
   },
@@ -6077,7 +6219,10 @@ function ProfileHub({ role, me, onOpen, onLogout }) {
     .filter((г) => г.items.length);
 
   const имя =
-    [me?.last_name, me?.first_name].filter(Boolean).join(" ") ||
+    // ⚠️ ИМЯ ВПЕРЕДИ ФАМИЛИИ — так в каноне: «Иван Петров».
+    // Было наоборот, поймано снимком, а не сверкой: сверка читала
+    // список пунктов и карточку не смотрела вовсе.
+    [me?.first_name, me?.last_name].filter(Boolean).join(" ") ||
     me?.email ||
     "Профиль";
   const РОЛИ = {
@@ -6353,20 +6498,16 @@ function ServicesTab({ servicesList }) {
   );
 }
 
-function GeneralTab({
-  role,
-  catalog,
-  onCatalogRefresh,
-  cards,
-  onAddCard,
-  onUpdateCard,
-  onDeleteCard,
-  onSetDefaultCard,
-}) {
-  const [newCard, setNewCard] = useState("");
+// ⚠️ ЭТО ЭКРАН «КАТЕГОРИИ», А НЕ «ОБЩИЕ». Прежняя вкладка «Общие» держала
+// две несвязанные вещи — категории и карты. Карты уехали в «Аккаунт»
+// (решение владельца: карта не интеграция, а личный справочник),
+// в каноне восьмого пункта нет и заводить его нельзя.
+function CategoriesTab({ role, catalog, onCatalogRefresh }) {
   return (
     <div style={{ padding: "12px 16px 80px" }}>
-      <SectionHead id="разд-категории" title="Управление категориями" />
+      {/* ⚠️ Заголовка нет: экран уже назван «Категории» в шапке,
+          а «Управление категориями» — это подпись пункта в хабе.
+          Тот же дубль, что сняли в «Аккаунте» и «Безопасности». */}
       {role === "admin" || role === "accountant" ? (
         <CategoriesSection
           catalog={catalog}
@@ -6385,137 +6526,6 @@ function GeneralTab({
           Управление категориями доступно администратору и бухгалтеру
         </div>
       )}
-      <SectionHead title="Мои карты" />
-      <div
-        style={{
-          fontSize: 11,
-          color: theme.fg2,
-          fontFamily: FONT,
-          marginBottom: 8,
-          lineHeight: 1.5,
-        }}
-      >
-        При сканировании чека карта подставляется по истории трат в той же
-        организации. Если истории нет — подставляется карта по умолчанию
-        (отмечена ★).
-      </div>
-      {cards.map((c, i) => (
-        <div
-          key={c.id}
-          style={{
-            background: i % 2 === 0 ? theme.surface : theme.surfaceSunk,
-            padding: "5px 14px",
-            borderBottom: `1px solid ${theme.border}`,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <span
-            onClick={() => {
-              if (!c.is_default) onSetDefaultCard(c.id);
-            }}
-            title={
-              c.is_default
-                ? "Карта по умолчанию"
-                : "Сделать картой по умолчанию"
-            }
-            style={{
-              fontSize: 16,
-              cursor: c.is_default ? "default" : "pointer",
-              flexShrink: 0,
-              color: c.is_default ? theme.cherry : theme.fg3,
-              lineHeight: 1,
-            }}
-          >
-            {c.is_default ? "★" : "☆"}
-          </span>
-          <input
-            defaultValue={c.name}
-            aria-label="Название карты"
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v && v !== c.name) onUpdateCard(c.id, v);
-              else e.target.value = c.name;
-            }}
-            style={{
-              flex: 1,
-              border: "none",
-              background: "transparent",
-              fontSize: 13,
-              fontFamily: FONT,
-              color: C.dark,
-              outline: "none",
-              padding: "4px 0",
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => onDeleteCard(c.id)}
-            aria-label="Удалить карту"
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              color: theme.cherryMuted,
-              fontSize: 14,
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-          >
-            <span aria-hidden="true">✕</span>
-          </button>
-        </div>
-      ))}
-      {cards.length === 0 && (
-        <div
-          style={{
-            fontSize: 12,
-            color: theme.fg3,
-            fontFamily: FONT,
-            padding: "8px 0",
-          }}
-        >
-          Пока нет карт
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        <input
-          value={newCard}
-          onChange={(e) => setNewCard(e.target.value)}
-          placeholder="Например: Личная Сбер"
-          aria-label="Название новой карты"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && newCard.trim()) {
-              onAddCard(newCard.trim());
-              setNewCard("");
-            }
-          }}
-          style={{
-            flex: 1,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 6,
-            outline: "none",
-            padding: "7px 10px",
-            fontSize: 13,
-            fontFamily: FONT,
-            color: C.dark,
-            background: theme.surface,
-            boxSizing: "border-box",
-          }}
-        />
-        <Btn
-          small
-          onClick={() => {
-            if (newCard.trim()) {
-              onAddCard(newCard.trim());
-              setNewCard("");
-            }
-          }}
-        >
-          + Добавить
-        </Btn>
-      </div>
     </div>
   );
 }
@@ -6625,7 +6635,15 @@ function NastroykiPage({
         <ChevronLeft size={18} aria-hidden="true" />
         Профиль
       </button>
-      {tab === "Аккаунт" && <AccountTab />}
+      {tab === "Аккаунт" && (
+        <AccountTab
+          cards={cards}
+          onAddCard={onAddCard}
+          onUpdateCard={onUpdateCard}
+          onDeleteCard={onDeleteCard}
+          onSetDefaultCard={onSetDefaultCard}
+        />
+      )}
       {tab === "Безопасность" && <SecurityTab me={me} />}
       {tab === "Организация" && (
         <OrganizationTab
@@ -6769,17 +6787,12 @@ function NastroykiPage({
           </div>
         </div>
       )}
-      {tab === "Сервисы" && <ServicesTab servicesList={servicesList} />}
-      {tab === "Общие" && (
-        <GeneralTab
+      {tab === "Интеграции" && <ServicesTab servicesList={servicesList} />}
+      {tab === "Категории" && (
+        <CategoriesTab
           role={role}
           catalog={catalog}
           onCatalogRefresh={onCatalogRefresh}
-          cards={cards}
-          onAddCard={onAddCard}
-          onUpdateCard={onUpdateCard}
-          onDeleteCard={onDeleteCard}
-          onSetDefaultCard={onSetDefaultCard}
         />
       )}
       {showAddEmp && (
