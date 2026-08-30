@@ -89,7 +89,14 @@ async function logout() {
   }
   tokens.clear();
   try {
-    window.dispatchEvent(new Event("auth:logout"));
+    // ⚠️ ЯВНЫЙ выход помечается признаком. Автоматический — тот, что
+    // шлёт authFetch при 401, — признака не несёт, и это не мелочь:
+    // после явного человек уходит НАМЕРЕННО и должен вернуться
+    // на «Главную», а после автоматического его выкинуло посреди
+    // работы, и вернуть надо ровно туда, где он был.
+    window.dispatchEvent(
+      new CustomEvent("auth:logout", { detail: { явный: true } }),
+    );
   } catch {
     /* ignore */
   }
@@ -9112,7 +9119,17 @@ export default function App() {
   };
   useEffect(() => {
     const onPop = () => setRoute(window.location.pathname);
-    const onLogout = () => setAuthed(false);
+    const onLogout = (е) => {
+      setAuthed(false);
+      // ⚠️ Экран НЕ сохранялся никогда — он просто оставался в живом
+      // дереве компонентов, потому что выход его не размонтирует.
+      // Человек нажимал «Выйти» в профиле и после входа возвращался
+      // ровно туда же, на экран выхода: читается как «не сработало».
+      if (е && е.detail && е.detail.явный) {
+        setPage("glavnaya");
+        setПодэкран(null);
+      }
+    };
     window.addEventListener("popstate", onPop);
     window.addEventListener("auth:logout", onLogout);
     return () => {
