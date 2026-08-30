@@ -16,6 +16,7 @@ export default defineConfig([
     // вывод сборки пробы для сторожа канона (npm run look) — чужой
     // минифицированный код, линту там делать нечего
     "scripts/probe/__dist",
+    "scripts/probe-behaviour/__dist",
   ]),
   {
     files: ["**/*.{js,jsx}"],

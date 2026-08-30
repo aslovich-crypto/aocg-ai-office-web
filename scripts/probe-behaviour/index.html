@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>проба поведения</title>
+    <style>
+      body {
+        margin: 0;
+        background: #f6f7f9;
+        width: 430px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="ЗАМЕР"></div>
+    <script>
+      // ⚠️ СЦЕНАРИЙ, А НЕ СНИМОК: жмём кнопки как человек и записываем, что вышло.
+      (function () {
+        var шаги = [],
+          ждём = 0;
+        function имяЭкрана() {
+          /* подпись экрана — span рядом с плашкой Λ в шапке Тип-2 */
+          var м = document.querySelector(
+            'button[aria-label="Переключить приложение"]',
+          );
+          var s =
+            м && м.parentElement ? м.parentElement.querySelector("span") : null;
+          var т = s ? s.textContent.trim() : "";
+          if (т) return т;
+          return document.querySelector('input[type="password"]')
+            ? "ЭКРАН ВХОДА"
+            : "—";
+        }
+        function кнопкаПо(текст) {
+          /* ⚠️ ТОЧНОЕ совпадение, а не «начинается с»: первая проба кликала
+       «Войти через Яндекс ID» вместо «Войти» и уходила в OAuth. */
+          return [].slice
+            .call(document.querySelectorAll("button"))
+            .find(function (б) {
+              return (б.textContent || "").trim() === текст;
+            });
+        }
+        function шаг(имя, делай, дальше) {
+          шаги.push(имя + ": " + имяЭкрана());
+          if (делай) делай();
+          setTimeout(дальше, 400);
+        }
+        function старт() {
+          if (!document.querySelector("header") && ждём++ < 40)
+            return setTimeout(старт, 150);
+          шаг(
+            "① вход выполнен",
+            function () {
+              var акк = document.querySelector('button[aria-label="Аккаунт"]');
+              if (акк) акк.click();
+            },
+            function () {
+              шаг(
+                "② открыт профиль",
+                function () {
+                  var в = кнопкаПо("Выйти");
+                  if (в) в.click();
+                },
+                function () {
+                  шаг(
+                    "③ после выхода",
+                    function () {
+                      /* ⚠️ React не видит value, выставленное напрямую: у него свой
+             сеттер на прототипе. Без этого приёма поля остаются пустыми
+             для состояния, кнопка «Войти» ничего не отправляет, и проба
+             молча показывает «экран входа» как будто вход не работает. */
+                      function вписать(поле, значение) {
+                        var сеттер = Object.getOwnPropertyDescriptor(
+                          window.HTMLInputElement.prototype,
+                          "value",
+                        ).set;
+                        сеттер.call(поле, значение);
+                        поле.dispatchEvent(
+                          new Event("input", { bubbles: true }),
+                        );
+                      }
+                      var поля = document.querySelectorAll("input");
+                      if (поля[0]) вписать(поля[0], "i@example.com");
+                      if (поля[1]) вписать(поля[1], "пароль");
+                      var войти = кнопкаПо("Войти");
+                      if (войти) войти.click();
+                    },
+                    function () {
+                      setTimeout(function () {
+                        шаги.push("④ после повторного входа: " + имяЭкрана());
+                        document.getElementById("ЗАМЕР").textContent =
+                          JSON.stringify(шаги);
+                      }, 700);
+                    },
+                  );
+                },
+              );
+            },
+          );
+        }
+        старт();
+      })();
+    </script>
+    <script type="module" src="./probe.jsx"></script>
+  </body>
+</html>
