@@ -20,10 +20,28 @@ const ОТВЕТЫ = {
   },
   "/api/auth/login": { access_token: "проба", refresh_token: "проба" },
 };
+// ⚠️ РЕЖИМ ОТКАЗА. Без него поведение при 403 проверить нечем: учётки
+// отключённого сотрудника у владельца нет, и глазами это не увидит
+// никто. ?otkaz=disabled — вход отвечает 403 с account_disabled.
+const ОТКАЗ = new URLSearchParams(location.search).get("otkaz");
+
 window.fetch = (u) => {
   const путь = String(u)
     .replace(/^https?:\/\/[^/]+/, "")
     .split("?")[0];
+  if (ОТКАЗ === "disabled" && путь === "/api/auth/login") {
+    const отказ = {
+      detail:
+        "Учётная запись отключена. Обратитесь к администратору организации",
+      code: "account_disabled",
+    };
+    return Promise.resolve({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve(отказ),
+      text: () => Promise.resolve(JSON.stringify(отказ)),
+    });
+  }
   const тело = ОТВЕТЫ[путь] ?? [];
   return Promise.resolve({
     ok: true,
