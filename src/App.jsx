@@ -4167,12 +4167,22 @@ function AddEmployeeSheet({ onClose, onAdd }) {
     boxSizing: "border-box",
   };
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const [ошибка, setОшибка] = useState("");
   async function submit() {
     if (!f.first_name.trim() || busy) return;
     setBusy(true);
-    await onAdd(f);
+    setОшибка("");
+    const итог = await onAdd(f);
     setBusy(false);
-    onClose();
+    // ⚠️ ЛИСТ ЗАКРЫВАЕТСЯ ТОЛЬКО ПРИ УСПЕХЕ. Было `onClose()` безусловно,
+    // и закрытие читалось человеком как «добавлено» — при том, что
+    // результат никто не проверял. Закрытый лист без ошибки — это
+    // утверждение, и оно было ложным.
+    if (итог && итог.ok) {
+      onClose();
+      return;
+    }
+    setОшибка((итог && итог.ошибка) || "Не удалось добавить сотрудника");
   }
   const dialogRef = useModalA11y(onClose);
   return (
@@ -4328,6 +4338,24 @@ function AddEmployeeSheet({ onClose, onAdd }) {
             background: theme.surfaceSunk,
           }}
         >
+          {ошибка && (
+            <div
+              role="alert"
+              style={{
+                background: theme.errorBg,
+                color: theme.errorFg,
+                border: `1px solid ${theme.errorBd}`,
+                borderRadius: 8,
+                padding: "10px 12px",
+                fontFamily: FONT,
+                fontSize: 13,
+                lineHeight: 1.4,
+                marginBottom: 10,
+              }}
+            >
+              {ошибка}
+            </div>
+          )}
           <Btn full onClick={submit} disabled={!f.first_name.trim() || busy}>
             Добавить сотрудника
           </Btn>
@@ -9248,17 +9276,33 @@ export default function App() {
   }
 
   async function addUser(payload) {
-    const res = await authFetch(`/api/users/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      const u = await res.json();
-      setUsers((prev) => [...prev, u]);
-      return u;
+    // ⚠️ ОТВЕТ БОЛЬШЕ НЕ ПРОГЛАТЫВАЕТСЯ. Было `return null` на любой отказ:
+    // и 403, и 422, и 500 выглядели одинаково — никак. Замер прода
+    // 31.08.2026: владелец «завёл сотрудника», интерфейс показал успех,
+    // а записи в базе НЕ ПОЯВИЛОСЬ ВОВСЕ. Отказ был, его никто не прочёл.
+    try {
+      const res = await authFetch(`/api/users/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const u = await res.json();
+        setUsers((prev) => [...prev, u]);
+        return { ok: true };
+      }
+      const тело = await res.json().catch(() => null);
+      // текст с бэкенда, если он есть; иначе хотя бы код — «ничего
+      // не произошло» не ответ
+      return {
+        ok: false,
+        ошибка:
+          (тело && (тело.detail || тело.message)) ||
+          `Сервер ответил ${res.status}`,
+      };
+    } catch {
+      return { ok: false, ошибка: "Нет связи с сервером" };
     }
-    return null;
   }
 
   async function updateUser(id, patch) {
