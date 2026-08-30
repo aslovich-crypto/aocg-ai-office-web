@@ -4,7 +4,7 @@
     "src/App.jsx": {
       "flex-no-minwidth": 16,
       "grid-1fr-no-minmax": 1,
-      "full-width-padding": 9
+      "full-width-padding": 8
     },
     "src/components/ReceiptDetailModal.jsx": {
       "flex-no-minwidth": 4,

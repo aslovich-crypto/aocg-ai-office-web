@@ -31,9 +31,20 @@
   document.querySelectorAll('[data-proba="экран"]').forEach(function(э){
     var н=э.getAttribute("data-imya");
     var з=[].slice.call(э.querySelectorAll('[data-zagolovok]')).map(function(x){return x.getAttribute("data-zagolovok");});
-    экраны.push({экран:н, заголовки:з});
+    /* корень содержимого экрана — единственный ребёнок обёртки пробы;
+       если ПЕРВЫЙ его элемент это заголовок, значит первый блок подписан,
+       а по канону он идёт без подписи («Сводка»: 6 блоков, 5 заголовков) */
+    var корень=э.firstElementChild;
+    var первыйЗаголовком=!!(корень && корень.firstElementChild &&
+      корень.firstElementChild.hasAttribute("data-zagolovok"));
+    экраны.push({экран:н, заголовки:з, первыйЗаголовком:первыйЗаголовком});
   });
-  document.getElementById("ЗАМЕР").textContent=JSON.stringify({группы:группы,пункты:пункты,имя:имя,экраны:экраны});
+  /* «Выйти» обязано быть РОВНО В ОДНОМ месте — в хабе */
+  var выйти=0;
+  document.querySelectorAll('button').forEach(function(б){
+    if(/^Выйти/.test((б.textContent||"").trim())) выйти++;
+  });
+  document.getElementById("ЗАМЕР").textContent=JSON.stringify({выйти:выйти,группы:группы,пункты:пункты,имя:имя,экраны:экраны});
 }
   function тик(){
     if(готово() || осталось-- <= 0) return снять();

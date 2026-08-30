@@ -29,13 +29,7 @@ function extractErr(e) {
   return "";
 }
 
-export default function OrganizationTab({
-  authFetch,
-  role,
-  Btn,
-  SectionHead,
-  fmtDate,
-}) {
+export default function OrganizationTab({ authFetch, role, Btn, fmtDate }) {
   const [org, setOrg] = useState(null);
   const [form, setForm] = useState({ name: "", inn: "", tax_system: "" });
   const [saved, setSaved] = useState(false);
@@ -166,7 +160,8 @@ export default function OrganizationTab({
     <div
       style={{ padding: "12px 16px calc(env(safe-area-inset-bottom) + 80px)" }}
     >
-      <SectionHead title="Организация" />
+      {/* ⚠️ Заголовка нет: экран уже назван «Организация» в шапке.
+          Правило вёрстки — docs/RULES-FRONTEND.md, раздел о подэкранах. */}
       {field(0, "Название", "name", { editable: true, placeholder: "ООО «…»" })}
       {field(1, "ИНН", "inn", {
         editable: true,

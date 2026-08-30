@@ -5037,25 +5037,10 @@ export function AccountTab({
         </>
       )}
 
-      <div style={{ marginTop: 24 }}>
-        <button
-          onClick={logout}
-          style={{
-            width: "100%",
-            padding: "12px",
-            background: theme.surface,
-            border: `1.5px solid ${theme.cherry}`,
-            borderRadius: 10,
-            fontFamily: FONT,
-            fontSize: 14,
-            fontWeight: 600,
-            color: theme.cherry,
-            cursor: "pointer",
-          }}
-        >
-          Выйти из аккаунта
-        </button>
-      </div>
+      {/* ⚠️ КНОПКИ «ВЫЙТИ» ЗДЕСЬ НЕТ И БЫТЬ НЕ ДОЛЖНО. Выход — действие
+          над всем приложением, а не над разделом, и в хабе он в один
+          тап. Дубль был остатком отменённого макета ui_kits/mobile-app
+          (T109). Удалён, а не спрятан: спрятанное возвращают. */}
 
       {saved && (
         <div
@@ -6129,18 +6114,11 @@ export function SecurityTab({ me }) {
           Изменить
         </button>
       </div>
-      <div
-        style={{
-          fontSize: 10,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: theme.fg2,
-          fontFamily: FONT,
-          marginBottom: 8,
-        }}
-      >
-        Привязанные аккаунты
-      </div>
+      {/* ⚠️ БЫЛ ОБЫЧНЫЙ div, А НЕ ЗАГОЛОВОК: прибор его не видел вовсе,
+          и начертание было не канонным (10px в разрядку вместо 600 15px).
+          Второй блок экрана обязан иметь заголовок — правило вёрстки
+          в docs/RULES-FRONTEND.md. */}
+      <SectionHead title="Привязанные аккаунты" />
       {PROVIDERS.map(([key, icon, name, bg, fg]) => {
         const isLinked = linked.includes(key);
         return (
@@ -6613,11 +6591,11 @@ function NastroykiPage({
           setTab(куда);
           setЯкорь(к || null);
         }}
-        onLogout={() => {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          window.location.reload();
-        }}
+        // ⚠️ ЗОВЁМ НАСТОЯЩИЙ logout(), а не чистим хранилище руками.
+        // Он ещё и гасит сессию на бэкенде; моя первая редакция хаба
+        // этого не делала, и refresh-токен оставался жить на сервере.
+        // Всплыло, когда единственная кнопка «Выйти» осталась в хабе.
+        onLogout={logout}
       />
     );
 
@@ -6656,7 +6634,6 @@ function NastroykiPage({
           authFetch={authFetch}
           role={role}
           Btn={Btn}
-          SectionHead={SectionHead}
           fmtDate={fmtDate}
         />
       )}
@@ -6669,7 +6646,9 @@ function NastroykiPage({
       )}
       {tab === "Пользователи" && role === "admin" && (
         <div style={{ padding: "12px 16px 80px" }}>
-          <SectionHead title="Сотрудники" />
+          {/* ⚠️ Первый блок экрана идёт БЕЗ заголовка — так в каноне:
+              «Сводка» имеет шесть блоков и ПЯТЬ заголовков, первый без.
+              Он и есть то, ради чего экран открыт. */}
           {users.map((u) => (
             <SwipeableUserRow
               key={u.id}
