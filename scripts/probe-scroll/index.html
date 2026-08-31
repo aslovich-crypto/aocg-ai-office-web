@@ -1,0 +1,43 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>проба прокрутки</title>
+<style>body{margin:0}</style></head>
+<body><div id="root"></div><div id="ЗАМЕР"></div>
+<script>
+window.__E=[];window.addEventListener('error',function(e){window.__E.push(String(e.message))});
+(function(){
+  var ж=0;
+  function снять(){
+    var поле=document.querySelector('input[aria-label="Поиск по настройкам"]');
+    var с=document.getElementById("СКРОЛЛЕР");
+    if((!поле||!с) && ж++<40) return setTimeout(снять,150);
+    if(!поле||!с){document.getElementById("ЗАМЕР").textContent=JSON.stringify({ошибка:"не отрисовалось",поле:!!поле,скроллер:!!с,ошибки:window.__E,узлов:document.querySelectorAll("#root *").length});return;}
+    var полоса=поле.closest("div").parentElement;   // .searchwrap-аналог
+    function рект(){var r=полоса.getBoundingClientRect();return Math.round(r.top);}
+    var до=рект();
+    var высота=с.scrollHeight, окно=с.clientHeight;
+    с.scrollTop = 400;
+    setTimeout(function(){
+      var после=рект();
+      var стиль=getComputedStyle(полоса);
+      // ищем ближайшего предка с прокруткой
+      var предок=полоса.parentElement, путь=[];
+      while(предок && предок!==document.body){
+        var ст=getComputedStyle(предок);
+        путь.push(предок.id||predok_cls(предок));
+        if(/(auto|scroll)/.test(ст.overflowY)) break;
+        предок=предок.parentElement;
+      }
+      function predok_cls(e){return e.tagName.toLowerCase()+"("+ст_кратко(e)+")";}
+      function ст_кратко(e){var s=getComputedStyle(e);return s.position+","+s.overflowY;}
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify({
+        position: стиль.position,
+        top_до: до, top_после: после, уехала: до!==после,
+        scrollTop: с.scrollTop, scrollHeight: высота, clientHeight: окно,
+        прокрутка_возможна: высота>окно,
+        предок_со_скроллом: предок ? (предок.id||предок.tagName) : "не найден"
+      });
+    }, 300);
+  }
+  снять();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>

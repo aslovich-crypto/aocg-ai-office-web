@@ -1,0 +1,36 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>замер вида</title>
+<style>body{margin:0}</style></head>
+<body><div id="root"></div><div id="ЗАМЕР"></div>
+<script>
+window.onerror=function(m){document.getElementById("ЗАМЕР").textContent=JSON.stringify({ошибка:String(m)})};
+(function(){
+  var ж=0;
+  function спец(узел, корень){
+    var с=getComputedStyle(узел), r=узел.getBoundingClientRect(), к=корень.getBoundingClientRect();
+    var зн=узел.querySelector("svg"), тек=узел.querySelector("input,span");
+    return {тег:узел.tagName.toLowerCase(), фон:с.backgroundColor, скругление:с.borderRadius,
+      отступы_внутри:с.padding, рамка:с.border, зазор:с.gap, высота:Math.round(r.height),
+      слева_от_края:Math.round(r.left-к.left), справа_до_края:Math.round(к.right-r.right),
+      значок:зн?(Math.round(зн.getBoundingClientRect().width)+"px "+getComputedStyle(зн).color):"нет",
+      кегль:тек?getComputedStyle(тек).font:"нет", цвет_текста:тек?getComputedStyle(тек).color:"нет"};
+  }
+  function снять(){
+    var п=document.querySelector('[data-экран="Профиль"]'), г=document.querySelector('[data-экран="Главная"]');
+    var поле=п&&п.querySelector('input[aria-label="Поиск по настройкам"]');
+    var кн=г&&[].slice.call(г.querySelectorAll("button")).find(function(b){return (b.textContent||"").trim()==="Поиск";});
+    if((!поле||!кн) && ж++<40) return setTimeout(снять,150);
+    if(!поле||!кн){document.getElementById("ЗАМЕР").textContent=JSON.stringify({ошибка:"не нашлось",поле:!!поле,кнопка:!!кн});return;}
+    var белая=поле.parentElement.parentElement;
+    var бс=getComputedStyle(белая);
+    document.getElementById("ЗАМЕР").textContent=JSON.stringify({
+      ГЛАВНАЯ_эталон: спец(кн, г),
+      ПРОФИЛЬ_поле: спец(поле.parentElement, п),
+      ПРОФИЛЬ_белая_полоса: {фон:бс.backgroundColor, отступы:бс.padding,
+        рамка_низ:бс.borderBottomWidth+" "+бс.borderBottomColor,
+        высота:Math.round(белая.getBoundingClientRect().height)}
+    });
+  }
+  снять();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>
