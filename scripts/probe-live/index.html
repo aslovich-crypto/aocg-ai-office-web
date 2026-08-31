@@ -32,6 +32,20 @@ window.addEventListener('unhandledrejection',function(e){
         .then(function(d){window.__КОНТРОЛЬ="прямой fetch: role="+(d&&d.role);})
         .catch(function(e){window.__КОНТРОЛЬ="прямой fetch УПАЛ: "+e.message;});
     }],
+    ["④а тап по строке сотрудника", function(){
+        /* ⚠️ ТАП, А НЕ click(): строка ловит указатель, и click() мимо неё.
+           Двигать нельзя — иначе это свайп, и откроется полоса. */
+        var р=[].slice.call(document.querySelectorAll("div")).find(function(d){
+          return (d.textContent||"").indexOf("Живой")>=0 && d.getAttribute("style") && d.getAttribute("style").indexOf("translateX")>=0;
+        });
+        window.__ТАП = р ? ("нашлась: "+(р.getAttribute("style")||"").slice(0,60)) : "СТРОКА НЕ НАЙДЕНА";
+        if(!р) return;
+        var о={bubbles:true,cancelable:true,pointerId:1,pointerType:"touch",isPrimary:true,clientX:100,clientY:100};
+        try{ р.dispatchEvent(new PointerEvent("pointerdown",о)); }catch(e){ window.__ТАП += " | down упал: "+e.message; }
+        try{ р.dispatchEvent(new PointerEvent("pointerup",о)); }catch(e){ window.__ТАП += " | up упал: "+e.message; }
+    }],
+    ["④б выбрал Бухгалтера", function(){var k=кнопкаПо("Бухгалтер"); if(k)k.click();}],
+    ["④в нажал Изменить роль", function(){var k=кнопкаПо("Изменить роль"); if(k)k.click();}],
     ["④ открыл форму", function(){var k=кнопкаПо("+ Пригласить сотрудника"); if(k)k.click();}],
     ["⑤ заполнил", function(){
         /* ⚠️ ТОЛЬКО ПОЛЯ ФОРМЫ. Первая редакция брала inputs[0] по всему
@@ -52,7 +66,7 @@ window.addEventListener('unhandledrejection',function(e){
   ];
   function идти(i){
     if(i>=сценарий.length){
-      var отчёт=JSON.stringify({шаги:шаги,ошибки:window.__ОШИБКИ,контроль:window.__КОНТРОЛЬ,сеть:window.__СЕТЬ,токен:localStorage.getItem("access_token")});
+      var отчёт=JSON.stringify({шаги:шаги,ошибки:window.__ОШИБКИ,контроль:window.__КОНТРОЛЬ,тап:window.__ТАП,сеть:window.__СЕТЬ,токен:localStorage.getItem("access_token")});
       document.getElementById("ЗАМЕР").textContent=отчёт;
       /* ⚠️ ОТЧЁТ УХОДИТ НА СТЕНД, а не ждёт выгрузки DOM: при
          виртуальном времени Chrome выгружает страницу раньше, чем

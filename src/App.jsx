@@ -595,7 +595,7 @@ function SectionCard({ title, children }) {
   );
 }
 
-function Donut({ title, data, num, sliceColor }) {
+function Donut({ title, data, sliceColor }) {
   const pal = [
     theme.cherry,
     theme.cherryMuted,
@@ -607,7 +607,7 @@ function Donut({ title, data, num, sliceColor }) {
   const colorAt = (d, i) => (sliceColor ? sliceColor(d) : pal[i % pal.length]);
   const sectionTotal = data.reduce((s, d) => s + d.value, 0);
   return (
-    <SectionCard title={title} num={num}>
+    <SectionCard title={title}>
       {data.length > 1 && (
         <div style={{ position: "relative", height: 160 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -4059,7 +4059,13 @@ function ServiceCard({ svc }) {
 // доезжал до экрана — список читал `WHERE is_active = true`, — и ошибочный
 // свайп чинился только руками в базе. Довод владельца: это защита от его же
 // ошибки, а не удобство.
-function SwipeableUserRow({ user, onDelete, onRestore, deletable = true }) {
+function SwipeableUserRow({
+  user,
+  onDelete,
+  onRestore,
+  onTap,
+  deletable = true,
+}) {
   const [tx, setTx] = useState(0);
   const [drag, setDrag] = useState(false); // render-safe mirror of dragging.current
   const startX = useRef(0),
@@ -4087,7 +4093,10 @@ function SwipeableUserRow({ user, onDelete, onRestore, deletable = true }) {
     u.email ||
     "Без имени";
   function down(e) {
-    if (!действие.есть) return;
+    // ⚠️ СЛЕЖЕНИЕ ИДЁТ ВСЕГДА, ДАЖЕ КОГДА СВАЙПАТЬ НЕЧЕГО. Прежняя редакция
+    // выходила здесь при недоступном действии — и строка переставала ловить
+    // ТАП тоже. У себя самого и у последнего админа полосы нет, а смена роли
+    // на них нужна (её отказ объясняет сервер, и это честнее, чем немой ряд).
     dragging.current = true;
     setDrag(true);
     locked.current = null;
@@ -4104,7 +4113,7 @@ function SwipeableUserRow({ user, onDelete, onRestore, deletable = true }) {
         locked.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
       else return;
     }
-    if (locked.current !== "x") return;
+    if (locked.current !== "x" || !действие.есть) return;
     const base = tx < 0 ? -REVEAL : 0;
     setTx(Math.min(0, Math.max(-REVEAL, base + dx)));
   }
@@ -4112,7 +4121,20 @@ function SwipeableUserRow({ user, onDelete, onRestore, deletable = true }) {
     if (!dragging.current) return;
     dragging.current = false;
     setDrag(false);
-    if (locked.current === "x") setTx(tx < -REVEAL / 2 ? -REVEAL : 0);
+    if (locked.current === "x") {
+      setTx(tx < -REVEAL / 2 ? -REVEAL : 0);
+      return;
+    }
+    // ⚠️ ТАП — ЭТО «НЕ БЫЛО ПРОТАСКИВАНИЯ». Отличаем по тому же порогу в 6 px,
+    // которым уже определяется ось: `locked` остаётся null, только если палец
+    // не сдвинулся. Иначе свайп заканчивался бы открытием карточки роли —
+    // жест и действие спорили бы за одно движение.
+    if (locked.current === null) {
+      // Открытая полоса — сначала закрыть: тап по строке при видимой
+      // «Удалить» означает «передумал», а не «поменяй роль».
+      if (tx !== 0) setTx(0);
+      else if (onTap) onTap();
+    }
   }
   return (
     // ⚠️ ОБЁРТКА ПО КАНОНУ `.swipe`: скругление 12 и тень живут ЗДЕСЬ,
@@ -4967,6 +4989,159 @@ export function AccountTab({
 // Первый заводил человека БЕЗ ПАРОЛЯ (T103, T105) и не слал ему ничего,
 // второй давал ссылку, которую надо было передавать руками.
 // Требование владельца: приглашение ОДНО, способов доставки два.
+// ⚠️ СМЕНА РОЛИ ДЕЙСТВУЮЩЕМУ ЧЕЛОВЕКУ (T118, 31.08.2026). До этого дня
+// повысить сотрудника было нельзя вовсе: `role` не входила ни в `UserUpdate`,
+// ни в `UPDATABLE`, а проп `onUpdateUser` передавался в экран, который его
+// НЕ ОБЪЯВЛЯЛ, и молча выбрасывался. Единственным способом было удалить
+// строку и завести заново — то есть **потерять чеки и отчёты человека**.
+// Довод владельца: приглашают один раз, а роли меняют постоянно.
+//
+// ⚠️ ОТКАЗ СЕРВЕРА ПОКАЗЫВАЕТСЯ, А НЕ ПРЯЧЕТСЯ. Понижение себя и снятие
+// последнего администратора запрещает бэкенд (`проверить_что_админ_останется`),
+// и он же объясняет, ПОЧЕМУ. Прятать такие роли из списка значило бы оставить
+// человека без объяснения — молчаливо неработающая кнопка хуже честного отказа.
+function RoleSheet({ user, onClose, onApply }) {
+  const [роль, setРоль] = useState(user.role || "employee");
+  const [busy, setBusy] = useState(false);
+  const [ошибка, setОшибка] = useState("");
+  const dialogRef = useModalA11y(onClose);
+  const имя =
+    [user.last_name, user.first_name].filter(Boolean).join(" ") ||
+    user.email ||
+    "сотрудник";
+
+  async function применить() {
+    if (busy || роль === user.role) return;
+    setBusy(true);
+    setОшибка("");
+    const итог = await onApply(роль);
+    setBusy(false);
+    if (итог && итог.ok) onClose();
+    else setОшибка((итог && итог.причина) || "Не удалось изменить роль");
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: theme.scrim || "rgba(0,0,0,0.3)",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        zIndex: 300,
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Роль: ${имя}`}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: theme.surface,
+          width: "100%",
+          // ⚠️ БЕЗ `border-box` карточка была бы ШИРЕ экрана ровно на 32 px
+          // отступов — поймано сторожем вёрстки (T14) в тот же заход.
+          boxSizing: "border-box",
+          maxWidth: 480,
+          borderRadius: "16px 16px 0 0",
+          padding: "16px 16px 20px",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          outline: "none",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 15,
+            fontFamily: FONT,
+            color: theme.fg1,
+            fontWeight: 600,
+            marginBottom: 2,
+          }}
+        >
+          Роль сотрудника
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            fontFamily: FONT,
+            color: theme.fg2,
+            marginBottom: 14,
+          }}
+        >
+          {имя}
+        </div>
+
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}
+        >
+          {ROLES.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setРоль(r.id)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 999,
+                border: `1px solid ${роль === r.id ? theme.cherry : theme.border}`,
+                background: роль === r.id ? theme.cherry : theme.surface,
+                color: роль === r.id ? "#fff" : theme.fg1,
+                fontFamily: FONT,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            fontSize: 12,
+            lineHeight: 1.45,
+            color: theme.fg2,
+            fontFamily: FONT,
+            marginBottom: 14,
+          }}
+        >
+          {(ROLES.find((r) => r.id === роль) || {}).desc || ""}
+        </div>
+
+        {ошибка && (
+          <div
+            role="alert"
+            style={{
+              background: theme.errorBg,
+              color: theme.errorFg,
+              border: `1px solid ${theme.errorBd}`,
+              borderRadius: 8,
+              padding: "10px 12px",
+              fontFamily: FONT,
+              fontSize: 13,
+              marginBottom: 10,
+            }}
+          >
+            {ошибка}
+          </div>
+        )}
+
+        <Btn full onClick={применить} disabled={busy || роль === user.role}>
+          {busy ? "Меняем…" : "Изменить роль"}
+        </Btn>
+        <div style={{ height: 8 }} />
+        <Btn full outline onClick={onClose}>
+          Отмена
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
 function InviteSheet({ onClose, onCreated }) {
   const [почта, setПочта] = useState("");
   const [имя, setИмя] = useState("");
@@ -6531,6 +6706,11 @@ export function NastroykiPage({
   onSetDefaultCard,
   users,
   onDeleteUser,
+  // ⚠️ ОБЪЯВЛЕН ЯВНО, И ИМЕННО ЭТОГО НЕ ХВАТАЛО T118 С 13.06.2026:
+  // `onUpdateUser` передавался сюда из App и молча выбрасывался, потому что
+  // в этом списке его не было. Смена роли не работала вовсе, и увидеть это
+  // было нельзя — ни ошибки, ни предупреждения.
+  onUpdateUser,
   // ⚠️ ОБЪЯВЛЕН ЯВНО. `onUpdateUser` передавался сюда с 13.06.2026 и молча
   // выбрасывался, потому что в этом списке его не было — смена роли не
   // работала вовсе и никто этого не видел. Повторять не будем.
@@ -6625,6 +6805,7 @@ export function NastroykiPage({
   // ⚠️ ТОЛЬКО АКТИВНЫЕ. С 31.08.2026 список отдаёт и погашенных (T118/④),
   // и прежний счёт принял бы отключённого админа за живого: запрет «нельзя
   // снять последнего» перестал бы срабатывать ровно там, где он нужен.
+  const [меняемРоль, setМеняемРоль] = useState(null);
   const активныхАдминов = (users || []).filter(
     (u) => u.role === "admin" && u.is_active !== false,
   ).length;
@@ -6709,6 +6890,10 @@ export function NastroykiPage({
               onRestore={
                 onRestoreUser ? () => onRestoreUser(u.id) : undefined
               }
+              // ⚠️ ТАП ОТКРЫВАЕТ РОЛЬ У ЛЮБОЙ СТРОКИ, включая свою и
+              // последнего администратора. Отказ там объясняет сервер, и это
+              // честнее немого ряда: спрятанная кнопка не говорит ничего.
+              onTap={onUpdateUser ? () => setМеняемРоль(u) : undefined}
             />
           ))}
           {users.length === 0 && (
@@ -6881,6 +7066,13 @@ export function NastroykiPage({
           role={role}
           catalog={catalog}
           onCatalogRefresh={onCatalogRefresh}
+        />
+      )}
+      {меняемРоль && (
+        <RoleSheet
+          user={меняемРоль}
+          onClose={() => setМеняемРоль(null)}
+          onApply={(роль) => onUpdateUser(меняемРоль.id, { role: роль })}
         />
       )}
       {showInvite && (
@@ -9342,12 +9534,19 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+    const тело = await res.json().catch(() => null);
     if (res.ok) {
-      const u = await res.json();
-      setUsers((prev) => prev.map((x) => (x.id === id ? u : x)));
-      return u;
+      setUsers((prev) => prev.map((x) => (x.id === id ? тело : x)));
+      return { ok: true, user: тело };
     }
-    return null;
+    // ⚠️ ПРИЧИНА ВОЗВРАЩАЕТСЯ, А НЕ ГЛОТАЕТСЯ. Прежняя редакция отдавала
+    // `null` — и вызывающий не мог отличить «нельзя понизить последнего
+    // администратора» от «нет связи». Через `текстОшибки`, потому что у
+    // FastAPI `detail` бывает массивом объектов (T125).
+    return {
+      ok: false,
+      причина: текстОшибки(тело, `Сервер ответил ${res.status}`),
+    };
   }
 
   async function deleteUser(id) {

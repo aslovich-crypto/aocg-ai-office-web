@@ -34,6 +34,17 @@ createRoot(document.getElementById("root")).render(
         role: "employee", is_active: false },
     ]}
     onRestoreUser={() => {}}
+    onUpdateUser={async (id, patch) => {
+      const r = await fetch(`${location.origin}/api/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const тело = await r.json().catch(() => null);
+      return r.ok
+        ? { ok: true, user: тело }
+        : { ok: false, причина: (тело && тело.detail) || `код ${r.status}` };
+    }}
     onDeleteUser={() => {}}
     role="admin"
     catalog={{ groups: [] }}
