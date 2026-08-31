@@ -3364,34 +3364,23 @@ function OperaciiPage({
       {showSearch && (
         <div
           style={{
-            background: theme.surface,
-            borderBottom: `1px solid ${theme.border}`,
-            padding: "0 16px 10px",
+            /* ⚠️ ЭТАЛОН «Главной» (T142): без белого фона и рамки-подчёркивания,
+               поле surfaceSunk 11/12, зазор 9. Было третьим видом из трёх:
+               фон bg вместо surfaceSunk, отступы 8/12 и лишняя рамка 1px. */
+            padding: "10px 16px 12px",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              border: `1px solid #EEF0F4`,
-              padding: "8px 12px",
-              gap: 8,
-              background: "#F6F7F9",
+              padding: "11px 12px",
+              gap: 9,
+              background: theme.surfaceSunk,
               borderRadius: 10,
             }}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={theme.fg3}
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <Search size={18} color={theme.fg3} aria-hidden="true" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -3403,10 +3392,9 @@ function OperaciiPage({
                 outline: "none",
                 flex: 1,
                 minWidth: 0,
-                fontSize: 13,
                 background: "none",
-                fontFamily: FONT,
-                color: C.dark,
+                font: `400 15px/1.2 ${FONT}`,
+                color: theme.fg1,
               }}
             />
           </div>
@@ -4257,7 +4245,9 @@ function SwipeableUserRow({
           >
             {name}
           </div>
-          <div style={{ fontFamily: FONT, fontSize: 11, color: theme.fg2 }}>
+          {/* ⚠️ ЕДИНЫЙ ТЕКСТ РОЛИ (T146): 12px fg2 во всех местах показа,
+              где роль — подпись, а не действие. Было 11/12/13 тремя цветами. */}
+          <div style={{ fontFamily: FONT, fontSize: 12, color: theme.fg2 }}>
             {roleLabel(u.role)} ·{" "}
             {u.is_active !== false ? "активен" : "неактивен"}
           </div>
@@ -4754,16 +4744,18 @@ export function AccountTab({
           padding: "12px 14px",
         }}
       >
+        {/* ⚠️ КАНОННАЯ ПИЛЮЛЯ ЗНАК В ЗНАК (T146): .badge из
+            templates/profile/Профиль.html:40. Была ВТОРАЯ пилюля, отличная
+            от канона всем — бледная заливка, вишнёвый текст, скругление 20,
+            700 12px, отступы 3/10. Двух пилюль для одной сущности не бывает. */}
         <span
           style={{
             display: "inline-block",
-            background: theme.cherrySoft,
-            color: theme.cherry,
-            fontFamily: FONT,
-            fontSize: 12,
-            fontWeight: 700,
-            padding: "3px 10px",
-            borderRadius: 20,
+            background: theme.cherry,
+            color: "#fff",
+            borderRadius: 999,
+            font: `500 11px/1.3 ${FONT}`,
+            padding: "3px 9px",
           }}
         >
           {roleLabel(role)}
@@ -6406,13 +6398,10 @@ export function ProfileHub({ role, me, onOpen, onLogout }) {
 
   return (
     <div>
-      <div
-        style={{
-          background: theme.surface,
-          padding: "6px 16px 12px",
-          borderBottom: `1px solid ${theme.border}`,
-        }}
-      >
+      {/* ⚠️ ОТСТУПЛЕНИЯ.ПоискБезПолосы (T142, решение владельца 31.08.2026):
+          канон рисует поиск в БЕЛОЙ полосе с нижней рамкой — мы её сняли,
+          эталон «Главная»: поле прямо на сером, боковые 16, до контента 22. */}
+      <div style={{ padding: "16px 16px 22px" }}>
         <div
           style={{
             display: "flex",
@@ -9202,8 +9191,8 @@ function JoinScreen({ token, onAuthed, navigate }) {
         </div>
         <div
           style={{
-            fontSize: 13,
-            color: "#636B7D",
+            fontSize: 12,
+            color: theme.fg2,
             fontFamily: FONT,
             marginBottom: 18,
           }}
