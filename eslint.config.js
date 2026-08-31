@@ -17,6 +17,8 @@ export default defineConfig([
     // минифицированный код, линту там делать нечего
     "scripts/probe/__dist",
     "scripts/probe-behaviour/__dist",
+    "scripts/probe-live/__dist",
+    "scripts/probe-boundary/__dist",
   ]),
   {
     files: ["**/*.{js,jsx}"],

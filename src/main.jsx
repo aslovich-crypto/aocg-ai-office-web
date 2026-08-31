@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 // ДИАГНОСТИКА «КТО ШИРЕ ЭКРАНА» ПОДКЛЮЧАЕТСЯ ТОЛЬКО ПО ФЛАГУ СБОРКИ (T19).
 //
@@ -25,8 +26,13 @@ if (import.meta.env.VITE_DIAG === "1") {
   );
 }
 
+// ⚠️ ПЕРЕХВАТ ПОВЕРХ ВСЕГО. До 31.08.2026 его не было, и любая ошибка
+// отрисовки уносила приложение целиком: владелец нажал «Отправить
+// приглашение» и остался с белым экраном без единого слова о причине.
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

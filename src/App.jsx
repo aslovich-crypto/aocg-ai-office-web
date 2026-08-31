@@ -6428,7 +6428,7 @@ export function CategoriesTab({ role, catalog, onCatalogRefresh }) {
   );
 }
 
-function NastroykiPage({
+export function NastroykiPage({
   me,
   экран,
   наЭкран,

@@ -1,0 +1,82 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>живая проба</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div><div id="ЗАМЕР"></div>
+<script>
+window.__ОШИБКИ=[];
+window.__СЕТЬ=[];
+(function(){var о=window.fetch;window.fetch=function(u,i){
+  var м=(i&&i.method)||'GET'; var а=String(u&&u.url?u.url:u);
+  window.__СЕТЬ.push('вызов '+м+' '+а);
+  try{ return о.apply(this,arguments).then(function(r){window.__СЕТЬ.push('ответ '+r.status+' '+а);return r;},
+    function(e){window.__СЕТЬ.push('ОТКАЗ '+а+' :: '+(e&&(e.name+': '+e.message)));throw e;});
+  }catch(e){window.__СЕТЬ.push('БРОСОК СИНХРОННО '+а+' :: '+(e&&e.message));throw e;}
+};})();
+window.addEventListener('error',function(e){
+  window.__ОШИБКИ.push((e.error&&(e.error.stack||e.error.message))||e.message);
+});
+window.addEventListener('unhandledrejection',function(e){
+  window.__ОШИБКИ.push("promise: "+((e.reason&&(e.reason.stack||e.reason.message))||e.reason));
+});
+(function(){
+  var шаги=[], ждём=0;
+  function кнопкаПо(t){return [].slice.call(document.querySelectorAll('button')).find(function(b){return (b.textContent||"").trim()===t;});}
+  function вписать(поле,знач){
+    var s=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value").set;
+    s.call(поле,знач); поле.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  function живо(){return document.querySelectorAll('#root *').length;}
+  var сценарий=[
+    ["① загрузка", function(){
+      /* контроль: сеть из страницы вообще ходит? */
+      fetch(location.origin+"/api/users/me").then(function(r){return r.json();})
+        .then(function(d){window.__КОНТРОЛЬ="прямой fetch: role="+(d&&d.role);})
+        .catch(function(e){window.__КОНТРОЛЬ="прямой fetch УПАЛ: "+e.message;});
+    }],
+    ["④ открыл форму", function(){var k=кнопкаПо("+ Пригласить сотрудника"); if(k)k.click();}],
+    ["⑤ заполнил", function(){
+        /* ⚠️ ТОЛЬКО ПОЛЯ ФОРМЫ. Первая редакция брала inputs[0] по всему
+           документу и вписывала почту в ПОИСК ПО ХАБУ — тот отфильтровал
+           все пункты, и проба «доказала» пустой экран, которого нет. */
+        var лист=(кнопкаПо("Отправить приглашение")||{}).closest
+          ? кнопкаПо("Отправить приглашение").closest('div[role="dialog"]')
+            || кнопкаПо("Отправить приглашение").parentElement.parentElement
+          : null;
+        var п=(лист||document).querySelectorAll('input');
+        if(п[0])вписать(п[0],"al@aocg.ru");
+        if(п[1])вписать(п[1],"Анис");
+        if(п[2])вписать(п[2],"Ламри");
+    }],
+    ["⑥ НАЖАЛ ОТПРАВИТЬ", function(){var k=кнопкаПо("Отправить приглашение"); if(k)k.click();}],
+    ["⑦ через секунду", null],
+  ];
+  function идти(i){
+    if(i>=сценарий.length){
+      var отчёт=JSON.stringify({шаги:шаги,ошибки:window.__ОШИБКИ,контроль:window.__КОНТРОЛЬ,сеть:window.__СЕТЬ,токен:localStorage.getItem("access_token")});
+      document.getElementById("ЗАМЕР").textContent=отчёт;
+      /* ⚠️ ОТЧЁТ УХОДИТ НА СТЕНД, а не ждёт выгрузки DOM: при
+         виртуальном времени Chrome выгружает страницу раньше, чем
+         успевают уйти настоящие запросы, и замер выходит пустым. */
+      fetch("/отчёт",{method:"POST",body:отчёт});
+      return;
+    }
+    try{ if(сценарий[i][1]) сценарий[i][1](); }catch(e){ window.__ОШИБКИ.push("действие "+сценарий[i][0]+": "+(e.stack||e.message)); }
+    setTimeout(function(){
+      var ал=[].slice.call(document.querySelectorAll('[role="alert"]')).map(function(x){return x.textContent.trim();});
+      шаги.push("   плашки: "+JSON.stringify(ал)+" | текст листа: "+(document.body.innerText||"").replace(/\s+/g," ").slice(0,220));
+      var пол=[].slice.call(document.querySelectorAll("input")).map(function(x){return (x.getAttribute("aria-label")||x.type)+"="+JSON.stringify(x.value);});
+      var от=кнопкаПо("Отправить приглашение");
+      шаги.push("   поля: "+пол.join(" ")+" | кнопка disabled="+(от?от.disabled:"нет кнопки"));
+      var э=[].slice.call(document.querySelectorAll("[data-ekran]")).map(function(x){return x.getAttribute("data-ekran");});
+      var кн=[].slice.call(document.querySelectorAll("button")).map(function(x){return (x.textContent||"").trim().slice(0,24);}).filter(Boolean);
+      шаги.push(сценарий[i][0]+": узлов "+живо()+" | экраны["+э.join(",")+"] | кнопки["+кн.slice(0,12).join(" / ")+"]");
+      идти(i+1);
+    }, 900);
+  }
+  function старт(){
+    if(!кнопкаПо("+ Пригласить сотрудника") && ждём++<40) return setTimeout(старт,150);
+    идти(0);
+  }
+  старт();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>

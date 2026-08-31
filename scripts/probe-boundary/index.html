@@ -1,0 +1,19 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>проба перехвата</title></head>
+<body><div id="root"></div><div id="ЗАМЕР"></div>
+<script>
+(function(){
+  var ж=0;
+  function снять(){
+    var с=document.querySelector('[data-проба="сломанный"]');
+    var ц=document.querySelector('[data-проба="целый"]');
+    if((!с||!с.textContent.trim()) && ж++<40) return setTimeout(снять,150);
+    document.getElementById("ЗАМЕР").textContent=JSON.stringify({
+      сломанный:(с?с.textContent:"").replace(/\s+/g," ").trim().slice(0,600),
+      целый:(ц?ц.textContent:"").replace(/\s+/g," ").trim().slice(0,200),
+      кнопок:document.querySelectorAll('[data-проба="сломанный"] button').length
+    });
+  }
+  снять();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>

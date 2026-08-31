@@ -59,3 +59,5 @@ design/handoff/
 # вывод сборки пробы для сторожа канона (npm run look)
 scripts/probe/__dist/
 scripts/probe-behaviour/__dist/
+scripts/probe-live/__dist/
+scripts/probe-boundary/__dist/
