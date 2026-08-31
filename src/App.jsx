@@ -3598,6 +3598,26 @@ function OperaciiPage({
             if (upd) setDetail(upd);
           }}
           role={role}
+          onRefetchFns={async () => {
+            // ⚠️ ПРИЧИНА ВОЗВРАЩАЕТСЯ, А НЕ ГЛОТАЕТСЯ: у 502/404/503 разные
+            // тексты, и человеку нужен именно тот, что пришёл.
+            const res = await authFetch(`/api/receipts/${detail.id}/refetch-fns`, {
+              method: "POST",
+            });
+            const тело = await res.json().catch(() => null);
+            if (!res.ok)
+              return {
+                ok: false,
+                причина: текстОшибки(тело, `Сервер ответил ${res.status}`),
+              };
+            // ⚠️ ЧЕРЕЗ `handleRefreshReceipt`, А НЕ СВОИМ `setReceipts`:
+            // строка списка обязана обновиться той же канонической формой,
+            // что и карточка, иначе признак «можно дозапросить» погаснет
+            // в одном месте и останется в другом.
+            const norm = await handleRefreshReceipt(тело.id);
+            setDetail(norm || тело);
+            return { ok: true };
+          }}
           onReportLinkChanged={async () => {
             // Связь с отчётом изменилась (прикрепили или убрали в деталях
             // отчёта) — перечитываем каноническую форму чека

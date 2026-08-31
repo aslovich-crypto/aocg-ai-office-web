@@ -388,12 +388,15 @@ export default function ReceiptDetailModal({
   // Связь чека с отчётом изменилась (приложили ИЛИ убрали в деталях
   // отчёта) → родитель перечитывает чек и строку списка: in_report,
   // report_id и report_title считает бэк, локально их не выводим.
+  // ⚠️ ОБЪЯВЛЕН ЯВНО (класс T130): необъявленный проп выбрасывается молча.
+  onRefetchFns,
   onReportLinkChanged,
   role, // ЧП5б: прокидывается дальше в детали отчёта
   catalog,
   paymentOptions = [],
 }) {
   const r = receipt;
+  const [дозапрос, setДозапрос] = useState(null);
   const raw = r.raw_data || {};
   const isFns = r.source === "fns" || r.source === "qr_scan";
   // raw_data-суммы (ФНС) — в копейках; колонки (amount, vat_*) — уже в рублях.
@@ -1621,6 +1624,64 @@ export default function ReceiptDetailModal({
               <Paperclip size={18} />
               Прикрепить к отчёту
             </button>
+          )}
+
+          {/* ⚠️ КНОПКА ПОЯВЛЯЕТСЯ ТОЛЬКО У ЧЕКОВ, КОТОРЫЕ ЕСТЬ ЧЕМ ДОЗАПРОСИТЬ
+              (T132). Признак `можно_дозапросить` считает БЭКЕНД — одно правило
+              в одном месте; две копии условия разошлись бы, и кнопка вылезала
+              бы там, где дозапрос невозможен. Старые чеки под условие не
+              подпадают сами: у них не сохранены ФД и ФПД. */}
+          {r["можно_дозапросить"] && onRefetchFns && (
+            <>
+              <div style={{ height: 8 }} />
+              <button
+                type="button"
+                disabled={дозапрос === "идёт"}
+                onClick={async () => {
+                  setДозапрос("идёт");
+                  const итог = await onRefetchFns();
+                  setДозапрос(итог && итог.ok ? null : (итог && итог.причина) || "Не получилось");
+                }}
+                style={{
+                  width: "100%",
+                  // ⚠️ border-box: без него рамка добавляется К ширине 100%
+                  // и кнопка вылезает за карточку — поймано сторожем T14.
+                  boxSizing: "border-box",
+                  height: 50,
+                  borderRadius: 8,
+                  border: `1px solid ${T.borderStrong}`,
+                  background: T.white,
+                  color: T.fg1,
+                  font: `500 15px/1 ${FONT}`,
+                  cursor: дозапрос === "идёт" ? "default" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                {дозапрос === "идёт" ? "Спрашиваем ФНС…" : "Запросить данные ФНС ещё раз"}
+              </button>
+              {/* ⚠️ ОТКАЗ ПОКАЗЫВАЕТСЯ ДОСЛОВНО. Кнопка, после которой ничего
+                  видимого не происходит, — это то, на что владелец уже
+                  жаловался по «Попробовать снова». */}
+              {дозапрос && дозапрос !== "идёт" && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 8,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: "#FFFBEB",
+                    border: "1px solid #FDE68A",
+                    color: "#B45309",
+                    font: `400 12px/1.45 ${FONT}`,
+                  }}
+                >
+                  {дозапрос}
+                </div>
+              )}
+            </>
           )}
         </div>
 
