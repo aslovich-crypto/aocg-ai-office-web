@@ -71,7 +71,13 @@ import LegalText from "./components/LegalText";
 import { canApprove } from "./lib/reports";
 // Сетевой слой вынесен в src/lib/api.js (CLAUDE.md): компоненты вне монолита
 // импортируют authFetch оттуда, а не получают пропсом.
-import { API, authFetch, fetchWithTimeout, tokens } from "./lib/api";
+import {
+  API,
+  authFetch,
+  fetchWithTimeout,
+  tokens,
+  текстОшибки,
+} from "./lib/api";
 // S-34: текст согласия только с бэкенда, локальной копии нет.
 import { загрузитьСогласие } from "./lib/policy";
 
@@ -4220,7 +4226,7 @@ function ChangePasswordModal({ onClose }) {
         return;
       }
       setErr(
-        typeof d.detail === "string" ? d.detail : "Не удалось изменить пароль",
+        текстОшибки(d, "Не удалось изменить пароль"),
       );
     } catch {
       setErr("Нет связи с сервером");
@@ -4906,7 +4912,6 @@ function InviteSheet({ onClose, onCreated }) {
 
   const ROLE_CHIPS = [
     ["employee", "Сотрудник"],
-    ["manager", "Руководитель"],
     ["accountant", "Бухгалтер"],
   ];
   const TTL_CHIPS = [
@@ -4970,10 +4975,10 @@ function InviteSheet({ onClose, onCreated }) {
       const тело = await res.json().catch(() => null);
       if (!res.ok) {
         // ⚠️ Отказ доходит до человека, а не глотается (класс T116)
-        setОшибка(
-          (тело && (тело.detail || тело.message)) ||
-            `Сервер ответил ${res.status}`,
-        );
+        // ⚠️ ЧЕРЕЗ `текстОшибки`, А НЕ НАПРЯМУЮ: у FastAPI `detail` бывает
+        // МАССИВОМ ОБЪЕКТОВ, и объект в детях React — это бросок (№31),
+        // то есть белый экран вместо плашки. Блокер 31.08.2026.
+        setОшибка(текстОшибки(тело, `Сервер ответил ${res.status}`));
         return null;
       }
       setCreated(тело);
@@ -6502,7 +6507,7 @@ export function NastroykiPage({
       const тело = await res.json().catch(() => null);
       if (!res.ok) {
         setОшибкаПриглашений(
-          (тело && тело.detail) || `Сервер ответил ${res.status}`,
+          текстОшибки(тело, `Сервер ответил ${res.status}`),
         );
         return;
       }
@@ -7505,7 +7510,9 @@ function LoginScreen({ onAuthed, navigate }) {
         // блокировка аккаунта (locked_until, N считается вниз от 15).
         // «IP temporarily banned»/«Rate limit exceeded» — лимит по IP
         // (бан до 5 мин), это НЕ блокировка аккаунта. См. S-27.
-        const detail = (d && d.detail) || "";
+        // ⚠️ ЧЕРЕЗ `текстОшибки`: при массиве `.match` ниже упал бы
+        // с TypeError — то есть экран входа повторил бы белый экран.
+        const detail = текстОшибки(d, "");
         const lock = detail.match(/(\d+)\s*мин/);
         if (lock)
           setErr(`Аккаунт заблокирован на ${lock[1]} мин. Попробуйте позже`);
@@ -7524,8 +7531,10 @@ function LoginScreen({ onAuthed, navigate }) {
         // утверждал «403 означает ровно одно» — правка бэкенда сделала
         // это утверждение ложным, и ветку пришлось заводить здесь же.
         setErr(
-          (d && d.detail) ||
+          текстОшибки(
+            d,
             "Учётная запись отключена. Обратитесь к администратору организации",
+          ),
         );
       } else if (res.status === 403 || d.code === "email_not_verified") {
         // ⚠️ 403 НА ВХОДЕ БЕЗ ИЗВЕСТНОГО КОДА — почта не подтверждена.
@@ -8211,7 +8220,7 @@ function ResetPasswordScreen({ navigate }) {
         setГотово(true);
         return;
       }
-      const текст = d.detail || "Не удалось сменить пароль";
+      const текст = текстОшибки(d, "Не удалось сменить пароль");
       setErr(текст);
       setСсылкаМертва(текст.includes("Ссылка"));
     } catch {
@@ -8460,11 +8469,7 @@ function RegisterScreen({ onAuthed, navigate }) {
         setSent(true);
         return; // verification email sent
       }
-      setErr(
-        typeof d.detail === "string"
-          ? d.detail
-          : "Не удалось зарегистрироваться",
-      );
+      setErr(текстОшибки(d, "Не удалось зарегистрироваться"));
     } catch {
       setErr("Нет связи с сервером");
     } finally {
@@ -8791,7 +8796,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
         return;
       }
       setErr(
-        typeof d.detail === "string" ? d.detail : "Не удалось присоединиться",
+        текстОшибки(d, "Не удалось присоединиться"),
       );
     } catch {
       setErr("Нет связи с сервером");

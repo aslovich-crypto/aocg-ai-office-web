@@ -98,3 +98,28 @@ export async function authFetch(path, opts = {}, ms = 15000, _retry = true) {
   }
   return res;
 }
+
+// ⚠️ ЛЮБОЕ ТЕЛО ОТКАЗА — В СТРОКУ, И ЭТО НЕ УДОБСТВО, А ЗАЩИТА ОТ БЕЛОГО
+// ЭКРАНА. Блокер 31.08.2026: форма приглашения клала `тело.detail` прямо
+// в состояние и рисовала его. У FastAPI при несходстве типов `detail` —
+// МАССИВ ОБЪЕКТОВ (`{type, loc, msg, input}`), а React на объект в детях
+// БРОСАЕТ (ошибка №31) — то есть отказ сервера уносил приложение целиком.
+// Замер: воспроизведено против настоящего сервера, кадры сошлись со стеком
+// с телефона владельца до смещения в бандле.
+//
+// ⚠️ ПОЧЕМУ НЕ `JSON.stringify`: человеку нужен текст, а не разметка. Из
+// массива берём `msg` — это и есть человеческая половина ответа FastAPI.
+export function текстОшибки(тело, запасной = "Не удалось выполнить запрос") {
+  if (!тело) return запасной;
+  if (typeof тело === "string") return тело || запасной;
+  const d = тело.detail !== undefined ? тело.detail : тело.message;
+  if (typeof d === "string" && d) return d;
+  if (Array.isArray(d)) {
+    const строки = d
+      .map((э) => (э && typeof э === "object" ? э.msg || э.detail : э))
+      .filter((э) => typeof э === "string" && э);
+    if (строки.length) return строки.join(". ");
+  }
+  if (d && typeof d === "object" && typeof d.msg === "string") return d.msg;
+  return запасной;
+}
