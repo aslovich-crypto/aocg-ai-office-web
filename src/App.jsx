@@ -4054,7 +4054,12 @@ function ServiceCard({ svc }) {
 }
 
 // Swipe-left to reveal "Удалить" — mirrors SwipeableReceiptCard's pointer logic.
-function SwipeableUserRow({ user, onDelete, deletable = true }) {
+// ⚠️ СТРОКА РАБОТАЕТ В ДВЕ СТОРОНЫ (T118/④, 31.08.2026). Свайп у погашенного
+// открывает не «Удалить», а «Вернуть»: до этой правки погашенный вообще не
+// доезжал до экрана — список читал `WHERE is_active = true`, — и ошибочный
+// свайп чинился только руками в базе. Довод владельца: это защита от его же
+// ошибки, а не удобство.
+function SwipeableUserRow({ user, onDelete, onRestore, deletable = true }) {
   const [tx, setTx] = useState(0);
   const [drag, setDrag] = useState(false); // render-safe mirror of dragging.current
   const startX = useRef(0),
@@ -4065,12 +4070,24 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
   // `.sa{width:84px}`. Было 72 без основания. T121.
   const REVEAL = 84;
   const u = user;
+  const погашен = u.is_active === false;
+  // Погашенного возвращают, активного гасят. Доступность считается по той же
+  // стороне: у погашенного запрет «последнего админа» не применим — возврат
+  // администраторов не убавляет.
+  const действие = погашен
+    ? {
+        есть: Boolean(onRestore),
+        цвет: "#15803D",
+        слово: "Вернуть",
+        жать: onRestore,
+      }
+    : { есть: deletable, цвет: "#B91C1C", слово: "Удалить", жать: onDelete };
   const name =
     [u.last_name, u.first_name, u.patronymic].filter(Boolean).join(" ") ||
     u.email ||
     "Без имени";
   function down(e) {
-    if (!deletable) return;
+    if (!действие.есть) return;
     dragging.current = true;
     setDrag(true);
     locked.current = null;
@@ -4106,16 +4123,16 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
     <div
       style={{
         position: "relative",
-        background: "#B91C1C",
+        background: действие.цвет,
         borderRadius: 12,
         boxShadow: "0 1px 3px rgba(17,19,24,.08)",
         marginBottom: 8,
         overflow: "hidden",
       }}
     >
-      {deletable && (
+      {действие.есть && (
         <div
-          onClick={onDelete}
+          onClick={действие.жать}
           style={{
             position: "absolute",
             top: 0,
@@ -4138,8 +4155,12 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
             lineHeight: 1.1,
           }}
         >
-          <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
-          Удалить
+          {погашен ? (
+            <Check size={20} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
+          )}
+          {действие.слово}
         </div>
       )}
       <div
@@ -6510,6 +6531,10 @@ export function NastroykiPage({
   onSetDefaultCard,
   users,
   onDeleteUser,
+  // ⚠️ ОБЪЯВЛЕН ЯВНО. `onUpdateUser` передавался сюда с 13.06.2026 и молча
+  // выбрасывался, потому что в этом списке его не было — смена роли не
+  // работала вовсе и никто этого не видел. Повторять не будем.
+  onRestoreUser,
   role,
   catalog,
   onCatalogRefresh,
@@ -6597,8 +6622,11 @@ export function NastroykiPage({
   // списка. Бэкенд остаётся хозяином правила — фронт лишь не предлагает
   // действие, которое всё равно будет отвергнуто (правило «интерфейс
   // не обещает больше, чем умеет бэкенд»).
+  // ⚠️ ТОЛЬКО АКТИВНЫЕ. С 31.08.2026 список отдаёт и погашенных (T118/④),
+  // и прежний счёт принял бы отключённого админа за живого: запрет «нельзя
+  // снять последнего» перестал бы срабатывать ровно там, где он нужен.
   const активныхАдминов = (users || []).filter(
-    (u) => u.role === "admin",
+    (u) => u.role === "admin" && u.is_active !== false,
   ).length;
 
   // Хвост S-29: управление людьми на бэкенде только у админа
@@ -6678,6 +6706,9 @@ export function NastroykiPage({
                 u.id !== me?.id && !(u.role === "admin" && активныхАдминов <= 1)
               }
               onDelete={() => onDeleteUser(u.id)}
+              onRestore={
+                onRestoreUser ? () => onRestoreUser(u.id) : undefined
+              }
             />
           ))}
           {users.length === 0 && (
@@ -9320,8 +9351,25 @@ export default function App() {
   }
 
   async function deleteUser(id) {
-    await authFetch(`/api/users/${id}`, { method: "DELETE" });
-    setUsers((prev) => prev.filter((x) => x.id !== id));
+    const res = await authFetch(`/api/users/${id}`, { method: "DELETE" });
+    // ⚠️ СТРОКА НЕ ВЫБРАСЫВАЕТСЯ ИЗ СПИСКА (T118/④). Прежняя редакция
+    // удаляла её из состояния — и человек пропадал с экрана, как пропадал
+    // и с сервера. Гашение мягкое: строка остаётся, помечается неактивной,
+    // и её видно, чтобы ошибочный свайп можно было отменить.
+    if (res.ok)
+      setUsers((prev) =>
+        prev.map((x) => (x.id === id ? { ...x, is_active: false } : x)),
+      );
+  }
+
+  // ⚠️ ВОЗВРАТ ПОГАШЕННОГО. Обратного действия не было ни одного, и
+  // ошибочный свайп чинился только руками в базе.
+  async function restoreUser(id) {
+    const res = await authFetch(`/api/users/${id}/restore`, { method: "POST" });
+    if (!res.ok) return null;
+    const u = await res.json();
+    setUsers((prev) => prev.map((x) => (x.id === id ? u : x)));
+    return u;
   }
 
   function handleAdd(created) {
@@ -9693,6 +9741,7 @@ export default function App() {
             users={users}
             onUpdateUser={updateUser}
             onDeleteUser={deleteUser}
+            onRestoreUser={restoreUser}
             role={role}
             me={me}
             экран={подэкран}

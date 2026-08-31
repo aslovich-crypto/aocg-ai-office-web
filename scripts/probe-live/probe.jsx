@@ -27,7 +27,13 @@ createRoot(document.getElementById("root")).render(
     onUpdateCard={() => {}}
     onDeleteCard={() => {}}
     onSetDefaultCard={() => {}}
-    users={[МЕНЯ]}
+    users={[
+      { ...МЕНЯ, id: 2, first_name: "Живой", last_name: "Сотрудник",
+        role: "employee", is_active: true },
+      { ...МЕНЯ, id: 3, first_name: "Погашенный", last_name: "Человек",
+        role: "employee", is_active: false },
+    ]}
+    onRestoreUser={() => {}}
     onDeleteUser={() => {}}
     role="admin"
     catalog={{ groups: [] }}
