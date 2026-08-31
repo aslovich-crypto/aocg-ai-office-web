@@ -2457,7 +2457,11 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
       onClose();
       return;
     } // handleCapture уже открыл форму
-    if (result === "not_found")
+    if (result === "rejected")
+      setErrMsg(
+        "Сервис проверки чеков не принял наш доступ. Чек здесь ни при чём — запишите без проверки и сообщите администратору.",
+      );
+    else if (result === "not_found")
       setErrMsg(
         "Чек не найден в базе ФНС. Проверьте реквизиты или запишите без проверки.",
       );
@@ -2783,6 +2787,7 @@ function OperaciiPage({
   // null | "loading" | "ok" | "partial" | "ocr_unavailable" | "ocr_failed"
   // Три последних — РАЗНЫЕ причины, а не одна «не получилось» (S-54).
   const [fnsStatus, setFnsStatus] = useState(null);
+  const [fnsПричина, setFnsПричина] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // POST /receipts in flight — blocks double-submit
   const [addError, setAddError] = useState(""); // red banner above the submit button
   const [dupId, setDupId] = useState(null); // on 409: id of the receipt that already exists
@@ -2882,11 +2887,23 @@ function OperaciiPage({
     // Distinguish the FNS outcomes by HTTP status (see fns.py): 404 not_found,
     // 503/0 unavailable, anything else without an ok body → partial.
     const { httpStatus, body } = d || {};
+    // ⚠️ ПРИЧИНА ЗАПОМИНАЕТСЯ ОТДЕЛЬНО ОТ `fnsStatus`. Блокер 31.08.2026:
+    // три разные беды — чек не найден, сервис недоступен, сервис отказал НАМ —
+    // сводились к одной плашке «Данные из ФНС не загрузились». По ней нельзя
+    // отличить «виноват чек» от «виноват наш ключ», и владелец полдня искал
+    // не там. Плашка теперь называет причину.
+    if (httpStatus === 502) {
+      setFnsПричина("rejected");
+      setFnsStatus("partial");
+      return "rejected";
+    }
     if (httpStatus === 404) {
+      setFnsПричина("not_found");
       setFnsStatus("partial");
       return "not_found";
     }
     if (httpStatus === 503 || httpStatus === 0) {
+      setFnsПричина("unavailable");
       setFnsStatus("partial");
       return "unavailable";
     }
@@ -3712,7 +3729,13 @@ function OperaciiPage({
                   ? "Распознавание фото временно недоступно. Введите данные чека вручную — все поля ниже."
                   : fnsStatus === "ocr_failed"
                     ? "Не удалось разобрать снимок. Переснимите при хорошем свете или введите данные вручную."
-                    : "Данные из ФНС не загрузились. Проверьте реквизиты и заполните недостающее вручную."}
+                    : fnsПричина === "rejected"
+                      ? "Сервис проверки чеков не принял наш доступ — чек здесь ни при чём. Заполните поля вручную и сообщите администратору."
+                      : fnsПричина === "unavailable"
+                        ? "Сервис проверки ФНС временно недоступен. Заполните поля вручную — чек сохранится."
+                        : fnsПричина === "not_found"
+                          ? "Чек не найден в базе ФНС: возможно, ему больше 30 дней или он не передан оператору. Заполните поля вручную."
+                          : "Данные из ФНС не загрузились. Проверьте реквизиты и заполните недостающее вручную."}
               </div>
             )}
             {/* НАЗВАНИЕ ЗДЕСЬ НЕ ПРОПУСКАЕТСЯ ЧЕРЕЗ shortOrg — И ЭТО НЕ НЕДОСМОТР.
