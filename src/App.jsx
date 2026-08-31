@@ -3887,12 +3887,6 @@ function OperaciiPage({
 // ─── SETTINGS HELPERS & PARTS ─────────────────────────────
 const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.id, r.label]));
 const roleLabel = (id) => ROLE_LABEL[id] || "Сотрудник";
-const ROLE_ICON = {
-  admin: "👑",
-  employee: "👤",
-  manager: "👥",
-  accountant: "🧮",
-};
 const userInitials = (u) =>
   `${(u.first_name || "")[0] || ""}${
     (u.last_name || "")[0] || ""
@@ -4014,7 +4008,9 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
     startY = useRef(0),
     dragging = useRef(false),
     locked = useRef(null);
-  const REVEAL = 72;
+  // ⚠️ 84 — КАНОН, а не круглое число: design/handoff/templates/reports,
+  // `.sa{width:84px}`. Было 72 без основания. T121.
+  const REVEAL = 84;
   const u = user;
   const name =
     [u.last_name, u.first_name, u.patronymic].filter(Boolean).join(" ") ||
@@ -4049,11 +4045,18 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
     if (locked.current === "x") setTx(tx < -REVEAL / 2 ? -REVEAL : 0);
   }
   return (
+    // ⚠️ ОБЁРТКА ПО КАНОНУ `.swipe`: скругление 12 и тень живут ЗДЕСЬ,
+    // а не на карточке — комментарий в самом каноне объясняет почему:
+    // `overflow:hidden` иначе их обрежет. Раньше строка была без скругления
+    // и во всю ширину, и «Пользователи» выглядели иначе «Чеков» и «Отчётов»
+    // без всякой причины (T121).
     <div
       style={{
         position: "relative",
         background: "#B91C1C",
-        borderBottom: `1px solid ${theme.border}`,
+        borderRadius: 12,
+        boxShadow: "0 1px 3px rgba(17,19,24,.08)",
+        marginBottom: 8,
         overflow: "hidden",
       }}
     >
@@ -4071,11 +4074,18 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
             justifyContent: "center",
             cursor: "pointer",
             color: "#fff",
+            // ⚠️ ЗНАЧОК И СЛОВО, В СТОЛБИК — канон `.sa`: flex-direction
+            // column, gap 5, font 600 12px/1.1. Было только слово: значок
+            // понятен без чтения, слово снимает двусмысленность.
+            flexDirection: "column",
+            gap: 5,
             fontFamily: FONT,
             fontSize: 12,
             fontWeight: 600,
+            lineHeight: 1.1,
           }}
         >
+          <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
           Удалить
         </div>
       )}
@@ -4135,230 +4145,6 @@ function SwipeableUserRow({ user, onDelete, deletable = true }) {
             {roleLabel(u.role)} ·{" "}
             {u.is_active !== false ? "активен" : "неактивен"}
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddEmployeeSheet({ onClose, onAdd }) {
-  const [f, setF] = useState({
-    first_name: "",
-    last_name: "",
-    patronymic: "",
-    email: "",
-    role: "employee",
-  });
-  const [busy, setBusy] = useState(false);
-  const ROLE_CHIPS = [
-    ["employee", "Сотрудник"],
-    ["manager", "Руководитель"],
-    ["accountant", "Бухгалтер"],
-  ];
-  const inp = {
-    width: "100%",
-    padding: "10px 12px",
-    border: `1px solid ${theme.border}`,
-    borderRadius: 8,
-    fontSize: 13,
-    fontFamily: FONT,
-    color: C.dark,
-    background: theme.surface,
-    boxSizing: "border-box",
-  };
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
-  const [ошибка, setОшибка] = useState("");
-  async function submit() {
-    if (!f.first_name.trim() || busy) return;
-    setBusy(true);
-    setОшибка("");
-    const итог = await onAdd(f);
-    setBusy(false);
-    // ⚠️ ЛИСТ ЗАКРЫВАЕТСЯ ТОЛЬКО ПРИ УСПЕХЕ. Было `onClose()` безусловно,
-    // и закрытие читалось человеком как «добавлено» — при том, что
-    // результат никто не проверял. Закрытый лист без ошибки — это
-    // утверждение, и оно было ложным.
-    if (итог && итог.ok) {
-      onClose();
-      return;
-    }
-    setОшибка((итог && итог.ошибка) || "Не удалось добавить сотрудника");
-  }
-  const dialogRef = useModalA11y(onClose);
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(22,26,29,0.5)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        zIndex: 300,
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Новый сотрудник"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: theme.surface,
-          width: "100%",
-          maxWidth: 480,
-          borderRadius: "16px 16px 0 0",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          maxHeight: "88dvh",
-          paddingBottom: "env(safe-area-inset-bottom)",
-          outline: "none",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: `1px solid ${theme.border}`,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: FONT,
-              fontSize: 14,
-              fontWeight: 600,
-              color: C.dark,
-            }}
-          >
-            Новый сотрудник
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Закрыть"
-            style={{
-              border: "none",
-              background: "none",
-              color: theme.fg2,
-              cursor: "pointer",
-              fontSize: 20,
-              padding: 4,
-              lineHeight: 1,
-            }}
-          >
-            <span aria-hidden="true">✕</span>
-          </button>
-        </div>
-        <div
-          style={{
-            overflow: "auto",
-            padding: "16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
-          <input
-            style={inp}
-            placeholder="Имя"
-            aria-label="Имя"
-            value={f.first_name}
-            onChange={(e) => set("first_name", e.target.value)}
-          />
-          <input
-            style={inp}
-            placeholder="Фамилия"
-            aria-label="Фамилия"
-            value={f.last_name}
-            onChange={(e) => set("last_name", e.target.value)}
-          />
-          <input
-            style={inp}
-            placeholder="Отчество"
-            aria-label="Отчество"
-            value={f.patronymic}
-            onChange={(e) => set("patronymic", e.target.value)}
-          />
-          <input
-            style={inp}
-            placeholder="Email"
-            aria-label="Email"
-            type="email"
-            value={f.email}
-            onChange={(e) => set("email", e.target.value)}
-          />
-          <div>
-            <div
-              style={{
-                fontSize: 10,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: theme.fg2,
-                fontFamily: FONT,
-                marginBottom: 8,
-              }}
-            >
-              Роль
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {ROLE_CHIPS.map(([val, label]) => {
-                const on = f.role === val;
-                return (
-                  <button
-                    key={val}
-                    onClick={() => set("role", val)}
-                    style={{
-                      padding: "6px 12px",
-                      border: "none",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontFamily: FONT,
-                      fontSize: 12,
-                      fontWeight: on ? 600 : 500,
-                      background: on ? theme.cherry : "#EEF0F4",
-                      color: on ? "#fff" : "#636B7D",
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop: `1px solid ${theme.border}`,
-            background: theme.surfaceSunk,
-          }}
-        >
-          {ошибка && (
-            <div
-              role="alert"
-              style={{
-                background: theme.errorBg,
-                color: theme.errorFg,
-                border: `1px solid ${theme.errorBd}`,
-                borderRadius: 8,
-                padding: "10px 12px",
-                fontFamily: FONT,
-                fontSize: 13,
-                lineHeight: 1.4,
-                marginBottom: 10,
-              }}
-            >
-              {ошибка}
-            </div>
-          )}
-          <Btn full onClick={submit} disabled={!f.first_name.trim() || busy}>
-            Добавить сотрудника
-          </Btn>
         </div>
       </div>
     </div>
@@ -5102,13 +4888,22 @@ export function AccountTab({
   );
 }
 
-function InviteSheet({ onClose }) {
+// ⚠️ ОДНА ФОРМА ВМЕСТО ДВУХ. Было две кнопки — «Добавить сотрудника»
+// и «Создать ссылку-приглашение», — и два разных пути к одному итогу.
+// Первый заводил человека БЕЗ ПАРОЛЯ (T103, T105) и не слал ему ничего,
+// второй давал ссылку, которую надо было передавать руками.
+// Требование владельца: приглашение ОДНО, способов доставки два.
+function InviteSheet({ onClose, onCreated }) {
+  const [почта, setПочта] = useState("");
+  const [имя, setИмя] = useState("");
+  const [фамилия, setФамилия] = useState("");
   const [role, setRole] = useState("employee");
-  const [hours, setHours] = useState(null); // null = бессрочная (по умолчанию)
-  const [maxUses, setMaxUses] = useState(1);
+  const [hours, setHours] = useState(null); // null = бессрочная
   const [created, setCreated] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [ошибка, setОшибка] = useState("");
   const [copied, setCopied] = useState(false);
+
   const ROLE_CHIPS = [
     ["employee", "Сотрудник"],
     ["manager", "Руководитель"],
@@ -5120,10 +4915,6 @@ function InviteSheet({ onClose }) {
     [720, "30 дней"],
     [null, "Бессрочная"],
   ];
-  const USE_CHIPS = [
-    [1, "Одноразовая"],
-    [999, "Многоразовая"],
-  ];
   const chip = (on) => ({
     padding: "6px 12px",
     border: "none",
@@ -5132,8 +4923,8 @@ function InviteSheet({ onClose }) {
     fontFamily: FONT,
     fontSize: 12,
     fontWeight: on ? 600 : 500,
-    background: on ? "#A4161A" : "#EEF0F4",
-    color: on ? "#fff" : "#636B7D",
+    background: on ? theme.cherry : theme.surfaceSunk,
+    color: on ? "#fff" : theme.fg2,
   });
   const lbl = {
     fontSize: 10,
@@ -5143,54 +4934,82 @@ function InviteSheet({ onClose }) {
     fontFamily: FONT,
     marginBottom: 8,
   };
-  async function create() {
-    if (busy) return;
+  const inp = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 12px",
+    border: `1px solid ${theme.border}`,
+    borderRadius: 8,
+    fontSize: 13,
+    fontFamily: FONT,
+    color: theme.fg1,
+    background: theme.surface,
+    outline: "none",
+  };
+
+  // ⚠️ ОДИН ЗАПРОС НА ОБЕ КНОПКИ. Приглашение создаётся ровно одно;
+  // «Отправить» отличается от «Скопировать» только тем, передана ли почта.
+  // Два отдельных запроса плодили бы два приглашения на одного человека.
+  async function создать(сПочтой) {
+    if (busy) return null;
     setBusy(true);
+    setОшибка("");
     try {
       const res = await authFetch("/api/invite/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, expires_hours: hours, max_uses: maxUses }),
+        body: JSON.stringify({
+          role,
+          expires_hours: hours,
+          max_uses: 1,
+          email: сПочтой ? почта.trim() : null,
+          first_name: имя.trim(),
+          last_name: фамилия.trim(),
+        }),
       });
-      const d = await res.json().catch(() => null);
-      if (res.ok && d && d.invite_url) setCreated(d);
+      const тело = await res.json().catch(() => null);
+      if (!res.ok) {
+        // ⚠️ Отказ доходит до человека, а не глотается (класс T116)
+        setОшибка(
+          (тело && (тело.detail || тело.message)) ||
+            `Сервер ответил ${res.status}`,
+        );
+        return null;
+      }
+      setCreated(тело);
+      if (onCreated) onCreated();
+      return тело;
     } catch {
-      /* ignore */
+      setОшибка("Нет связи с сервером");
+      return null;
     } finally {
       setBusy(false);
     }
   }
-  async function copy() {
+
+  async function скопировать(текст) {
     try {
-      await navigator.clipboard.writeText(created.invite_url);
+      await navigator.clipboard.writeText(текст);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* ignore */
+      // ⚠️ РАНЬШЕ ЗДЕСЬ БЫЛО ПУСТО. Буфер мог не сработать (нет прав,
+      // не защищённое соединение), и человек уходил с пустым буфером,
+      // уверенный, что скопировал. Класс T116.
+      setОшибка("Не удалось скопировать. Выделите ссылку и скопируйте вручную");
     }
   }
-  async function share() {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "Приглашение в AOCG AI Офис",
-          url: created.invite_url,
-        });
-      } else {
-        copy();
-      }
-    } catch {
-      /* cancelled */
-    }
-  }
+
   const dialogRef = useModalA11y(onClose);
+  const почтаВерна = /.+@.+\..+/.test(почта.trim());
+
   return (
     <div
       onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.3)",
+        background: theme.scrim || "rgba(0,0,0,0.3)",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
@@ -5201,7 +5020,7 @@ function InviteSheet({ onClose }) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Ссылка-приглашение"
+        aria-label="Пригласить сотрудника"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -5218,23 +5037,7 @@ function InviteSheet({ onClose }) {
       >
         <div
           style={{
-            display: "flex",
-            justifyContent: "center",
-            padding: "8px 0 2px",
-          }}
-        >
-          <div
-            style={{
-              width: 36,
-              height: 4,
-              borderRadius: 2,
-              background: "#D7DAE0",
-            }}
-          />
-        </div>
-        <div
-          style={{
-            padding: "4px 16px 12px",
+            padding: "14px 16px",
             borderBottom: `1px solid ${theme.border}`,
             display: "flex",
             justifyContent: "space-between",
@@ -5245,11 +5048,11 @@ function InviteSheet({ onClose }) {
             style={{
               fontSize: 15,
               fontFamily: FONT,
-              color: C.dark,
+              color: theme.fg1,
               fontWeight: 600,
             }}
           >
-            Ссылка-приглашение
+            Пригласить сотрудника
           </span>
           <button
             type="button"
@@ -5266,9 +5069,53 @@ function InviteSheet({ onClose }) {
             <span aria-hidden="true">✕</span>
           </button>
         </div>
-        <div style={{ padding: "16px", overflow: "auto" }}>
+
+        <div style={{ padding: 16, overflow: "auto" }}>
           {!created ? (
             <>
+              <div style={lbl}>Почта сотрудника</div>
+              <input
+                style={{ ...inp, marginBottom: 4 }}
+                type="email"
+                inputMode="email"
+                autoCapitalize="off"
+                autoCorrect="off"
+                placeholder="ivan@example.com"
+                aria-label="Почта сотрудника"
+                value={почта}
+                onChange={(e) => setПочта(e.target.value)}
+              />
+              <div
+                style={{
+                  fontSize: 11,
+                  color: theme.fg2,
+                  fontFamily: FONT,
+                  lineHeight: 1.5,
+                  marginBottom: 14,
+                }}
+              >
+                ⚠️ Проверьте адрес по буквам. Ошибётесь — человек заведёт
+                собственную организацию и окажется в приложении один.
+              </div>
+
+              <div style={lbl}>Имя и фамилия — необязательно</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <input
+                  style={inp}
+                  placeholder="Имя"
+                  aria-label="Имя"
+                  value={имя}
+                  onChange={(e) => setИмя(e.target.value)}
+                />
+                <input
+                  style={inp}
+                  placeholder="Фамилия"
+                  aria-label="Фамилия"
+                  value={фамилия}
+                  onChange={(e) => setФамилия(e.target.value)}
+                />
+              </div>
+
               <div style={lbl}>Роль</div>
               <div
                 style={{
@@ -5288,13 +5135,14 @@ function InviteSheet({ onClose }) {
                   </button>
                 ))}
               </div>
+
               <div style={lbl}>Срок действия</div>
               <div
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
                   gap: 8,
-                  marginBottom: 16,
+                  marginBottom: 18,
                 }}
               >
                 {TTL_CHIPS.map(([v, l]) => (
@@ -5307,40 +5155,67 @@ function InviteSheet({ onClose }) {
                   </button>
                 ))}
               </div>
-              <div style={lbl}>Использований</div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginBottom: 20,
-                }}
+
+              {ошибка && (
+                <div
+                  role="alert"
+                  style={{
+                    background: theme.errorBg,
+                    color: theme.errorFg,
+                    border: `1px solid ${theme.errorBd}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    fontFamily: FONT,
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                    marginBottom: 10,
+                  }}
+                >
+                  {ошибка}
+                </div>
+              )}
+
+              {/* ⚠️ ДВЕ КНОПКИ — ОДНО ПРИГЛАШЕНИЕ. Способов доставки два:
+                  письмом и ссылкой. Требование владельца дословно. */}
+              <Btn
+                full
+                onClick={() => создать(true)}
+                disabled={busy || !почтаВерна}
               >
-                {USE_CHIPS.map(([v, l]) => (
-                  <button
-                    key={v}
-                    onClick={() => setMaxUses(v)}
-                    style={chip(maxUses === v)}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
-              <Btn full onClick={create} disabled={busy}>
-                {busy ? "Создаём…" : "Создать"}
+                {busy ? "Отправляем…" : "Отправить приглашение"}
               </Btn>
+              <div style={{ height: 8 }} />
+              <Btn full outline onClick={() => создать(false)} disabled={busy}>
+                Скопировать ссылку
+              </Btn>
+              {!почтаВерна && почта.trim() !== "" && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: theme.fg2,
+                    fontFamily: FONT,
+                    marginTop: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  Адрес не похож на почтовый — письмо отправить не получится
+                </div>
+              )}
             </>
           ) : (
             <>
               <div
                 style={{
                   fontSize: 13,
-                  color: theme.fg2,
+                  color: theme.fg1,
                   fontFamily: FONT,
-                  marginBottom: 8,
+                  marginBottom: 10,
+                  lineHeight: 1.5,
                 }}
               >
-                Ссылка готова — отправьте сотруднику:
+                {created.sent_at
+                  ? `Приглашение отправлено на ${created.email}. Ссылка ниже — на случай, если письмо не дойдёт.`
+                  : "Ссылка готова — отправьте её сотруднику."}
               </div>
               <div
                 style={{
@@ -5349,50 +5224,38 @@ function InviteSheet({ onClose }) {
                   borderRadius: 10,
                   padding: "10px 12px",
                   fontSize: 12,
-                  color: C.dark,
-                  fontFamily: "monospace",
+                  color: theme.fg1,
+                  fontFamily: theme.fontMono || "monospace",
                   wordBreak: "break-all",
-                  marginBottom: 14,
+                  marginBottom: 12,
                 }}
               >
                 {created.invite_url}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={copy}
+              {ошибка && (
+                <div
+                  role="alert"
                   style={{
-                    flex: 1,
-                    padding: "12px",
-                    background: theme.surface,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 10,
+                    background: theme.errorBg,
+                    color: theme.errorFg,
+                    border: `1px solid ${theme.errorBd}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
                     fontFamily: FONT,
                     fontSize: 13,
-                    fontWeight: 600,
-                    color: C.dark,
-                    cursor: "pointer",
+                    marginBottom: 10,
                   }}
                 >
-                  {copied ? "Скопировано ✓" : "📋 Скопировать"}
-                </button>
-                <button
-                  onClick={share}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    background: theme.cherry,
-                    border: "none",
-                    borderRadius: 10,
-                    fontFamily: FONT,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#fff",
-                    cursor: "pointer",
-                  }}
-                >
-                  ↗ Поделиться
-                </button>
-              </div>
+                  {ошибка}
+                </div>
+              )}
+              <Btn full onClick={() => скопировать(created.invite_url)}>
+                {copied ? "Скопировано ✓" : "Скопировать ссылку"}
+              </Btn>
+              <div style={{ height: 8 }} />
+              <Btn full outline onClick={onClose}>
+                Готово
+              </Btn>
             </>
           )}
         </div>
@@ -6575,7 +6438,6 @@ function NastroykiPage({
   onDeleteCard,
   onSetDefaultCard,
   users,
-  onAddUser,
   onDeleteUser,
   role,
   catalog,
@@ -6587,7 +6449,6 @@ function NastroykiPage({
   const tab = экран;
   const setTab = наЭкран;
   const [якорь, setЯкорь] = useState(null);
-  const [showAddEmp, setShowAddEmp] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [servicesList, setServicesList] = useState([]);
   useEffect(() => {
@@ -6602,6 +6463,8 @@ function NastroykiPage({
 
   const [invites, setInvites] = useState([]);
   const [copiedToken, setCopiedToken] = useState(null);
+  const [resentToken, setResentToken] = useState(null);
+  const [ошибкаПриглашений, setОшибкаПриглашений] = useState("");
 
   const loadInvites = () =>
     authFetch(`/api/invite/list`)
@@ -6613,12 +6476,41 @@ function NastroykiPage({
       .then(() => loadInvites())
       .catch(() => {});
   const copyInvite = async (inv) => {
+    setОшибкаПриглашений("");
     try {
       await navigator.clipboard.writeText(inv.invite_url);
       setCopiedToken(inv.token);
       setTimeout(() => setCopiedToken(null), 1500);
     } catch {
-      /* ignore */
+      // ⚠️ РАНЬШЕ ЗДЕСЬ БЫЛО ПУСТО. Буфер мог не сработать, и человек
+      // уходил с пустым буфером, уверенный, что скопировал. Класс T116,
+      // находка владельца.
+      setОшибкаПриглашений(
+        "Не удалось скопировать. Ссылка показана выше — выделите её вручную",
+      );
+    }
+  };
+
+  // ⚠️ ТОТ ЖЕ ТОКЕН, а не новое приглашение: иначе на каждое нажатие
+  // в списке рос бы дубль на одного человека.
+  const resendInvite = async (inv) => {
+    setОшибкаПриглашений("");
+    try {
+      const res = await authFetch(`/api/invite/${inv.token}/resend`, {
+        method: "POST",
+      });
+      const тело = await res.json().catch(() => null);
+      if (!res.ok) {
+        setОшибкаПриглашений(
+          (тело && тело.detail) || `Сервер ответил ${res.status}`,
+        );
+        return;
+      }
+      setResentToken(inv.token);
+      setTimeout(() => setResentToken(null), 2000);
+      loadInvites();
+    } catch {
+      setОшибкаПриглашений("Нет связи с сервером");
     }
   };
 
@@ -6705,22 +6597,12 @@ function NastroykiPage({
       )}
       {tab === "Пользователи" && role === "admin" && (
         <div style={{ padding: "12px 16px 80px" }}>
-          {/* ⚠️ Первый блок экрана идёт БЕЗ заголовка — так в каноне:
-              «Сводка» имеет шесть блоков и ПЯТЬ заголовков, первый без.
-              Он и есть то, ради чего экран открыт. */}
+          {/* ⚠️ Первый блок экрана идёт БЕЗ заголовка — правило вёрстки
+              docs/RULES-FRONTEND.md, раздел о подэкранах. */}
           {users.map((u) => (
             <SwipeableUserRow
               key={u.id}
               user={u}
-              // ⚠️ БЫЛО `u.id !== 1` — запрет на КОНКРЕТНОЙ СТРОКЕ, а не
-              // на роли. Он берёгся засеянного администратора и никого
-              // больше: любого другого админа, включая единственного,
-              // свайп гасил молча, и организация оставалась без управления
-              // (T119). Теперь условие настоящее — себя и последнего
-              // активного админа отключить нельзя.
-              // ⚠️ Список приходит уже отфильтрованным по is_active
-              // (`users.py`: WHERE is_active = true), поэтому «активных
-              // админов» = просто админы в этом списке.
               deletable={
                 u.id !== me?.id && !(u.role === "admin" && активныхАдминов <= 1)
               }
@@ -6739,8 +6621,9 @@ function NastroykiPage({
               Пока нет сотрудников
             </div>
           )}
+
           <div style={{ marginTop: 18 }}>
-            <SectionHead title="Ссылки-приглашения" />
+            <SectionHead title="Приглашения" />
             {invites.length === 0 && (
               <div
                 style={{
@@ -6750,94 +6633,142 @@ function NastroykiPage({
                   padding: "4px 2px",
                 }}
               >
-                Нет активных ссылок
+                Нет ожидающих приглашений
               </div>
             )}
             {invites.map((inv) => (
               <div
                 key={inv.token}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  marginBottom: 6,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  marginBottom: 8,
                 }}
               >
-                <span style={{ fontSize: 16, flexShrink: 0 }}>
-                  {ROLE_ICON[inv.role] || "👤"}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
                     style={{
-                      fontSize: 13,
-                      color: C.dark,
-                      fontFamily: FONT,
+                      fontSize: 14,
                       fontWeight: 600,
+                      color: theme.fg1,
+                      fontFamily: FONT,
+                    }}
+                  >
+                    {[inv.first_name, inv.last_name]
+                      .filter(Boolean)
+                      .join(" ") ||
+                      inv.email ||
+                      "Без имени"}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: theme.fg2,
+                      fontFamily: FONT,
                     }}
                   >
                     {roleLabel(inv.role)}
-                  </div>
-                  <div
-                    style={{ fontSize: 11, color: theme.fg2, fontFamily: FONT }}
-                  >
-                    {inv.expires_at
-                      ? new Date(inv.expires_at).toLocaleDateString("ru-RU")
-                      : "Бессрочная"}{" "}
-                    · {inv.uses_count}/
-                    {inv.max_uses >= 999 ? "∞" : inv.max_uses} исп.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => copyInvite(inv)}
-                  title="Скопировать"
-                  aria-label="Скопировать ссылку-приглашение"
-                  style={{
-                    border: "none",
-                    background: "none",
-                    fontSize: 15,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    padding: 4,
-                    color: copiedToken === inv.token ? "#15803D" : theme.fg2,
-                  }}
-                >
-                  <span aria-hidden="true">
-                    {copiedToken === inv.token ? "✓" : "📋"}
                   </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => delInvite(inv.token)}
-                  title="Удалить"
-                  aria-label="Удалить приглашение"
+                </div>
+
+                {/* ⚠️ СТАТУС СЛОВАМИ, А НЕ ДРОБЬЮ. Было «0/1 исп.» — человек
+                    не может по этому понять, ждут его или он уже вошёл. */}
+                <div
                   style={{
-                    border: "none",
-                    background: "none",
-                    color: theme.cherryMuted,
-                    fontSize: 16,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    padding: 4,
+                    fontSize: 12,
+                    color: theme.fg2,
+                    fontFamily: FONT,
+                    marginTop: 4,
                   }}
                 >
-                  <span aria-hidden="true">✕</span>
-                </button>
+                  {inv["статус"] || "приглашён, ожидает"}
+                  {inv.sent_at
+                    ? ` · письмо ${new Date(inv.sent_at).toLocaleDateString(
+                        "ru-RU",
+                      )}`
+                    : inv.email
+                      ? " · письмо не отправлялось"
+                      : " · без почты, ссылку передают вручную"}
+                </div>
+
+                {/* ⚠️ ССЫЛКА ВИДНА ВСЕГДА. Раньше её показывали ровно один
+                    раз — в момент создания, — и скопировать вслепую было
+                    единственным способом. Находка владельца. */}
+                <div
+                  style={{
+                    background: theme.surfaceSunk,
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    marginTop: 8,
+                    fontSize: 11,
+                    color: theme.fg2,
+                    fontFamily: theme.fontMono || "monospace",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {inv.invite_url}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginTop: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Btn small onClick={() => copyInvite(inv)}>
+                    {copiedToken === inv.token
+                      ? "Скопировано ✓"
+                      : "Скопировать"}
+                  </Btn>
+                  {inv.email && (
+                    <Btn small outline onClick={() => resendInvite(inv)}>
+                      {resentToken === inv.token
+                        ? "Отправлено ✓"
+                        : "Отправить ещё раз"}
+                    </Btn>
+                  )}
+                  <Btn small outline onClick={() => delInvite(inv.token)}>
+                    Отозвать
+                  </Btn>
+                </div>
               </div>
             ))}
+            {ошибкаПриглашений && (
+              <div
+                role="alert"
+                style={{
+                  background: theme.errorBg,
+                  color: theme.errorFg,
+                  border: `1px solid ${theme.errorBd}`,
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontFamily: FONT,
+                  fontSize: 13,
+                  marginTop: 8,
+                }}
+              >
+                {ошибкаПриглашений}
+              </div>
+            )}
           </div>
-          <div style={{ marginTop: 14 }}>
-            <Btn full onClick={() => setShowAddEmp(true)}>
-              + Добавить сотрудника
-            </Btn>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <Btn full outline onClick={() => setShowInvite(true)}>
-              + Создать ссылку-приглашение
+
+          {/* ⚠️ ОДНА КНОПКА. Было две — «Добавить сотрудника» и «Создать
+              ссылку-приглашение», — и два пути к одному итогу, из которых
+              первый заводил человека без пароля и не слал ему ничего. */}
+          <div style={{ marginTop: 16 }}>
+            <Btn full onClick={() => setShowInvite(true)}>
+              + Пригласить сотрудника
             </Btn>
           </div>
         </div>
@@ -6850,18 +6781,13 @@ function NastroykiPage({
           onCatalogRefresh={onCatalogRefresh}
         />
       )}
-      {showAddEmp && (
-        <AddEmployeeSheet
-          onClose={() => setShowAddEmp(false)}
-          onAdd={onAddUser}
-        />
-      )}
       {showInvite && (
         <InviteSheet
           onClose={() => {
             setShowInvite(false);
             loadInvites();
           }}
+          onCreated={loadInvites}
         />
       )}
     </div>
@@ -9308,36 +9234,6 @@ export default function App() {
       setCards((prev) => prev.map((x) => ({ ...x, is_default: x.id === id })));
   }
 
-  async function addUser(payload) {
-    // ⚠️ ОТВЕТ БОЛЬШЕ НЕ ПРОГЛАТЫВАЕТСЯ. Было `return null` на любой отказ:
-    // и 403, и 422, и 500 выглядели одинаково — никак. Замер прода
-    // 31.08.2026: владелец «завёл сотрудника», интерфейс показал успех,
-    // а записи в базе НЕ ПОЯВИЛОСЬ ВОВСЕ. Отказ был, его никто не прочёл.
-    try {
-      const res = await authFetch(`/api/users/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        const u = await res.json();
-        setUsers((prev) => [...prev, u]);
-        return { ok: true };
-      }
-      const тело = await res.json().catch(() => null);
-      // текст с бэкенда, если он есть; иначе хотя бы код — «ничего
-      // не произошло» не ответ
-      return {
-        ok: false,
-        ошибка:
-          (тело && (тело.detail || тело.message)) ||
-          `Сервер ответил ${res.status}`,
-      };
-    } catch {
-      return { ok: false, ошибка: "Нет связи с сервером" };
-    }
-  }
-
   async function updateUser(id, patch) {
     const res = await authFetch(`/api/users/${id}`, {
       method: "PATCH",
@@ -9724,7 +9620,6 @@ export default function App() {
             onDeleteCard={deleteCard}
             onSetDefaultCard={setDefaultCard}
             users={users}
-            onAddUser={addUser}
             onUpdateUser={updateUser}
             onDeleteUser={deleteUser}
             role={role}
