@@ -5,7 +5,8 @@
 (function(){
   var ж=0, итог={};
   function поле(корень){ // видимая серая плашка поиска
-    var к=[].slice.call(document.querySelectorAll("button,div")).filter(function(e){
+    /* label добавлен вместе с T144: поле «Главной» стало настоящим input в label */
+    var к=[].slice.call(document.querySelectorAll("button,div,label")).filter(function(e){
       var t=(e.textContent||"").trim();
       var с=getComputedStyle(e);
       return с.backgroundColor==="rgb(238, 240, 244)" && с.borderRadius==="10px" &&

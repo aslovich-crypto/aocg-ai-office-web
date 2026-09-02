@@ -2500,7 +2500,9 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
   }
 
   const lbl = {
-    fontSize: 9,
+    // T139: подписи полей были трёх размеров (9/10/11) — сведены к 11,
+    // это существующий размер из канонного диапазона 11–13.
+    fontSize: 11,
     letterSpacing: "0.18em",
     textTransform: "uppercase",
     color: theme.fg2,
@@ -5193,7 +5195,8 @@ function InviteSheet({ onClose, onCreated }) {
     color: on ? "#fff" : theme.fg2,
   });
   const lbl = {
-    fontSize: 10,
+    fontSize: 11, // T139: было 10 — единый размер подписи
+
     letterSpacing: "0.12em",
     textTransform: "uppercase",
     color: theme.fg2,

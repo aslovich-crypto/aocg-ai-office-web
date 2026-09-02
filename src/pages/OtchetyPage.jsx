@@ -854,7 +854,7 @@ export default function OtchetyPage({
             />
             <div
               style={{
-                fontSize: 9,
+                fontSize: 11, // T139: было 9 — четвёртая подпись, единый размер
                 letterSpacing: "0.15em",
                 textTransform: "uppercase",
                 color: theme.fg2,

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Search,
+  X,
   ScanLine,
   FileText,
   Tag,
@@ -30,6 +31,52 @@ export default function GlavnayaPage({
   catColor,
 }) {
   const [reports, setReports] = useState([]);
+  // T144: общий поиск с «Главной» — чеки и отчёты разом, решение владельца:
+  // «человек не должен помнить, где что лежит». До этого здесь была
+  // КНОПКА-ЗАГЛУШКА: выглядела полем, уводила на «Чеки» (класс T149).
+  const [запрос, setЗапрос] = useState("");
+  const [найдено, setНайдено] = useState(null); // null = не искали
+  const [ищем, setИщем] = useState(false);
+  const [ошибкаПоиска, setОшибкаПоиска] = useState("");
+  const меткаПоиска = useRef(0);
+  // ⚠️ Сбросы состояния живут в обработчиках ввода, не в эффекте:
+  // setState синхронно в теле эффекта запрещён правилом хуков (каскадные
+  // перерисовки). Эффект только ставит таймер запроса.
+  function ввестиЗапрос(значение) {
+    setЗапрос(значение);
+    if (значение.trim().length < 2) {
+      меткаПоиска.current++;
+      setНайдено(null);
+      setОшибкаПоиска("");
+      setИщем(false);
+    }
+  }
+  useEffect(() => {
+    const с = запрос.trim();
+    if (с.length < 2) return;
+    // ⚠️ Метка против гонки: ответ на «ром» не должен перетереть ответ
+    // на «ромашка», пришедший раньше него.
+    const моя = ++меткаПоиска.current;
+    const т = setTimeout(() => {
+      setИщем(true);
+      authFetch(`/api/search?q=${encodeURIComponent(с)}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("отказ"))))
+        .then((d) => {
+          if (меткаПоиска.current !== моя) return;
+          setНайдено(d);
+          setОшибкаПоиска("");
+        })
+        .catch(() => {
+          if (меткаПоиска.current !== моя) return;
+          setОшибкаПоиска("Не удалось выполнить поиск — проверьте связь");
+        })
+        .finally(() => {
+          if (меткаПоиска.current === моя) setИщем(false);
+        });
+    }, 300);
+    return () => clearTimeout(т);
+  }, [запрос, authFetch]);
+  const режимПоиска = запрос.trim().length >= 2;
   useEffect(() => {
     authFetch("/api/reports/")
       .then((r) => (r.ok ? r.json() : []))
@@ -237,27 +284,210 @@ export default function GlavnayaPage({
     <div
       style={{ padding: "16px 16px calc(env(safe-area-inset-bottom) + 88px)" }}
     >
-      {/* Поиск — запускает экран «Чеки» */}
-      <button
-        onClick={() => setPage("operacii")}
+      {/* T144: НАСТОЯЩЕЕ поле — в каноне «Главной» здесь input, а стояла
+          кнопка-заглушка: человек видел поиск, жал, попадал на «Чеки». */}
+      <label
         style={{
-          width: "100%",
           display: "flex",
           alignItems: "center",
           gap: 9,
           background: theme.surfaceSunk,
-          border: "none",
           borderRadius: 10,
           padding: "11px 12px",
           marginBottom: 22,
-          cursor: "pointer",
         }}
       >
         <Search size={18} color={theme.fg3} strokeWidth={2} />
-        <span style={{ font: `400 15px/1.2 ${FONT}`, color: theme.fg3 }}>
-          Поиск
-        </span>
-      </button>
+        <input
+          value={запрос}
+          onChange={(e) => ввестиЗапрос(e.target.value)}
+          placeholder="Поиск"
+          aria-label="Поиск по чекам и отчётам"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: "none",
+            background: "none",
+            outline: "none",
+            font: `400 15px/1.2 ${FONT}`,
+            color: theme.fg1,
+          }}
+        />
+        {запрос && (
+          <button
+            type="button"
+            onClick={() => ввестиЗапрос("")}
+            aria-label="Очистить поиск"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 2,
+              display: "flex",
+              cursor: "pointer",
+              color: theme.fg3,
+            }}
+          >
+            <X size={16} />
+          </button>
+        )}
+      </label>
+
+      {режимПоиска && (
+        <div>
+          {ошибкаПоиска && (
+            <div
+              role="alert"
+              style={{
+                background: theme.errorBg,
+                color: theme.errorFg,
+                border: `1px solid ${theme.errorBd}`,
+                borderRadius: 8,
+                padding: "10px 12px",
+                font: `400 13px/1.4 ${FONT}`,
+                marginBottom: 12,
+              }}
+            >
+              {ошибкаПоиска}
+            </div>
+          )}
+          {найдено && найдено.receipts.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              {secTitle(`Чеки · ${найдено.receipts.length}`)}
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 10 }}
+              >
+                {найдено.receipts.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setPage("operacii")}
+                    style={{
+                      ...card,
+                      ...tap,
+                      padding: "12px 16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          font: `500 14px/1.25 ${FONT}`,
+                          color: "#111318",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {shortOrg(r.org_brand || r.org)}
+                      </span>
+                      <span
+                        style={{
+                          font: `400 12px/1.3 ${FONT}`,
+                          color: theme.fg2,
+                        }}
+                      >
+                        {fmtDate(r.date)}
+                      </span>
+                    </span>
+                    <span
+                      style={{
+                        font: `600 14px/1.2 ${FONT}`,
+                        color: "#111318",
+                        fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {money(Number(r.amount))}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {найдено && найдено.reports.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              {secTitle(`Отчёты · ${найдено.reports.length}`)}
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 10 }}
+              >
+                {найдено.reports.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setPage("otchety")}
+                    style={{
+                      ...card,
+                      ...tap,
+                      padding: "12px 16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          font: `500 14px/1.25 ${FONT}`,
+                          color: "#111318",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.title}
+                      </span>
+                      <span
+                        style={{
+                          font: `400 12px/1.3 ${FONT}`,
+                          color: theme.fg2,
+                        }}
+                      >
+                        {r.status}
+                        {r.created ? ` · ${fmtDate(r.created)}` : ""}
+                      </span>
+                    </span>
+                    <span
+                      style={{
+                        font: `600 14px/1.2 ${FONT}`,
+                        color: "#111318",
+                        fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.total != null ? money(Number(r.total)) : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {найдено &&
+            !ищем &&
+            найдено.receipts.length === 0 &&
+            найдено.reports.length === 0 &&
+            !ошибкаПоиска && (
+              <div
+                style={{
+                  font: `400 13px/1.5 ${FONT}`,
+                  color: theme.fg3,
+                  padding: "8px 2px",
+                }}
+              >
+                Ничего не нашлось по «{запрос.trim()}» — ни в чеках, ни в
+                отчётах
+              </div>
+            )}
+        </div>
+      )}
+
+      {!режимПоиска && (
+      <div>
 
       {/* Быстрые действия */}
       <div
@@ -625,6 +855,8 @@ export default function GlavnayaPage({
           )}
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }

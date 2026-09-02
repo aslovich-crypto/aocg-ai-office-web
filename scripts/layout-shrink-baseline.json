@@ -16,7 +16,7 @@
     "src/pages/GlavnayaPage.jsx": {
       "flex-no-minwidth": 1,
       "grid-1fr-no-minmax": 1,
-      "full-width-padding": 3
+      "full-width-padding": 2
     },
     "src/pages/OrganizationTab.jsx": {
       "flex-no-minwidth": 1
