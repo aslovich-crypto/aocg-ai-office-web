@@ -1,0 +1,54 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>положение поиска</title>
+<style>body{margin:0;background:#F6F7F9;width:390px}</style></head>
+<body><div id="root"></div><div id="ЗАМЕР"></div>
+<script>
+(function(){
+  var ж=0, итог={};
+  function поле(корень){ // видимая серая плашка поиска
+    var к=[].slice.call(document.querySelectorAll("button,div")).filter(function(e){
+      var t=(e.textContent||"").trim();
+      var с=getComputedStyle(e);
+      return с.backgroundColor==="rgb(238, 240, 244)" && с.borderRadius==="10px" &&
+             (t==="Поиск"||e.querySelector('input[aria-label^="Поиск"]'));
+    });
+    return к[0]||null;
+  }
+  function снять(имя){
+    var э=поле(); if(!э){итог[имя]={ошибка:"поле не найдено"};return;}
+    var r=э.getBoundingClientRect();
+    итог[имя]={верх:Math.round(r.top), низ:Math.round(r.bottom),
+               высота:Math.round(r.height)};
+    // шапка: всё, что выше поля
+    итог[имя].шапка_до_поля=Math.round(r.top);
+  }
+  function кн(т){return [].slice.call(document.querySelectorAll("button")).find(function(b){return (b.textContent||"").trim()===т;});}
+  function старт(){
+    if(!document.querySelector('button[aria-label="Аккаунт"]') && ж++<40)
+      return setTimeout(старт,150);
+    снять("Главная");
+    /* ⚠️ КАК ЧЕЛОВЕК: прокрутили «Главную» вниз, ПОТОМ пошли в профиль */
+    var с=[].slice.call(document.querySelectorAll("div")).find(function(e){
+      var st=getComputedStyle(e);return st.overflowY==="auto"&&e.scrollHeight>e.clientHeight;});
+    if(с){с.scrollTop=250;с.dispatchEvent(new Event("scroll",{bubbles:true}));итог.скролл_перед_переходом=с.scrollTop;}
+    /* ⚠️ событию scroll нужен такт: человек прокручивает с событиями,
+       проба ставила scrollTop и кликала В ТОТ ЖЕ ТИК — позиция не успевала
+       записаться, и «возврат» мерил артефакт пробы, а не приложение */
+    setTimeout(function(){
+    var а=document.querySelector('button[aria-label="Аккаунт"]'); if(а)а.click();
+    setTimeout(function(){
+      снять("Профиль");
+      /* назад на «Главную»: позиция обязана ВЕРНУТЬСЯ (решение владельца) */
+      var г=[].slice.call(document.querySelectorAll("button")).find(function(b){
+        return (b.textContent||"").trim()==="Главная";});
+      if(г)г.click();
+      setTimeout(function(){
+        итог.скролл_после_возврата=с?Math.round(с.scrollTop):null;
+        document.getElementById("ЗАМЕР").textContent=JSON.stringify(итог);
+      },400);
+    },700);
+    },80);
+  }
+  старт();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>

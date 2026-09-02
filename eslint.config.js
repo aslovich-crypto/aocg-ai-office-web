@@ -21,6 +21,7 @@ export default defineConfig([
     "scripts/probe-boundary/__dist",
     "scripts/probe-scroll/__dist",
     "scripts/probe-vid/__dist",
+  "scripts/probe-pos/__dist",
   ]),
   {
     files: ["**/*.{js,jsx}"],

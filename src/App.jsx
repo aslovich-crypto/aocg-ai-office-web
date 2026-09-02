@@ -9391,6 +9391,24 @@ export default function App() {
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
+  // ⚠️ T150: скроллер ОДИН на все экраны, и его позиция переживала смену
+  // экрана — прокрутил «Главную», открыл «Профиль», и хаб рисовался в уже
+  // прокрученном контейнере (поиск уходил ПОД шапку, замер: верх −10 при
+  // ожидаемых 77). Три захода искали причину в вёрстке полос — она была
+  // здесь. Решение владельца: ВПЕРЁД — всегда с верха, НАЗАД — на прежнее
+  // место. Позиция каждой вкладки запоминается по скроллу и возвращается
+  // при повторном входе; подэкраны профиля — всегда с верха.
+  const позицииПрокрутки = useRef({});
+  const ключПрокрутки = подэкран == null ? page : null;
+  useEffect(() => {
+    const с = scrollRef.current;
+    if (!с) return;
+    с.scrollTop =
+      ключПрокрутки != null
+        ? (позицииПрокрутки.current[ключПрокрутки] ?? 0)
+        : 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, подэкран]);
 
   // ─── Auth & lightweight routing ───
   const [authed, setAuthed] = useState(() => {
@@ -9884,7 +9902,17 @@ export default function App() {
       </div>
       {/* Единственный скроллер страниц: к нему привязано прятанье
           плавающей кнопки на всех экранах, где она есть. */}
-      <div ref={scrollRef} style={{ flex: 1, overflow: "auto" }}>
+      <div
+        ref={scrollRef}
+        onScroll={(е) => {
+          // Позиция пишется ПО ХОДУ прокрутки, а не в момент ухода: при
+          // смене экрана содержимое уже подменено и scrollTop обрезан
+          // новой высотой — сохранять поздно, сохранилось бы враньё.
+          if (ключПрокрутки != null)
+            позицииПрокрутки.current[ключПрокрутки] = е.currentTarget.scrollTop;
+        }}
+        style={{ flex: 1, overflow: "auto" }}
+      >
         {page === "glavnaya" && (
           <GlavnayaPage
             receipts={receipts}
