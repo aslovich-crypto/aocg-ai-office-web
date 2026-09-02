@@ -3395,6 +3395,8 @@ function OperaciiPage({
                 flex: 1,
                 minWidth: 0,
                 background: "none",
+                /* T144-эталон 40: прошивка input даёт 1px/1px — обнулено */
+                padding: 0,
                 font: `400 15px/1.2 ${FONT}`,
                 color: theme.fg1,
               }}
@@ -6427,6 +6429,8 @@ export function ProfileHub({ role, me, onOpen, onLogout }) {
               border: "none",
               background: "none",
               outline: "none",
+              /* T144-эталон 40: прошивка input даёт 1px/1px — обнулено */
+              padding: 0,
               font: `400 15px/1.2 ${FONT}`,
               color: theme.fg1,
             }}

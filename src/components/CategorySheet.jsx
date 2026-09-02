@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Search } from "lucide-react";
 import { C, FONT, theme } from "../lib/theme";
 import { groupColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
@@ -145,25 +146,14 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
             style={{
               display: "flex",
               alignItems: "center",
-              border: `1px solid #EEF0F4`,
-              padding: "8px 12px",
-              gap: 8,
-              background: "#F6F7F9",
+              /* T144-эталон 40: то же поле, что на четырёх экранах */
+              padding: "11px 12px",
+              gap: 9,
+              background: theme.surfaceSunk,
               borderRadius: 10,
             }}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={theme.fg3}
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <Search size={18} color={theme.fg3} aria-hidden="true" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -174,10 +164,10 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
                 outline: "none",
                 flex: 1,
                 minWidth: 0,
-                fontSize: 13,
                 background: "none",
-                fontFamily: FONT,
-                color: C.dark,
+                padding: 0,
+                font: `400 15px/1.2 ${FONT}`,
+                color: theme.fg1,
               }}
             />
           </div>

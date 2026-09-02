@@ -4,23 +4,28 @@
 <script>
 (function(){
   var ж=0, итог={};
-  function поле(корень){ // видимая серая плашка поиска
-    /* label добавлен вместе с T144: поле «Главной» стало настоящим input в label */
-    var к=[].slice.call(document.querySelectorAll("button,div,label")).filter(function(e){
-      var t=(e.textContent||"").trim();
-      var с=getComputedStyle(e);
-      return с.backgroundColor==="rgb(238, 240, 244)" && с.borderRadius==="10px" &&
-             (t==="Поиск"||e.querySelector('input[aria-label^="Поиск"]'));
-    });
-    return к[0]||null;
+  function поле(корень){ // контейнер, в котором живёт input поиска
+    var вх=document.querySelector('input[aria-label^="Поиск"]');
+    if(!вх) return null;
+    var э=вх.parentElement;
+    while(э && getComputedStyle(э).borderRadius!=="10px") э=э.parentElement;
+    return э||вх.parentElement;
   }
   function снять(имя){
     var э=поле(); if(!э){итог[имя]={ошибка:"поле не найдено"};return;}
     var r=э.getBoundingClientRect();
     итог[имя]={верх:Math.round(r.top), низ:Math.round(r.bottom),
                высота:Math.round(r.height)};
-    // шапка: всё, что выше поля
     итог[имя].шапка_до_поля=Math.round(r.top);
+    /* T144-разбор: откуда высота у содержимого — input против span */
+    var вн=э.querySelector("input")||э.querySelector("span");
+    if(вн){var с=getComputedStyle(вн), rv=вн.getBoundingClientRect();
+      итог[имя].содержимое={тег:вн.tagName.toLowerCase(),
+        высота:Math.round(rv.height*10)/10,
+        line:с.lineHeight, шрифт:с.fontSize,
+        pad:с.paddingTop+"/"+с.paddingBottom,
+        border:с.borderTopWidth+"/"+с.borderBottomWidth,
+        box:с.boxSizing};}
   }
   function кн(т){return [].slice.call(document.querySelectorAll("button")).find(function(b){return (b.textContent||"").trim()===т;});}
   function старт(){
@@ -38,14 +43,33 @@
     var а=document.querySelector('button[aria-label="Аккаунт"]'); if(а)а.click();
     setTimeout(function(){
       снять("Профиль");
+      /* T144-обход: Чеки и Отчёты — полоса выезжает по лупе; Сводка — полосы
+         быть не должно, отсутствие тоже проверяется */
+      кн("Чеки").click();
+      setTimeout(function(){
+        var л=document.querySelector('button[aria-label="Поиск"]'); if(л)л.click();
+        setTimeout(function(){
+          снять("Чеки");
+          кн("Отчёты").click();
+          setTimeout(function(){
+            var л2=document.querySelector('button[aria-label="Поиск"]'); if(л2)л2.click();
+            setTimeout(function(){
+              снять("Отчёты");
+              кн("Сводка").click();
+              setTimeout(function(){
+                итог["Сводка_полей"]=document.querySelectorAll('input[aria-label^="Поиск"]').length;
       /* назад на «Главную»: позиция обязана ВЕРНУТЬСЯ (решение владельца) */
-      var г=[].slice.call(document.querySelectorAll("button")).find(function(b){
-        return (b.textContent||"").trim()==="Главная";});
+      var г=кн("Главная");
       if(г)г.click();
       setTimeout(function(){
         итог.скролл_после_возврата=с?Math.round(с.scrollTop):null;
         document.getElementById("ЗАМЕР").textContent=JSON.stringify(итог);
       },400);
+              },500);
+            },500);
+          },500);
+        },500);
+      },500);
     },700);
     },80);
   }

@@ -3,6 +3,7 @@
 import { createRoot } from "react-dom/client";
 import { ProfileHub } from "../../src/App.jsx";
 import GlavnayaPage from "../../src/pages/GlavnayaPage.jsx";
+import CategorySheet from "../../src/components/CategorySheet.jsx";
 
 const МЕНЯ = {
   id: 1,
@@ -40,6 +41,9 @@ createRoot(document.getElementById("root")).render(
     <div data-экран="Профиль" style={{ width: 390, background: "#F6F7F9" }}>
       <div style={{ height: 56, background: "#fff" }}>шапка</div>
       <ProfileHub role="admin" me={МЕНЯ} onOpen={пусто} onLogout={пусто} />
+    </div>
+    <div data-экран="Категории" style={{ width: 390, background: "#F6F7F9", position: "relative", minHeight: 400 }}>
+      <CategorySheet catalog={{ groups: [] }} selected="" onPick={() => {}} onClose={() => {}} />
     </div>
     <div data-экран="Главная" style={{ width: 390, background: "#F6F7F9" }}>
       <div style={{ height: 56, background: "#fff" }}>шапка</div>

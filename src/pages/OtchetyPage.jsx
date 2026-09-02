@@ -489,23 +489,23 @@ export default function OtchetyPage({
       {showSearch && (
         <div
           style={{
-            background: theme.surface,
-            borderBottom: `1px solid ${theme.border}`,
-            padding: "0 16px 10px",
+            /* T144-эталон (как «Чеки»): без белой подложки и рамки, поле
+               surfaceSunk 11/12, зазор 9. Была ЧЕТВЁРТАЯ разновидность
+               полосы — нашлась только сплошной описью по src. */
+            padding: "10px 16px 12px",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              border: "1px solid #EEF0F4",
-              padding: "8px 12px",
-              gap: 8,
-              background: "#F6F7F9",
+              padding: "11px 12px",
+              gap: 9,
+              background: theme.surfaceSunk,
               borderRadius: 10,
             }}
           >
-            <Search size={14} color={theme.fg3} />
+            <Search size={18} color={theme.fg3} aria-hidden="true" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -517,10 +517,10 @@ export default function OtchetyPage({
                 outline: "none",
                 flex: 1,
                 minWidth: 0,
-                fontSize: 13,
                 background: "none",
-                fontFamily: FONT,
-                color: C.dark,
+                padding: 0,
+                font: `400 15px/1.2 ${FONT}`,
+                color: theme.fg1,
               }}
             />
           </div>
