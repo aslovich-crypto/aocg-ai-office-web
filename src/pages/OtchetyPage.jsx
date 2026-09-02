@@ -7,6 +7,7 @@ import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, money } from "../lib/format";
 import { catName } from "../lib/categories";
 import { BADGE, isEditable, canApprove } from "../lib/reports";
+import { РЕЖИМЫ_ПЕРИОДА, вПериоде } from "../lib/period";
 import ReportDetailModal from "../components/ReportDetailModal";
 import SwipeRow from "../components/SwipeRow";
 
@@ -59,6 +60,10 @@ export default function OtchetyPage({
   const [showC, setShowC] = useState(false);
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState([]);
+  // T148 ①: выбор периода в шторке создания. Отмечать месячную пачку по
+  // одному чеку — «не работа, а мучение» (владелец); период прячет чужие
+  // месяцы, «Выбрать все» берёт видимое одним нажатием.
+  const [период, setПериод] = useState("все");
   // Открытый отчёт (детали). Одобрение/отклонение живёт ТОЛЬКО там —
   // чтобы решение принимали, увидев состав, а не вслепую из списка.
   const [openRep, setOpenRep] = useState(null);
@@ -859,6 +864,76 @@ export default function OtchetyPage({
             >
               Выберите чеки · {selected.length} выбрано
             </div>
+            {/* T148 ①: период ПРЯЧЕТ строки списка, не трогая уже выбранное
+                в другом месяце — фильтр не имеет права терять состояние (T99,
+                тот же класс). «Выбрать все» действует только на видимое. */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 10,
+              }}
+            >
+              {РЕЖИМЫ_ПЕРИОДА.map(([v, l]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setПериод(v)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    border: `1px solid ${период === v ? theme.cherry : theme.border}`,
+                    background: период === v ? theme.cherryTint : theme.surface,
+                    color: период === v ? theme.cherry : theme.fg2,
+                    font: `500 12px/1.2 ${FONT}`,
+                    cursor: "pointer",
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            {(() => {
+              const видимые = free.filter((r) => вПериоде(r.date, период));
+              if (!видимые.length) return null;
+              const всеВыбраны = видимые.every((r) => selected.includes(r.id));
+              const сумма = видимые.reduce((s, r) => s + Number(r.amount), 0);
+              return (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelected((prev) =>
+                      всеВыбраны
+                        ? prev.filter((id) => !видимые.some((r) => r.id === id))
+                        : [
+                            ...prev,
+                            ...видимые
+                              .map((r) => r.id)
+                              .filter((id) => !prev.includes(id)),
+                          ],
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    textAlign: "left",
+                    padding: "9px 12px",
+                    marginBottom: 10,
+                    borderRadius: 8,
+                    border: `1px dashed ${theme.border}`,
+                    background: theme.surfaceSunk,
+                    color: theme.fg1,
+                    font: `500 12.5px/1.3 ${FONT}`,
+                    cursor: "pointer",
+                  }}
+                >
+                  {всеВыбраны
+                    ? `Снять все за период (${видимые.length})`
+                    : `Выбрать все за период: ${видимые.length} · ${money(сумма)}`}
+                </button>
+              );
+            })()}
             {/* Три разных «пусто» — причина у них разная, и подсказка тоже:
                 ждём профиль · своих чеков нет вовсе · все уже разложены. */}
             {free.length === 0 && (
@@ -873,6 +948,7 @@ export default function OtchetyPage({
               </Block>
             )}
             {free.map((r) => {
+              if (!вПериоде(r.date, период)) return null;
               const sel = selected.includes(r.id);
               return (
                 <div

@@ -7,6 +7,7 @@ import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { authFetch } from "../lib/api";
 import { BADGE, isEditable, FROZEN_HINT, canApprove } from "../lib/reports";
+import { РЕЖИМЫ_ПЕРИОДА, вПериоде } from "../lib/period";
 
 // Детали отчёта — полноэкранная карточка по образцу «Детали чека».
 // ЗАЧЕМ ЭКРАН СУЩЕСТВУЕТ: без него бухгалтер одобрял вслепую — в списке видно
@@ -129,6 +130,66 @@ export default function ReportDetailModal({
   // Отменяемое удаление: вернуть чек руками дорого (искать среди десятков
   // свободных), поэтому вместо подтверждения ДО — отмена ПОСЛЕ.
   const [undo, setUndo] = useState(null); // {receiptId, org, until}
+  // T148 ②: добавление чеков ПРЯМО ИЗ ЧЕРНОВИКА. Ручка POST /{id}/receipts
+  // существовала с самого начала, но из карточки отчёта её не звал никто —
+  // добавить чек можно было только кружным путём через карточку каждого чека.
+  // ⚠️ Пул модалка добывает САМА (GET /api/receipts/ уже отдаёт in_report и
+  // user_id), а не пропсом: модалку открывают два места, и проп, который
+  // один из них забудет передать, — ровно класс T118 «передали, не приняли».
+  const [showAdd, setShowAdd] = useState(false);
+  const [пул, setПул] = useState(null); // null = грузится
+  const [addSel, setAddSel] = useState([]);
+  const [периодДоб, setПериодДоб] = useState("все");
+
+  async function openAdd() {
+    setShowAdd(true);
+    setAddSel([]);
+    setПул(null);
+    try {
+      const res = await authFetch("/api/receipts/");
+      const все = res.ok ? await res.json() : [];
+      const авторId = (full || rep).user_id;
+      // Свои чеки автора отчёта, ещё не разложенные: инвариант АО-1 —
+      // состав отчёта однороден по автору, бэкенд это же и проверяет.
+      setПул(
+        (Array.isArray(все) ? все : []).filter(
+          (r) => r.user_id === авторId && !r.in_report,
+        ),
+      );
+    } catch {
+      setПул([]);
+    }
+  }
+
+  async function addSelected() {
+    if (!addSel.length || busyId) return;
+    setBusyId(-1);
+    await api(
+      `/api/reports/${rep.id}/receipts`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiptIds: addSel }),
+      },
+      (updated) => {
+        // ⚠️ НЕ applyUpdated: ручки состава отдают отчёт БЕЗ развёрнутых
+        // чеков, а видимые строки считаются по кэшу full.receipts. Без
+        // подмешивания добавленные чеки посчитались бы «принадлежащими
+        // другому сотруднику» (hiddenCount) — ложь на ровном месте.
+        // Строки у нас уже есть — из пула, второй запрос не нужен.
+        const добавленные = (пул || []).filter((r) => addSel.includes(r.id));
+        setFull((prev) => ({
+          ...(prev || {}),
+          ...updated,
+          receipts: [...((prev && prev.receipts) || []), ...добавленные],
+        }));
+        if (onChanged) onChanged(updated);
+        if (reloadReceipts) reloadReceipts();
+        setShowAdd(false);
+      },
+    );
+    if (aliveRef.current) setBusyId(null);
+  }
   const aliveRef = useRef(true);
 
   useEffect(() => {
@@ -556,11 +617,305 @@ export default function ReportDetailModal({
                 padding: "14px 2px",
               }}
             >
-              В отчёте пока нет чеков. Их добавляют из карточки чека —
-              «Прикрепить к отчёту»
+              {/* ⚠️ Текст поправлен вместе с T148 ②: прежний отправлял в
+                  карточку чека, потому что другого пути НЕ БЫЛО. */}
+              В отчёте пока нет чеков — добавьте кнопкой ниже
             </div>
           )}
+
+          {/* T148 ②: черновик правится здесь же, а не пересозданием отчёта.
+              Кнопка только там, где бэк разрешает менять состав. */}
+          {editable && full && (
+            <button
+              type="button"
+              onClick={openAdd}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                marginTop: 12,
+                padding: "11px 12px",
+                borderRadius: 10,
+                border: `1px dashed ${theme.border}`,
+                background: theme.surfaceSunk,
+                color: theme.fg1,
+                font: `500 13px/1.3 ${FONT}`,
+                cursor: "pointer",
+              }}
+            >
+              + Добавить чеки
+            </button>
+          )}
         </div>
+
+        {/* T148 ②: шторка добавления чеков в черновик. Поверх панели,
+            тем же слоем-приёмом, что плашка отмены ниже. */}
+        {showAdd && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: theme.bg,
+              zIndex: 5,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "14px 16px 10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAdd(false)}
+                aria-label="Назад к отчёту"
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 4,
+                  cursor: "pointer",
+                  display: "flex",
+                  color: theme.fg1,
+                }}
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <span style={{ font: `600 15px/1.2 ${FONT}`, color: C.dark }}>
+                Добавить чеки
+              </span>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: "0 16px 16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                {РЕЖИМЫ_ПЕРИОДА.map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setПериодДоб(v)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${периодДоб === v ? theme.cherry : theme.border}`,
+                      background:
+                        периодДоб === v ? theme.cherryTint : theme.surface,
+                      color: периодДоб === v ? theme.cherry : theme.fg2,
+                      font: `500 12px/1.2 ${FONT}`,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {пул === null && (
+                <div
+                  style={{
+                    font: `400 13px/1.4 ${FONT}`,
+                    color: theme.fg3,
+                    padding: "10px 2px",
+                  }}
+                >
+                  Загружаем свободные чеки…
+                </div>
+              )}
+              {пул !== null &&
+                (() => {
+                  const видимые = пул.filter((r) =>
+                    вПериоде(r.date, периодДоб),
+                  );
+                  if (!пул.length)
+                    return (
+                      <div
+                        style={{
+                          font: `400 13px/1.4 ${FONT}`,
+                          color: theme.fg3,
+                          padding: "10px 2px",
+                        }}
+                      >
+                        Свободных чеков нет: все чеки автора уже разложены по
+                        отчётам
+                      </div>
+                    );
+                  const всеВыбраны =
+                    видимые.length > 0 &&
+                    видимые.every((r) => addSel.includes(r.id));
+                  return (
+                    <>
+                      {видимые.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAddSel((prev) =>
+                              всеВыбраны
+                                ? prev.filter(
+                                    (id) => !видимые.some((r) => r.id === id),
+                                  )
+                                : [
+                                    ...prev,
+                                    ...видимые
+                                      .map((r) => r.id)
+                                      .filter((id) => !prev.includes(id)),
+                                  ],
+                            )
+                          }
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            textAlign: "left",
+                            padding: "9px 12px",
+                            marginBottom: 10,
+                            borderRadius: 8,
+                            border: `1px dashed ${theme.border}`,
+                            background: theme.surfaceSunk,
+                            color: theme.fg1,
+                            font: `500 12.5px/1.3 ${FONT}`,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {всеВыбраны
+                            ? `Снять все за период (${видимые.length})`
+                            : `Выбрать все за период: ${видимые.length} · ${money(
+                                видимые.reduce(
+                                  (s, r) => s + Number(r.amount),
+                                  0,
+                                ),
+                              )}`}
+                        </button>
+                      )}
+                      {видимые.map((r) => {
+                        const sel = addSel.includes(r.id);
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() =>
+                              setAddSel((prev) =>
+                                sel
+                                  ? prev.filter((id) => id !== r.id)
+                                  : [...prev, r.id],
+                              )
+                            }
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "10px 12px",
+                              marginBottom: 8,
+                              background: theme.surface,
+                              border: `1px solid ${sel ? theme.cherry : theme.border}`,
+                              borderRadius: 10,
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 16,
+                                height: 16,
+                                border: `1.5px solid ${sel ? theme.cherry : theme.border}`,
+                                background: sel ? theme.cherry : "transparent",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: theme.surface,
+                                fontSize: 10,
+                                flexShrink: 0,
+                                borderRadius: 3,
+                              }}
+                            >
+                              {sel && "✓"}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  font: `500 13px/1.3 ${FONT}`,
+                                  color: C.dark,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {shortOrg(r.org)}
+                              </div>
+                              <div
+                                style={{
+                                  font: `400 12px/1.3 ${FONT}`,
+                                  color: theme.fg2,
+                                }}
+                              >
+                                {fmtDate(r.date)} · {catName(r)}
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                font: `600 13px/1.2 ${FONT}`,
+                                color: C.dark,
+                                fontVariantNumeric: "tabular-nums",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {money(r.amount)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              {loadErr && (
+                <div
+                  role="alert"
+                  style={{
+                    background: theme.errorBg,
+                    color: theme.errorFg,
+                    border: `1px solid ${theme.errorBd}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    font: `400 13px/1.4 ${FONT}`,
+                  }}
+                >
+                  {loadErr}
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                padding:
+                  "10px 16px calc(env(safe-area-inset-bottom) + 12px)",
+                borderTop: `1px solid ${theme.border}`,
+                background: theme.surface,
+              }}
+            >
+              <button
+                type="button"
+                onClick={addSelected}
+                disabled={!addSel.length || busyId === -1}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: 13,
+                  background: addSel.length ? theme.cherry : theme.border,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  font: `600 15px/1.2 ${FONT}`,
+                  cursor: addSel.length ? "pointer" : "default",
+                }}
+              >
+                {busyId === -1
+                  ? "Добавляем…"
+                  : `Добавить (${addSel.length})`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Плашка отмены: вернуть чек руками дорого (искать среди свободных),
           поэтому даём отмену сразу после действия. */}
