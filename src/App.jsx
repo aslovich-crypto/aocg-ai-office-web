@@ -348,7 +348,7 @@ function RuleInput({
           borderBottom: `1.5px solid ${f ? theme.cherry : theme.border}`,
           outline: "none",
           padding: "7px 0",
-          fontSize: 13,
+          fontSize: 16, /* T138 */
           fontFamily: FONT,
           color: C.dark,
           background: "transparent",
@@ -4844,7 +4844,7 @@ export function AccountTab({
               flex: 1,
               border: "none",
               background: "transparent",
-              fontSize: 13,
+              fontSize: 16, /* T138 */
               fontFamily: FONT,
               color: C.dark,
               outline: "none",
@@ -4899,7 +4899,7 @@ export function AccountTab({
             borderRadius: 6,
             outline: "none",
             padding: "7px 10px",
-            fontSize: 13,
+            fontSize: 16, /* T138 */
             fontFamily: FONT,
             color: C.dark,
             background: theme.surface,
@@ -8441,7 +8441,7 @@ function ForgotPasswordScreen({ navigate }) {
                 border: "1px solid #EEF0F4",
                 borderRadius: 12,
                 padding: "14px 16px",
-                fontSize: 15,
+                fontSize: 16, /* T138 */
                 fontFamily: FONT,
                 color: "#111318",
                 background: "#fff",
