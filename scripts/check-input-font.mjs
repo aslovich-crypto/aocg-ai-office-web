@@ -31,7 +31,7 @@ for (const ф of файлы) {
   for (const м of т.matchAll(/<(input|textarea|select)\b[^<]{0,900}?style=\{\{([^<]*?)\}\}/g)) {
     const блок = м[2];
     const fs = /fontSize:\s*(\d+)/.exec(блок);
-    const fshort = /font:\s*`?\D*?(\d+)px/.exec(блок);
+    const fshort = /font:[^;\n]*?(\d+(?:\.\d+)?)px/.exec(блок);
     const размер = fs ? +fs[1] : fshort ? +fshort[1] : null;
     if (размер !== null && размер < ПОРОГ)
       нарушители.push(`${ф}: <${м[1]}> инлайн ${размер}px`);
@@ -44,7 +44,7 @@ for (const ф of файлы) {
     const об = new RegExp(`(?:const|let)\\s+${имя}\\s*=\\s*\\{([\\s\\S]{0,700}?)\\n\\s*\\}`).exec(т);
     if (!об) continue;
     const fs = /fontSize:\s*(\d+)/.exec(об[1]);
-    const fshort = /font:\s*`?\D*?(\d+)px/.exec(об[1]);
+    const fshort = /font:[^;\n]*?(\d+(?:\.\d+)?)px/.exec(об[1]);
     const размер = fs ? +fs[1] : fshort ? +fshort[1] : null;
     if (размер !== null && размер < ПОРОГ)
       нарушители.push(`${ф}: <${тег}> style={${имя}} ${размер}px`);
