@@ -228,7 +228,13 @@ export default function ReportDetailModal({
     return () => clearTimeout(t);
   }, [undo]);
 
-  const rep = full || report;
+  // ⚠️ СВЕЖЕЕ ПОБЕЖДАЕТ КЭШ (T-статус, 03.09.2026). Было `full || report`:
+  // после «Отправить»/«Одобрить» родитель обновлял и список, и проп report,
+  // но кэш загрузки full ПЕРЕКРЫВАЛ его — статус на экране жил прежним,
+  // пока не выйдешь и не зайдёшь. Ответ сервера не глотался — он доезжал
+  // до пропа и проигрывал спреду. Скелет из карточки чека ({id, title})
+  // безопасен: спред копирует только существующие ключи, остальное — из full.
+  const rep = full ? { ...full, ...report } : report;
   const badge = BADGE[rep.status] || BADGE["Черновик"];
   const editable = isEditable(rep.status);
   const hint = FROZEN_HINT[rep.status];
