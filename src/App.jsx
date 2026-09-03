@@ -4627,7 +4627,7 @@ export function AccountTab({
     textAlign: "right",
     border: "none",
     background: "transparent",
-    fontSize: 13,
+    fontSize: 16  /* T138 */,
     color: C.dark,
     fontFamily: FONT,
     outline: "none",
