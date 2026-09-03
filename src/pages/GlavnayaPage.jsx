@@ -21,6 +21,8 @@ import { paymentShort, shortOrg, money, fmtDate } from "../lib/format";
 
 export default function GlavnayaPage({
   receipts,
+  onScan, // плитка — прямое действие: сканер сразу, не список «Чеков»
+  onNewReport, // и шторка нового отчёта сразу
   catalog,
   org,
   setPage,
@@ -501,8 +503,11 @@ export default function GlavnayaPage({
           marginBottom: 22,
         }}
       >
-        {quick(ScanLine, "Сканировать чек", () => setPage("operacii"))}
-        {quick(FileText, "Создать отчёт", () => setPage("otchety"))}
+        {/* Прямые действия (03.09.2026): человек нажал «Сканировать» —
+            он хочет сканировать, а не смотреть список. Класс «названо
+            действием — делает переход» этой правкой исчерпан: живых 2 → 0. */}
+        {quick(ScanLine, "Сканировать чек", onScan)}
+        {quick(FileText, "Создать отчёт", onNewReport)}
       </div>
 
       {/* Требует внимания */}

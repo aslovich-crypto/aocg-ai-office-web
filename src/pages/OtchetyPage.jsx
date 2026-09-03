@@ -41,6 +41,8 @@ const STATUS_CHIPS = [
 ];
 
 export default function OtchetyPage({
+  сигналНовогоОтчёта, // плитка «Создать отчёт» с «Главной»
+  onActionClosed, // шторка закрыта любым путём — вернуть, откуда пришли
   // Отмена удаления живёт в ОБОЛОЧКЕ (App.jsx), а не здесь: тост и таймер
   // обязаны пережить переход между вкладками нижнего меню, а этот экран
   // при переходе размонтируется.
@@ -66,6 +68,19 @@ export default function OtchetyPage({
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showC, setShowC] = useState(false);
+  useEffect(() => {
+    if (!сигналНовогоОтчёта) return;
+    // счётчик: каждый тап по плитке открывает заново; таймер-0 — чтобы
+    // setState не звался в теле эффекта (правило хуков)
+    const т = setTimeout(() => openCreate(), 0);
+    return () => clearTimeout(т);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [сигналНовогоОтчёта]);
+  const шторкаБыла = useRef(false);
+  useEffect(() => {
+    if (шторкаБыла.current && !showC && onActionClosed) onActionClosed();
+    шторкаБыла.current = showC;
+  }, [showC, onActionClosed]);
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState([]);
   // T148 ①: выбор периода в шторке создания. Отмечать месячную пачку по

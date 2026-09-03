@@ -2736,6 +2736,8 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
 
 function OperaciiPage({
   scrollRef,
+  сигналСканера, // плитка «Сканировать чек» с «Главной»
+  onActionClosed, // сканер закрыт любым путём — вернуть, откуда пришли
   receipts,
   cards,
   catalog,
@@ -2765,6 +2767,19 @@ function OperaciiPage({
   const [limit, setLimit] = useState(30);
   const [showSearch, setShowSearch] = useState(false); // поиск-иконка раскрывает поле
   const [showScan, setShowScan] = useState(false);
+  // Сигнал с «Главной»: открыть сканер сразу. Закрытие ловим ОДНОЙ точкой —
+  // переходом showScan true→false, каким бы путём он ни случился.
+  useEffect(() => {
+    if (!сигналСканера) return;
+    // setState не в теле эффекта — правило хуков (как в поиске «Главной»)
+    const т = setTimeout(() => setShowScan(true), 0);
+    return () => clearTimeout(т);
+  }, [сигналСканера]);
+  const сканБыл = useRef(false);
+  useEffect(() => {
+    if (сканБыл.current && !showScan && onActionClosed) onActionClosed();
+    сканБыл.current = showScan;
+  }, [showScan, onActionClosed]);
   // Ширину меряем у КОНТЕЙНЕРА списка — одним наблюдателем на все строки.
   const fabHidden = useFabHidden(scrollRef);
   const [showAdd, setShowAdd] = useState(false);
@@ -9432,6 +9447,17 @@ export default function App() {
   // либо оставить шапку без имени, а именно этого экран и лишился
   // (T106). null — хаб «Профиль».
   const [подэкран, setПодэкран] = useState(null);
+  // Плитки «Главной» — прямые действия (решение владельца 03.09.2026):
+  // тап открывает сканер/шторку СРАЗУ, счётчиком-сигналом (каждый тап —
+  // заново). Возврат после закрытия — туда, откуда пришли: исток помнит реф.
+  const [сигналСканера, setСигналСканера] = useState(0);
+  const [сигналОтчёта, setСигналОтчёта] = useState(0);
+  const истокДействия = useRef(null);
+  const закрылосьДействие = useCallback(() => {
+    if (истокДействия.current === "glavnaya") setPage("glavnaya");
+    истокДействия.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
@@ -9960,6 +9986,16 @@ export default function App() {
         {page === "glavnaya" && (
           <GlavnayaPage
             receipts={receipts}
+            onScan={() => {
+              истокДействия.current = "glavnaya";
+              setPage("operacii");
+              setСигналСканера((с) => с + 1);
+            }}
+            onNewReport={() => {
+              истокДействия.current = "glavnaya";
+              setPage("otchety");
+              setСигналОтчёта((с) => с + 1);
+            }}
             catalog={catalog}
             org={org}
             setPage={setPage}
@@ -9986,6 +10022,8 @@ export default function App() {
         {page === "operacii" && (
           <OperaciiPage
             scrollRef={scrollRef}
+            сигналСканера={сигналСканера}
+            onActionClosed={закрылосьДействие}
             receipts={receipts}
             cards={cards}
             catalog={catalog}
@@ -10001,6 +10039,8 @@ export default function App() {
         )}
         {page === "otchety" && (
           <OtchetyPage
+            сигналНовогоОтчёта={сигналОтчёта}
+            onActionClosed={закрылосьДействие}
             scheduleUndo={scheduleUndo}
             scrollRef={scrollRef}
             receipts={receipts}
