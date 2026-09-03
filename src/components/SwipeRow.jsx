@@ -30,7 +30,7 @@ import { FONT } from "../lib/theme";
 //     момент (`settle(false)`), поэтому шторка открывается уже над
 //     закрытой строкой.
 
-const ACTION_W = 72; // ширина одного действия
+const ACTION_W = 84; // ширина полосы — канон .sa{width:84px} (T121, как у «Пользователей»)
 const AXIS_LOCK = 6; // сколько px нужно, чтобы решить: жест по X или по Y
 const TAP_SUPPRESS = 4; // сдвинулись больше — тап по строке не считается
 const EASE = "transform 240ms cubic-bezier(.32,.72,0,1)";
