@@ -774,10 +774,12 @@ export default function ReportDetailModal({
                             padding: "9px 12px",
                             marginBottom: 10,
                             borderRadius: 8,
-                            border: `1px dashed ${theme.border}`,
-                            background: theme.surfaceSunk,
-                            color: theme.fg1,
-                            font: `500 12.5px/1.3 ${FONT}`,
+                            /* T148-акцент: как в шторке создания — язык
+                               активной фишки периода, заливка не тронута */
+                            border: `1px solid ${theme.cherry}`,
+                            background: theme.cherryTint,
+                            color: theme.cherry,
+                            font: `600 13px/1.3 ${FONT}`,
                             cursor: "pointer",
                           }}
                         >
