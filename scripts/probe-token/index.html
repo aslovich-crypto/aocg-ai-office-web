@@ -1,0 +1,165 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>проба протухшего токена</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div>
+<div id="ЗАМЕР"></div>
+<script>
+// ⚠️ ЧТО УВИДИТ СОТРУДНИК ПОСЛЕ ОБЕДА (T152). Access протух, refresh жив —
+// приложение обязано тихо обновиться и продолжить работу, НЕ выбрасывая
+// человека на вход и НЕ теряя введённое. Проверяется наблюдением: другого
+// способа узнать нет, механизм ни разу не проходили целиком.
+(function(){
+  var шаги=[], ждём=0;
+  var РЕЖИМ=new URLSearchParams(location.search).get("rezhim")||"protuh";
+  function кнопки(){ return [].slice.call(document.querySelectorAll('button')); }
+  function кнопкаРовно(т){
+    return кнопки().find(function(б){ return (б.textContent||"").trim()===т; });
+  }
+  function вписать(поле, значение){
+    var сеттер=Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, "value").set;
+    сеттер.call(поле, значение);
+    поле.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  function экран(){
+    var м=document.querySelector('button[aria-label="Переключить приложение"]');
+    var s=м && м.parentElement ? м.parentElement.querySelector('span') : null;
+    var т=s ? s.textContent.trim() : "";
+    if(т) return т;
+    return document.querySelector('input[type="password"]') ? "ЭКРАН ВХОДА" : "—";
+  }
+  function кнопкаСо(подстрокой){
+    return кнопки().find(function(б){
+      return (б.textContent||"").indexOf(подстрокой)>=0;
+    });
+  }
+  function значенияПолей(){
+    return [].slice.call(document.querySelectorAll('input'))
+      .map(function(п){ return п.value||""; }).join(" ");
+  }
+  var ЧЕРНОВИК="Недописанный черновик";
+
+  // ⓪ Приложение уже стартовало с ПРОТУХШИМ access: сам старт тянет
+  // /api/users/me, то есть первое обновление случается до первого клика.
+  var сценарий=[
+    ["① приложение встало", null, function(){ return экран(); }],
+    ["② экран чеков", function(){
+        var ч=кнопкаРовно("Чеки"); if(ч) ч.click();
+      }, function(){ return экран(); }],
+    // ⚠️ ЧЕРНОВИК ВВОДИМ В ФОРМУ ЧЕКА, А НЕ В ПОИСК. Первая редакция писала
+    // в поле поиска — а его на «Чеках» нет, пока список пуст: проба мерила
+    // собственную выдумку и краснела «ввод потерян» на пустом месте.
+    // Форма — это и есть «несохранённый ввод» из пункта ④ строки T152.
+    ["③а открыт сканер", function(){
+        var к=document.querySelector('button[aria-label="Добавить чек"]');
+        if(к) к.click();
+      }, function(){
+        return кнопкаСо("вручную") ? "сканер открыт" : "НЕТ";
+      }],
+    ["③б открыты реквизиты", function(){
+        var к=кнопкаСо("вручную"); if(к) к.click();
+      }, function(){
+        return кнопкаСо("Записать без проверки") ? "реквизиты" : "НЕТ";
+      }],
+    ["③в введён черновик", function(){
+        var к=кнопкаСо("Записать без проверки"); if(к) к.click();
+        setTimeout(function(){
+          var поле=document.querySelectorAll('input')[0];
+          if(поле) вписать(поле, ЧЕРНОВИК);
+        }, 200);
+      }, function(){
+        return значенияПолей().indexOf(ЧЕРНОВИК)>=0 ? "введено" : "НЕ ВВЕЛОСЬ";
+      }],
+    // ⚠️ ВОТ ОН, ОБЕД: токен протухает У ЧЕЛОВЕКА НА ЭКРАНЕ, а не до старта.
+    // Подмена именно здесь — иначе мерился бы запуск с мёртвой сессией,
+    // а вопрос владельца был про «открыл утром, вернулся после обеда».
+    ["④ ушёл на обед", function(){
+        if(window.__уйтиНаОбед) window.__уйтиНаОбед();
+      }, function(){
+        return window.__обновлений===0 ? "токен протух" : "СЧЁТЧИК НЕ СБРОСИЛСЯ";
+      }],
+    ["⑤ вернулся и работает", function(){
+        if(window.__запрос) window.__запрос();
+      }, function(){
+        return window.__ответ===200 ? "данные пришли" : "ОТВЕТ "+window.__ответ;
+      }],
+    ["⑥ черновик уцелел", null, function(){
+        return значенияПолей().indexOf(ЧЕРНОВИК)>=0 ? "цел" : "ПОТЕРЯН";
+      }],
+    ["⑦ человек внутри", null, function(){ return экран(); }],
+    ["⑧ обновлений токена", null, function(){
+        return "было "+(window.__обновлений||0);
+      }],
+  ];
+
+  // ⚠️ ГОНКА (?rezhim=gonka): два запроса уходят ОДНОВРЕМЕННО с протухшим
+  // access. Пункт ② строки: обновление не должно задваиваться, и второй
+  // запрос не должен убивать первый. Наблюдается счётчиком настоящих
+  // обращений к /api/auth/refresh.
+  if(РЕЖИМ==="gonka"){
+    сценарий=[
+      ["① приложение встало", null, function(){ return экран(); }],
+      ["② ушёл на обед", function(){
+          if(window.__уйтиНаОбед) window.__уйтиНаОбед();
+        }, function(){
+          return window.__обновлений===0 ? "токен протух" : "СЧЁТЧИК НЕ СБРОСИЛСЯ";
+        }],
+      ["③ два запроса разом", function(){
+          if(window.__запрос){ window.__запрос(); window.__запрос(); }
+        }, function(){
+          return window.__ответ===200 ? "данные пришли" : "ОТВЕТ "+window.__ответ;
+        }],
+      ["④ обновлений токена", null, function(){
+          return "было "+(window.__обновлений||0);
+        }],
+      ["⑤ человек внутри", null, function(){ return экран(); }],
+    ];
+  }
+  if(РЕЖИМ==="oba"){
+    сценарий=[
+      ["① оба протухли", null, function(){ return экран(); }],
+      ["② попытка действия", function(){
+          var ч=кнопкаРовно("Чеки"); if(ч) ч.click();
+        }, function(){ return экран(); }],
+    ];
+  }
+
+  function идти(i){
+    if(i>=сценарий.length){
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify(шаги);
+      return;
+    }
+    if(сценарий[i][1]) сценарий[i][1]();
+    setTimeout(function(){
+      var что="—";
+      try { что=сценарий[i][2](); } catch(е){ что="ОШИБКА ЗАМЕРА"; }
+      var слепок=кнопки().map(function(б){
+        return (б.textContent||"").trim().slice(0,18);
+      }).filter(Boolean).slice(0,8).join(" | ");
+      шаги.push(сценарий[i][0]+": "+что+" ~ "+слепок);
+      идти(i+1);
+    }, 900);
+  }
+  function старт(){
+    if(document.getElementById("ЗАМЕР").textContent) return; // probe.jsx сдался
+    // Ждём ЛИБО рабочее приложение, ЛИБО экран входа: при двух протухших
+    // токенах вход — это ПРАВИЛЬНЫЙ исход, и ждать «Чеки» значило бы
+    // объявить верное поведение поломкой.
+    var готово=кнопкаРовно("Чеки") || document.querySelector('input[type="password"]');
+    if(!готово && ждём++<80) return setTimeout(старт,150);
+    if(!готово){
+      document.getElementById("ЗАМЕР").textContent=
+        JSON.stringify({"НЕ_ОТРИСОВАЛОСЬ":true,
+          "причина":"ни приложения, ни экрана входа за 12 с; кнопки: "+
+            кнопки().map(function(б){
+              return (б.textContent||"").trim().slice(0,24);
+            }).slice(0,10).join(" | ")});
+      return;
+    }
+    идти(0);
+  }
+  старт();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>
