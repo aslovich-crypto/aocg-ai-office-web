@@ -492,7 +492,8 @@ export default function OtchetyPage({
             /* T144-эталон (как «Чеки»): без белой подложки и рамки, поле
                surfaceSunk 11/12, зазор 9. Была ЧЕТВЁРТАЯ разновидность
                полосы — нашлась только сплошной описью по src. */
-            padding: "10px 16px 22px", /* T142-воздух: до списка 22 */
+            /* T142-воздух: низ 10 + верхние 12 списка (130-контейнер) = 22 */
+            padding: "10px 16px 10px",
           }}
         >
           <div
@@ -922,10 +923,14 @@ export default function OtchetyPage({
                     padding: "9px 12px",
                     marginBottom: 10,
                     borderRadius: 8,
-                    border: `1px dashed ${theme.border}`,
-                    background: theme.surfaceSunk,
-                    color: theme.fg1,
-                    font: `500 12.5px/1.3 ${FONT}`,
+                    /* T148-акцент: главное действие шторки, а читалось
+                       подписью. Язык — тот же, что у АКТИВНОЙ фишки периода
+                       строкой выше: тонированный вишнёвый. Заливка #A4161A
+                       не тронута — она за «Создать отчёт». */
+                    border: `1px solid ${theme.cherry}`,
+                    background: theme.cherryTint,
+                    color: theme.cherry,
+                    font: `600 13px/1.3 ${FONT}`,
                     cursor: "pointer",
                   }}
                 >
