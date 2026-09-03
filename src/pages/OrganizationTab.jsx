@@ -129,7 +129,7 @@ export default function OrganizationTab({ authFetch, role, Btn, fmtDate }) {
     textAlign: "right",
     border: "none",
     background: "transparent",
-    fontSize: 13,
+    fontSize: 16  /* T138 */,
     color: C.dark,
     fontFamily: FONT,
     outline: "none",
