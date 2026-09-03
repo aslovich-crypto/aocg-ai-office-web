@@ -7757,7 +7757,7 @@ const A_INPUT = {
   padding: "13px 14px",
   border: `1px solid ${theme.border}`,
   borderRadius: 10,
-  fontSize: 15,
+  fontSize: 16  /* T138 */,
   fontFamily: FONT,
   color: C.dark,
   background: theme.surface,

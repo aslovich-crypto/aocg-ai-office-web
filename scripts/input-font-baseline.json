@@ -1,7 +1,6 @@
 {
-  "допустимо": 3,
+  "допустимо": 2,
   "список": [
-    "src/App.jsx: <input> style={A_INPUT} 15px",
     "src/App.jsx: <input> инлайн 13px",
     "src/App.jsx: <input> инлайн 15px"
   ]
