@@ -2514,7 +2514,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
     borderBottom: `1.5px solid ${theme.border}`,
     outline: "none",
     padding: "7px 0",
-    fontSize: 13,
+    fontSize: 16  /* T138: было 13 — Safari зумил при фокусе */,
     fontFamily: FONT,
     color: C.dark,
     background: "transparent",
