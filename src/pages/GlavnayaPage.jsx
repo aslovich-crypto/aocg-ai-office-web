@@ -21,7 +21,6 @@ import { paymentShort, shortOrg, money, fmtDate } from "../lib/format";
 
 export default function GlavnayaPage({
   receipts,
-  фокусПоиска, // UX-15/Ⓑ: счётчик «поставь курсор в поиск» (лупа «Сводки»)
   catalog,
   org,
   setPage,
@@ -40,10 +39,6 @@ export default function GlavnayaPage({
   const [ищем, setИщем] = useState(false);
   const [ошибкаПоиска, setОшибкаПоиска] = useState("");
   const меткаПоиска = useRef(0);
-  const полеПоиска = useRef(null);
-  useEffect(() => {
-    if (фокусПоиска) полеПоиска.current?.focus();
-  }, [фокусПоиска]);
   // ⚠️ Сбросы состояния живут в обработчиках ввода, не в эффекте:
   // setState синхронно в теле эффекта запрещён правилом хуков (каскадные
   // перерисовки). Эффект только ставит таймер запроса.
@@ -304,7 +299,6 @@ export default function GlavnayaPage({
       >
         <Search size={18} color={theme.fg3} strokeWidth={2} />
         <input
-          ref={полеПоиска}
           value={запрос}
           onChange={(e) => ввестиЗапрос(e.target.value)}
           placeholder="Поиск"

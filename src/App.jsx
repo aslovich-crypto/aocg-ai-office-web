@@ -752,7 +752,6 @@ function Donut({ title, data, sliceColor }) {
 
 function SvodkaPage({
   receipts,
-  onSearch, // UX-15/Ⓑ: лупа ведёт в общий поиск на «Главной»
   activePeriod,
   setActivePeriod,
   users,
@@ -874,24 +873,16 @@ function SvodkaPage({
                 Это ровно тот случай, который в UX-14 назван «мёртвая кнопка
                 хуже её отсутствия»; здесь на него пошли осознанно, ради
                 единообразия трёх полос. */}
-            {/* UX-15 закрыт решением Ⓑ (03.09.2026): лупа ведёт в общий
-                поиск — «Главная» с курсором в поле. Была заглушкой
-                aria-disabled «ради единообразия трёх шапок» — владелец
-                поймал обман жеста; правило в RULES-FRONTEND. */}
-            <button
-              type="button"
-              aria-label="Поиск"
-              onClick={onSearch}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                display: "flex",
-              }}
-            >
-              <Search size={20} color={theme.fg2} />
-            </button>
+            {/* ⚠️ ОТСТУПЛЕНИЯ.СводкаБезЛупы (UX-15, 03.09.2026). Канон рисует
+                лупу в шапках всех трёх лент — здесь её НЕТ НАМЕРЕННО, и это
+                третье решение по этой кнопке за два дня:
+                ① заглушка aria-disabled «ради единообразия» — обман жеста;
+                ② переброс в поиск «Главной» — навигация, переодетая поиском;
+                ③ разбор всей картины: на «Сводке» НЕТ ПРЕДМЕТА ПОИСКА —
+                   это агрегаты, искать нечего. Кнопка без осмысленного
+                   действия НА СВОЁМ МЕСТЕ не существует (RULES-FRONTEND:
+                   «вид никогда не важнее того, что кнопка делает»).
+                Вернуть лупу — только вместе с предметом поиска. */}
             <FilterIcon
               active={filtersActive}
               onClick={() => setShowFilters(true)}
@@ -2949,13 +2940,22 @@ function OperaciiPage({
     const suggested = await _suggestPayment(body.org);
     const defaultCard = cards.find((c) => c.is_default)?.name || null;
     let payment = "Не указано";
+    // T153 Ⓐ: «Наличные» приходят из СУММ ЧЕКА — это факт. Какая ИМЕННО
+    // карта — угадывание (личная история у продавца, иначе карта по
+    // умолчанию), и угадывание обязано быть ПОДПИСАНО на форме, а не
+    // выбрано тихо: владелец платил личной, форма молча ставила корпоративную.
+    let paymentGuessed = false;
     if (cash > 0 && card === 0) payment = "Наличные";
-    else if (card > 0 && cash === 0)
+    else if (card > 0 && cash === 0) {
       payment =
         suggested && suggested !== "Наличные"
           ? suggested
           : defaultCard || "Не указано";
-    else if (suggested) payment = suggested;
+      paymentGuessed = payment !== "Не указано";
+    } else if (suggested) {
+      payment = suggested;
+      paymentGuessed = true;
+    }
 
     setForm((p) => ({
       ...p,
@@ -2964,6 +2964,7 @@ function OperaciiPage({
       category: body.category || p.category,
       raw_data: body.raw || body,
       payment,
+      paymentGuessed,
     }));
     setShowAdd(true);
     setFnsStatus("ok");
@@ -3017,13 +3018,18 @@ function OperaciiPage({
     const suggested = await _suggestPayment(d.org);
     const defaultCard = cards.find((c) => c.is_default)?.name || null;
     let payment = "Не указано";
+    let paymentGuessed = false; // T153 Ⓐ — как в QR-пути
     if (d.payment_type === "cash") payment = "Наличные";
-    else if (d.payment_type === "card")
+    else if (d.payment_type === "card") {
       payment =
         suggested && suggested !== "Наличные"
           ? suggested
           : defaultCard || "Не указано";
-    else if (suggested) payment = suggested;
+      paymentGuessed = payment !== "Не указано";
+    } else if (suggested) {
+      payment = suggested;
+      paymentGuessed = true;
+    }
 
     // СНИМОК ТЕПЕРЬ ЖИВЁТ В ХРАНИЛИЩЕ, А НЕ В ЧЕКЕ (задача №3).
     // Ручка OCR отдаёт ключ объекта отдельным полем; в raw_data ему не место —
@@ -3068,6 +3074,7 @@ function OperaciiPage({
       raw_data: receiptData,
       photo_key: photo_key || null,
       payment,
+      paymentGuessed,
       source: "photo_ocr",
     }));
     setShowAdd(true);
@@ -3931,7 +3938,13 @@ function OperaciiPage({
                 {paymentOptions.map((m) => (
                   <button
                     key={m}
-                    onClick={() => setForm((p) => ({ ...p, payment: m }))}
+                    onClick={() =>
+                      setForm((p) => ({
+                        ...p,
+                        payment: m,
+                        paymentGuessed: false, // выбрал руками — пометка снята
+                      }))
+                    }
                     style={{
                       padding: "4px 10px",
                       border: `1px solid ${
@@ -3950,6 +3963,18 @@ function OperaciiPage({
                   </button>
                 ))}
               </div>
+              {form.paymentGuessed && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    font: `400 12px/1.4 ${FONT}`,
+                    color: "#B45309",
+                  }}
+                >
+                  Карта подставлена по вашей истории — проверьте, той ли
+                  картой платили
+                </div>
+              )}
             </div>
           </div>
         </Modal>
@@ -9407,9 +9432,6 @@ export default function App() {
   // либо оставить шапку без имени, а именно этого экран и лишился
   // (T106). null — хаб «Профиль».
   const [подэкран, setПодэкран] = useState(null);
-  // UX-15/Ⓑ: сигнал «поставь курсор в поле поиска» для «Главной» —
-  // счётчик, а не флаг: каждый тап по лупе фокусирует заново.
-  const [фокусПоиска, setФокусПоиска] = useState(0);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
@@ -9938,7 +9960,6 @@ export default function App() {
         {page === "glavnaya" && (
           <GlavnayaPage
             receipts={receipts}
-            фокусПоиска={фокусПоиска}
             catalog={catalog}
             org={org}
             setPage={setPage}
@@ -9953,10 +9974,6 @@ export default function App() {
         {page === "svodka" && (
           <SvodkaPage
             receipts={receipts}
-            onSearch={() => {
-              setPage("glavnaya");
-              setФокусПоиска((с) => с + 1);
-            }}
             activePeriod={activePeriod}
             setActivePeriod={setActivePeriod}
             users={users}
