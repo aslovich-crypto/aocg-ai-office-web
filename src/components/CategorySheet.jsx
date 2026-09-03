@@ -141,7 +141,7 @@ export default function CategorySheet({ catalog, selected, onPick, onClose }) {
             <span aria-hidden="true">✕</span>
           </button>
         </div>
-        <div style={{ padding: "10px 16px 6px", flexShrink: 0 }}>
+        <div style={{ padding: "10px 16px 22px", flexShrink: 0 }}>
           <div
             style={{
               display: "flex",

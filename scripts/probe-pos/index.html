@@ -17,6 +17,24 @@
     итог[имя]={верх:Math.round(r.top), низ:Math.round(r.bottom),
                высота:Math.round(r.height)};
     итог[имя].шапка_до_поля=Math.round(r.top);
+    /* T142-воздух: шапка→полоса, полоса→первая карточка, бока */
+    var скр=[].slice.call(document.querySelectorAll("div")).find(function(e){
+      var st=getComputedStyle(e);return st.overflowY==="auto"&&e.scrollHeight>=e.clientHeight;});
+    if(скр){итог[имя].от_шапки=Math.round(r.top-скр.getBoundingClientRect().top+скр.scrollTop);}
+    var кк=[].slice.call(document.querySelectorAll("div,button,section"))
+      .map(function(e){var rr=e.getBoundingClientRect();
+        return {e:e,t:rr.top,l:rr.left,rt:rr.right,h:rr.height,
+                bg:getComputedStyle(e).backgroundColor};})
+      .filter(function(x){return x.t>=r.bottom-1 && x.h>=36 && x.bg==="rgb(255, 255, 255)";})
+      .sort(function(a,b){return a.t-b.t;})[0];
+    /* сосед по потоку — честнее «первого белого»: в пробе списки пусты */
+    var об=э.parentElement, сос=об?об.nextElementSibling:null;
+    if(сос){var rс=сос.getBoundingClientRect();
+      итог[имя].до_соседа=Math.round(rс.top-r.bottom);
+      итог[имя].сосед=((сос.textContent||"").trim().slice(0,30))||сос.tagName;}
+    if(кк){итог[имя].до_карточки=Math.round(кк.t-r.bottom);
+      итог[имя].бок_полосы=Math.round(r.left);
+      итог[имя].бок_карточки=Math.round(кк.l);}
     /* T144-разбор: откуда высота у содержимого — input против span */
     var вн=э.querySelector("input")||э.querySelector("span");
     if(вн){var с=getComputedStyle(вн), rv=вн.getBoundingClientRect();

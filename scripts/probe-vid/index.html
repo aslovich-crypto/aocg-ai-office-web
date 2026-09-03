@@ -14,6 +14,8 @@
     return {полоса:Math.round(r.height), фон:с.backgroundColor,
       отступы:с.padding, рамка:с.borderTopWidth, зазор:с.gap,
       значок:зн?Math.round(зн.getBoundingClientRect().width):"нет",
+      до_соседа:(function(){var о=кк.parentElement,с2=о?о.nextElementSibling:null;
+        return с2?Math.round(с2.getBoundingClientRect().top-r.bottom):null;})(),
       поле:Math.round(вх.getBoundingClientRect().height*10)/10,
       pad:си.paddingTop+"/"+си.paddingBottom, кегль:си.fontSize};
   }
