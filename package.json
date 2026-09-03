@@ -13,7 +13,8 @@
     "start": "node server.js",
     "look": "node scripts/check-profile-canon.mjs",
     "behaviour": "node scripts/check-behaviour.mjs",
-    "scroll": "node scripts/check-scroll-reset.mjs"
+    "scroll": "node scripts/check-scroll-reset.mjs",
+    "skvoz": "node scripts/check-skvoznoy.mjs"
   },
   "dependencies": {
     "@zumer/snapdom": "^2.12.8",
