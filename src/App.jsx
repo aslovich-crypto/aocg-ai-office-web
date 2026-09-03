@@ -752,6 +752,7 @@ function Donut({ title, data, sliceColor }) {
 
 function SvodkaPage({
   receipts,
+  onSearch, // UX-15/Ⓑ: лупа ведёт в общий поиск на «Главной»
   activePeriod,
   setActivePeriod,
   users,
@@ -873,15 +874,19 @@ function SvodkaPage({
                 Это ровно тот случай, который в UX-14 назван «мёртвая кнопка
                 хуже её отсутствия»; здесь на него пошли осознанно, ради
                 единообразия трёх полос. */}
+            {/* UX-15 закрыт решением Ⓑ (03.09.2026): лупа ведёт в общий
+                поиск — «Главная» с курсором в поле. Была заглушкой
+                aria-disabled «ради единообразия трёх шапок» — владелец
+                поймал обман жеста; правило в RULES-FRONTEND. */}
             <button
               type="button"
               aria-label="Поиск"
-              aria-disabled="true"
+              onClick={onSearch}
               style={{
                 background: "none",
                 border: "none",
                 padding: 0,
-                cursor: "default",
+                cursor: "pointer",
                 display: "flex",
               }}
             >
@@ -9402,6 +9407,9 @@ export default function App() {
   // либо оставить шапку без имени, а именно этого экран и лишился
   // (T106). null — хаб «Профиль».
   const [подэкран, setПодэкран] = useState(null);
+  // UX-15/Ⓑ: сигнал «поставь курсор в поле поиска» для «Главной» —
+  // счётчик, а не флаг: каждый тап по лупе фокусирует заново.
+  const [фокусПоиска, setФокусПоиска] = useState(0);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
@@ -9930,6 +9938,7 @@ export default function App() {
         {page === "glavnaya" && (
           <GlavnayaPage
             receipts={receipts}
+            фокусПоиска={фокусПоиска}
             catalog={catalog}
             org={org}
             setPage={setPage}
@@ -9944,6 +9953,10 @@ export default function App() {
         {page === "svodka" && (
           <SvodkaPage
             receipts={receipts}
+            onSearch={() => {
+              setPage("glavnaya");
+              setФокусПоиска((с) => с + 1);
+            }}
             activePeriod={activePeriod}
             setActivePeriod={setActivePeriod}
             users={users}
