@@ -1,12 +1,10 @@
 {
-  "допустимо": 7,
+  "допустимо": 5,
   "список": [
     "src/App.jsx: <input> style={A_INPUT} 15px",
-    "src/App.jsx: <input> style={FIELD_INP} 14px",
     "src/App.jsx: <input> style={fieldStyle} 15px",
     "src/App.jsx: <input> style={поле} 15px",
     "src/App.jsx: <input> инлайн 13px",
-    "src/App.jsx: <input> инлайн 15px",
-    "src/App.jsx: <select> style={FIELD_INP} 14px"
+    "src/App.jsx: <input> инлайн 15px"
   ]
 }

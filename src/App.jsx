@@ -5566,7 +5566,7 @@ const FIELD_INP = {
   border: `1px solid ${theme.border}`,
   borderRadius: 8,
   padding: "9px 11px",
-  fontSize: 14,
+  fontSize: 16  /* T138 */,
   fontFamily: FONT,
   color: C.dark,
   background: theme.surface,
