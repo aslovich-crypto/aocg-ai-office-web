@@ -7897,7 +7897,7 @@ function LoginScreen({ onAuthed, navigate }) {
     border: "1px solid #EEF0F4",
     borderRadius: 12,
     padding: "14px 16px",
-    fontSize: 15,
+    fontSize: 16  /* T138 */,
     fontFamily: FONT,
     color: "#111318",
     background: "#fff",
