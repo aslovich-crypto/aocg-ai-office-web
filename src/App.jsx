@@ -2736,8 +2736,8 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
 
 function OperaciiPage({
   scrollRef,
-  сигналСканера, // плитка «Сканировать чек» с «Главной»
-  onActionClosed, // сканер закрыт любым путём — вернуть, откуда пришли
+  сигналСканера, // плитка «Сканировать чек» с «Главной» (одноразовый)
+  onScanSignalConsumed, // употребили — обнулить, иначе окно-призрак при возврате
   receipts,
   cards,
   catalog,
@@ -2767,19 +2767,17 @@ function OperaciiPage({
   const [limit, setLimit] = useState(30);
   const [showSearch, setShowSearch] = useState(false); // поиск-иконка раскрывает поле
   const [showScan, setShowScan] = useState(false);
-  // Сигнал с «Главной»: открыть сканер сразу. Закрытие ловим ОДНОЙ точкой —
-  // переходом showScan true→false, каким бы путём он ни случился.
+  // Сигнал с «Главной»: открыть сканер сразу — и ТУТ ЖЕ обнулить сигнал,
+  // иначе эффект при следующем монтировании экрана откроет окно заново.
   useEffect(() => {
     if (!сигналСканера) return;
-    // setState не в теле эффекта — правило хуков (как в поиске «Главной»)
-    const т = setTimeout(() => setShowScan(true), 0);
+    const т = setTimeout(() => {
+      setShowScan(true);
+      if (onScanSignalConsumed) onScanSignalConsumed();
+    }, 0);
     return () => clearTimeout(т);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [сигналСканера]);
-  const сканБыл = useRef(false);
-  useEffect(() => {
-    if (сканБыл.current && !showScan && onActionClosed) onActionClosed();
-    сканБыл.current = showScan;
-  }, [showScan, onActionClosed]);
   // Ширину меряем у КОНТЕЙНЕРА списка — одним наблюдателем на все строки.
   const fabHidden = useFabHidden(scrollRef);
   const [showAdd, setShowAdd] = useState(false);
@@ -9448,16 +9446,14 @@ export default function App() {
   // (T106). null — хаб «Профиль».
   const [подэкран, setПодэкран] = useState(null);
   // Плитки «Главной» — прямые действия (решение владельца 03.09.2026):
-  // тап открывает сканер/шторку СРАЗУ, счётчиком-сигналом (каждый тап —
-  // заново). Возврат после закрытия — туда, откуда пришли: исток помнит реф.
+  // тап открывает сканер/шторку СРАЗУ. ⚠️ СИГНАЛ ОДНОРАЗОВЫЙ: экран,
+  // употребив его, обязан обнулить (onSignalConsumed) — иначе эффект при
+  // ПОВТОРНОМ монтировании экрана видел живой счётчик и открывал окно
+  // заново: «на Чеках висит сканер» (дефект 03.09, найден владельцем).
+  // Возврата на «Главную» больше нет — решение сменено: закрыл сканер —
+  // остаёшься на «Чеках» и видишь свой чек в списке; то же с отчётом.
   const [сигналСканера, setСигналСканера] = useState(0);
   const [сигналОтчёта, setСигналОтчёта] = useState(0);
-  const истокДействия = useRef(null);
-  const закрылосьДействие = useCallback(() => {
-    if (истокДействия.current === "glavnaya") setPage("glavnaya");
-    истокДействия.current = null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const [org, setOrg] = useState(null); // INT: профиль орг (нужен режим tax_system для Сводки/Главной)
   const [activePeriod, setActivePeriod] = useState("month");
   const scrollRef = useRef(null); // общий скроллер страниц (FAB прячется по нему)
@@ -9987,12 +9983,10 @@ export default function App() {
           <GlavnayaPage
             receipts={receipts}
             onScan={() => {
-              истокДействия.current = "glavnaya";
               setPage("operacii");
               setСигналСканера((с) => с + 1);
             }}
             onNewReport={() => {
-              истокДействия.current = "glavnaya";
               setPage("otchety");
               setСигналОтчёта((с) => с + 1);
             }}
@@ -10023,7 +10017,7 @@ export default function App() {
           <OperaciiPage
             scrollRef={scrollRef}
             сигналСканера={сигналСканера}
-            onActionClosed={закрылосьДействие}
+            onScanSignalConsumed={() => setСигналСканера(0)}
             receipts={receipts}
             cards={cards}
             catalog={catalog}
@@ -10040,7 +10034,7 @@ export default function App() {
         {page === "otchety" && (
           <OtchetyPage
             сигналНовогоОтчёта={сигналОтчёта}
-            onActionClosed={закрылосьДействие}
+            onReportSignalConsumed={() => setСигналОтчёта(0)}
             scheduleUndo={scheduleUndo}
             scrollRef={scrollRef}
             receipts={receipts}
