@@ -1,9 +1,4 @@
 {
-  "допустимо": 4,
-  "список": [
-    "src/App.jsx: <input> инлайн 15px",
-    "src/components/CategorySheet.jsx: <input> инлайн 15px",
-    "src/pages/GlavnayaPage.jsx: <input> инлайн 15px",
-    "src/pages/OtchetyPage.jsx: <input> инлайн 15px"
-  ]
+  "допустимо": 0,
+  "список": []
 }

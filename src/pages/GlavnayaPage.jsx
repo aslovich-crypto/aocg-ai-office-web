@@ -311,7 +311,8 @@ export default function GlavnayaPage({
             outline: "none",
             /* T144-эталон 40: прошивка input даёт 1px/1px — обнулено */
             padding: 0,
-            font: `400 15px/1.2 ${FONT}`,
+            /* T138: кегль 16 (Safari не зумит), строка ФИКСОМ 18px — полоса остаётся 40 */
+                font: `400 16px/18px ${FONT}`,
             color: theme.fg1,
           }}
         />
