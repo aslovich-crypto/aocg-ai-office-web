@@ -2795,6 +2795,13 @@ function OperaciiPage({
   const [sources, setSources] = useState([]); // [] = «Все»
   const [cats, setCats] = useState([]); // выбранные категории, [] = «Все»
   const [selCards, setSelCards] = useState([]); // выбранные карты (по полю payment), [] = «Все»
+  // ⚠️ ФИЛЬТРА «СОТРУДНИК» ЗДЕСЬ НЕ БЫЛО ВОВСЕ (замер владельца 04.09.2026,
+  // iPhone/Safari): пункт завели только на «Сводке» ещё в c1a7bde, а на
+  // экране, который человек открывает чаще всего, дотянуться до отбора по
+  // автору было нельзя. Хранится ИМЯ (его человек выбирает в шторке),
+  // решение принимается по `id` — перевод один, в src/lib/people.js.
+  const [selEmp, setSelEmp] = useState(null);
+  const selEmpId = идПоИмени(selEmp, users);
   const [showFilters, setShowFilters] = useState(false);
   const defaultFrom = "",
     defaultTo = "";
@@ -3175,6 +3182,10 @@ function OperaciiPage({
     return inPeriod(r.date, activePeriod);
   };
   const filtered = receipts.filter((r) => {
+    // ⚠️ СРАВНИВАЕМ АВТОРОВ, А НЕ СТРОКИ. Колонка `employee` пуста во всех
+    // 88 чеках прода, поэтому отбор по имени давал бы пустой список всегда
+    // (тот же дефект, что чинили на «Сводке» в 3d17843).
+    if (selEmpId != null && r.user_id !== selEmpId) return false;
     if (cats.length > 0 && !cats.includes(catName(r))) return false;
     if (selCards.length > 0 && !selCards.includes(r.payment)) return false;
     if (sources.length > 0 && !sources.includes(r.source)) return false;
@@ -3190,12 +3201,14 @@ function OperaciiPage({
   const hiddenCount = filtered.length - limit;
   const filtersActive =
     customFilterActive ||
+    !!selEmp ||
     cats.length > 0 ||
     selCards.length > 0 ||
     sources.length > 0;
   const resetFilters = () => {
     setDateFrom(defaultFrom);
     setDateTo(defaultTo);
+    setSelEmp(null);
     setCats([]);
     setSelCards([]);
     setSources([]);
@@ -3631,11 +3644,18 @@ function OperaciiPage({
           catalog={catalog}
           cards={cards}
           sources={sources}
+          // Секция «Сотрудник» — только тем, кто видит чужие чеки; ровно тот
+          // же приём, что в «Отчётах» и на «Сводке» (hasEmp в FiltersModal).
+          // Сотруднику бэк отдаёт лишь его собственные чеки (A-ACL), выбор
+          // коллеги дал бы ему пустой экран.
+          employees={canApprove(role) ? users : undefined}
+          selectedEmployee={selEmp}
           selectedCats={cats}
           selectedCards={selCards}
           onApply={(r) => {
             setDateFrom(r.from);
             setDateTo(r.to);
+            setSelEmp(r.employee);
             setCats(r.cats);
             setSelCards(r.cards);
             setSources(r.sources);
@@ -3643,6 +3663,7 @@ function OperaciiPage({
           onReset={() => {
             setDateFrom(defaultFrom);
             setDateTo(defaultTo);
+            setSelEmp(null);
             setCats([]);
             setSelCards([]);
             setSources([]);
