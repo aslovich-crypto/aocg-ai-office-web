@@ -348,7 +348,7 @@ function RuleInput({
           borderBottom: `1.5px solid ${f ? theme.cherry : theme.border}`,
           outline: "none",
           padding: "7px 0",
-          fontSize: 16, /* T138 */
+          fontSize: 16 /* T138 */,
           fontFamily: FONT,
           color: C.dark,
           background: "transparent",
@@ -1528,7 +1528,7 @@ function FiltersModal({
     padding: "10px 12px",
     border: `1px solid ${theme.border}`,
     borderRadius: 8,
-    fontSize: 16  /* T138 */,
+    fontSize: 16 /* T138 */,
     fontFamily: FONT,
     color: C.dark,
     background: theme.surface,
@@ -2510,7 +2510,7 @@ function RequisitesSheet({ prefill, onClose, onVerify, onManualFallback }) {
     borderBottom: `1.5px solid ${theme.border}`,
     outline: "none",
     padding: "7px 0",
-    fontSize: 16  /* T138: было 13 — Safari зумил при фокусе */,
+    fontSize: 16 /* T138: было 13 — Safari зумил при фокусе */,
     fontFamily: FONT,
     color: C.dark,
     background: "transparent",
@@ -3086,6 +3086,14 @@ function OperaciiPage({
       fn: d.fn || p.fn,
       raw_data: receiptData,
       photo_key: photo_key || null,
+      // ⚠️ ПРИЗНАК ДОКУМЕНТА, А НЕ РЕКВИЗИТ (№25, мера Б). Распознанные ФД
+      // и ФПД едут отдельными полями и в карточке чека не показываются:
+      // модель ошибается в цифре, и неверный реквизит в документе хуже
+      // отсутствующего. Нужны они ровно для одного — узнать чек, который
+      // сфотографировали второй раз, даже если вывеску модель прочла иначе
+      // (живой случай 12.08.2026: один чек сохранён трижды).
+      ocr_fd: d.ocr_fd || null,
+      ocr_fpd: d.ocr_fpd || null,
       payment,
       paymentGuessed,
       source: "photo_ocr",
@@ -3183,6 +3191,11 @@ function OperaciiPage({
         source: form.source || "manual",
       };
       if (form.fn) payload.kkt_fn = form.fn; // form.fn — внутреннее имя инпута; шлём как kkt_fn (канон)
+      // Признак документа для поиска повторного фото (№25, Б). Отдельные
+      // поля, а не fd_num/fpd: те — реквизиты, и распознанной цифре в них
+      // не место. Пустые не шлём — «не дубль» безобиднее выдумки.
+      if (form.ocr_fd) payload.ocr_fd = form.ocr_fd;
+      if (form.ocr_fpd) payload.ocr_fpd = form.ocr_fpd;
       if (form.raw_data) payload.raw_data = form.raw_data;
       // Ключ объекта — ВЕРХНИМ уровнем: бэкенд читает его отсюда, а не
       // из raw_data. Без этой строки снимок лежит в бакете, а чек на него
@@ -3622,9 +3635,12 @@ function OperaciiPage({
           onRefetchFns={async () => {
             // ⚠️ ПРИЧИНА ВОЗВРАЩАЕТСЯ, А НЕ ГЛОТАЕТСЯ: у 502/404/503 разные
             // тексты, и человеку нужен именно тот, что пришёл.
-            const res = await authFetch(`/api/receipts/${detail.id}/refetch-fns`, {
-              method: "POST",
-            });
+            const res = await authFetch(
+              `/api/receipts/${detail.id}/refetch-fns`,
+              {
+                method: "POST",
+              },
+            );
             const тело = await res.json().catch(() => null);
             if (!res.ok)
               return {
@@ -3984,8 +4000,8 @@ function OperaciiPage({
                     color: "#B45309",
                   }}
                 >
-                  Карта подставлена по вашей истории — проверьте, той ли
-                  картой платили
+                  Карта подставлена по вашей истории — проверьте, той ли картой
+                  платили
                 </div>
               )}
             </div>
@@ -4376,9 +4392,7 @@ function ChangePasswordModal({ onClose }) {
         setTimeout(onClose, 1200);
         return;
       }
-      setErr(
-        текстОшибки(d, "Не удалось изменить пароль"),
-      );
+      setErr(текстОшибки(d, "Не удалось изменить пароль"));
     } catch {
       setErr("Нет связи с сервером");
     } finally {
@@ -4674,7 +4688,7 @@ export function AccountTab({
     textAlign: "right",
     border: "none",
     background: "transparent",
-    fontSize: 16  /* T138 */,
+    fontSize: 16 /* T138 */,
     color: C.dark,
     fontFamily: FONT,
     outline: "none",
@@ -4891,7 +4905,7 @@ export function AccountTab({
               flex: 1,
               border: "none",
               background: "transparent",
-              fontSize: 16, /* T138 */
+              fontSize: 16 /* T138 */,
               fontFamily: FONT,
               color: C.dark,
               outline: "none",
@@ -4946,7 +4960,7 @@ export function AccountTab({
             borderRadius: 6,
             outline: "none",
             padding: "7px 10px",
-            fontSize: 16, /* T138 */
+            fontSize: 16 /* T138 */,
             fontFamily: FONT,
             color: C.dark,
             background: theme.surface,
@@ -5139,7 +5153,12 @@ function RoleSheet({ user, onClose, onApply }) {
         </div>
 
         <div
-          style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: 10,
+          }}
         >
           {ROLES.map((r) => (
             <button
@@ -5149,7 +5168,9 @@ function RoleSheet({ user, onClose, onApply }) {
               style={{
                 padding: "8px 14px",
                 borderRadius: 999,
-                border: `1px solid ${роль === r.id ? theme.cherry : theme.border}`,
+                border: `1px solid ${
+                  роль === r.id ? theme.cherry : theme.border
+                }`,
                 background: роль === r.id ? theme.cherry : theme.surface,
                 color: роль === r.id ? "#fff" : theme.fg1,
                 fontFamily: FONT,
@@ -5613,7 +5634,7 @@ const FIELD_INP = {
   border: `1px solid ${theme.border}`,
   borderRadius: 8,
   padding: "9px 11px",
-  fontSize: 16  /* T138 */,
+  fontSize: 16 /* T138 */,
   fontFamily: FONT,
   color: C.dark,
   background: theme.surface,
@@ -6479,7 +6500,7 @@ export function ProfileHub({ role, me, onOpen, onLogout }) {
               /* T144-эталон 40: прошивка input даёт 1px/1px — обнулено */
               padding: 0,
               /* T138: кегль 16 (Safari не зумит), строка ФИКСОМ 18px — полоса остаётся 40 */
-                font: `400 16px/18px ${FONT}`,
+              font: `400 16px/18px ${FONT}`,
               color: theme.fg1,
             }}
           />
@@ -6843,9 +6864,7 @@ export function NastroykiPage({
       });
       const тело = await res.json().catch(() => null);
       if (!res.ok) {
-        setОшибкаПриглашений(
-          текстОшибки(тело, `Сервер ответил ${res.status}`),
-        );
+        setОшибкаПриглашений(текстОшибки(тело, `Сервер ответил ${res.status}`));
         return;
       }
       setResentToken(inv.token);
@@ -6962,9 +6981,7 @@ export function NastroykiPage({
                 )
               }
               onDelete={() => onDeleteUser(u.id)}
-              onRestore={
-                onRestoreUser ? () => onRestoreUser(u.id) : undefined
-              }
+              onRestore={onRestoreUser ? () => onRestoreUser(u.id) : undefined}
               // ⚠️ ТАП ОТКРЫВАЕТ РОЛЬ У ЛЮБОЙ СТРОКИ, включая свою и
               // последнего администратора. Отказ там объясняет сервер, и это
               // честнее немого ряда: спрятанная кнопка не говорит ничего.
@@ -7805,7 +7822,7 @@ const A_INPUT = {
   padding: "13px 14px",
   border: `1px solid ${theme.border}`,
   borderRadius: 10,
-  fontSize: 16  /* T138 */,
+  fontSize: 16 /* T138 */,
   fontFamily: FONT,
   color: C.dark,
   background: theme.surface,
@@ -7945,7 +7962,7 @@ function LoginScreen({ onAuthed, navigate }) {
     border: "1px solid #EEF0F4",
     borderRadius: 12,
     padding: "14px 16px",
-    fontSize: 16  /* T138 */,
+    fontSize: 16 /* T138 */,
     fontFamily: FONT,
     color: "#111318",
     background: "#fff",
@@ -8489,7 +8506,7 @@ function ForgotPasswordScreen({ navigate }) {
                 border: "1px solid #EEF0F4",
                 borderRadius: 12,
                 padding: "14px 16px",
-                fontSize: 16, /* T138 */
+                fontSize: 16 /* T138 */,
                 fontFamily: FONT,
                 color: "#111318",
                 background: "#fff",
@@ -8600,7 +8617,7 @@ function ResetPasswordScreen({ navigate }) {
     border: "1px solid #EEF0F4",
     borderRadius: 12,
     padding: "14px 16px",
-    fontSize: 16  /* T138 */,
+    fontSize: 16 /* T138 */,
     fontFamily: FONT,
     color: "#111318",
     background: "#fff",
@@ -9159,9 +9176,7 @@ function JoinScreen({ token, onAuthed, navigate }) {
         setSent(true);
         return;
       }
-      setErr(
-        текстОшибки(d, "Не удалось присоединиться"),
-      );
+      setErr(текстОшибки(d, "Не удалось присоединиться"));
     } catch {
       setErr("Нет связи с сервером");
     } finally {
@@ -9470,9 +9485,7 @@ export default function App() {
     const с = scrollRef.current;
     if (!с) return;
     с.scrollTop =
-      ключПрокрутки != null
-        ? (позицииПрокрутки.current[ключПрокрутки] ?? 0)
-        : 0;
+      ключПрокрутки != null ? позицииПрокрутки.current[ключПрокрутки] ?? 0 : 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, подэкран]);
 
