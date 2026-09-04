@@ -40,6 +40,133 @@ const STATUS_CHIPS = [
   { chip: "Все", value: null },
 ];
 
+// ⚠️ ШТОРКА ПРИЧИНЫ ОТКЛОНЕНИЯ ВМЕСТО `window.prompt` (T159, 04.09.2026).
+// Первая редакция звала системный prompt — владелец на приёмке сразу назвал
+// это «не нашим дизайном», и он прав: чужой интерфейс вместо нашего — тот же
+// класс, что `alert("Уведомления — скоро")`. Образец взят у `SaveAsPhotoSheet`
+// (ScanReceiptModal), которая однажды уже заменила системный confirm.
+// Имя латиницей — требование правила react-hooks: компонентом считается
+// только функция с заглавной ЛАТИНСКОЙ буквы, кириллическая «П» её
+// таковой не делает, и хук внутри объявляется вне компонента.
+//
+// ⚠️ КНОПКА НЕАКТИВНА, ПОКА ПРИЧИНА ПУСТА. Отклонение без причины сервер
+// всё равно отвергнет (400), но узнать об этом человек должен ДО отправки,
+// а не после отказа формы.
+function RejectReasonSheet({ onConfirm, onCancel }) {
+  const [текст, setТекст] = useState("");
+  const пусто = !текст.trim();
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        zIndex: 300,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          boxSizing: "border-box",
+          background: "#fff",
+          borderRadius: "16px 16px 0 0",
+          padding: "24px 20px calc(24px + env(safe-area-inset-bottom))",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT,
+            fontWeight: 600,
+            fontSize: 18,
+            color: "#111318",
+            marginBottom: 8,
+          }}
+        >
+          Причина отклонения
+        </div>
+        <div
+          style={{
+            fontFamily: FONT,
+            fontSize: 14,
+            color: "#636B7D",
+            lineHeight: 1.45,
+            marginBottom: 16,
+          }}
+        >
+          Её увидит сотрудник в уведомлении и в самом отчёте — без причины он
+          придёт спрашивать.
+        </div>
+        <textarea
+          value={текст}
+          onChange={(e) => setТекст(e.target.value)}
+          rows={3}
+          autoFocus
+          placeholder="Например: нет чека на 1200 ₽"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            borderRadius: 12,
+            border: "1px solid #EEF0F4",
+            background: "#F6F7F9",
+            padding: "12px 14px",
+            // 16px — иначе Safari зумит поле при фокусе и запоминает масштаб.
+            font: `400 16px/1.4 ${FONT}`,
+            color: "#111318",
+            resize: "none",
+            marginBottom: 20,
+          }}
+        />
+        <button
+          type="button"
+          disabled={пусто}
+          onClick={() => onConfirm(текст.trim())}
+          style={{
+            width: "100%",
+            height: 48,
+            borderRadius: 12,
+            background: пусто ? "#E4E7EC" : "#A4161A",
+            border: "none",
+            color: пусто ? "#9AA1AC" : "#fff",
+            fontFamily: FONT,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: пусто ? "default" : "pointer",
+          }}
+        >
+          Отклонить отчёт
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            width: "100%",
+            // Рамка при content-box делает кнопку шире родителя — сторож
+            // вёрстки (T14) ловит это как класс, а не как случай.
+            boxSizing: "border-box",
+            height: 48,
+            marginTop: 8,
+            borderRadius: 12,
+            background: "#fff",
+            border: "1px solid #EEF0F4",
+            color: "#636B7D",
+            fontFamily: FONT,
+            fontSize: 15,
+            cursor: "pointer",
+          }}
+        >
+          Отмена
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OtchetyPage({
   сигналНовогоОтчёта, // плитка «Создать отчёт» с «Главной» (одноразовый)
   onReportSignalConsumed, // употребили — обнулить, иначе шторка-призрак
@@ -236,6 +363,9 @@ export default function OtchetyPage({
       setIsSubmitting(false);
     }
   }
+
+  // Отчёт, для которого спрашиваем причину. null — шторка закрыта.
+  const [отклоняем, setОтклоняем] = useState(null);
 
   async function changeStatus(id, status, reason) {
     try {
@@ -828,21 +958,15 @@ export default function OtchetyPage({
             );
           }}
           onStatus={async (id, status) => {
-            // ⚠️ ОТКЛОНЕНИЕ БЕЗ ПРИЧИНЫ НЕ ОТПРАВЛЯЕМ ВОВСЕ. Спрашиваем здесь,
-            // а не показываем ошибку сервера: человек уже нажал «Отклонить»,
-            // и объяснить он должен ДО, а не после отказа формы.
-            // `prompt` — не канон, но и не заглушка: он работает, а рисованное
-            // окно причины в макетах не нарисовано. Заменится, когда появится.
-            let reason;
+            // ⚠️ ОТКЛОНЕНИЕ БЕЗ ПРИЧИНЫ НЕ ОТПРАВЛЯЕМ ВОВСЕ: человек уже
+            // нажал «Отклонить», и объяснить он должен ДО, а не после отказа
+            // формы. Спрашиваем НАШЕЙ шторкой — системный prompt владелец
+            // на приёмке назвал «не нашим дизайном», и это верно.
             if (status === "Отклонён") {
-              reason = (
-                window.prompt(
-                  "Причина отклонения — её увидит сотрудник в уведомлении:",
-                ) || ""
-              ).trim();
-              if (!reason) return; // передумал или не объяснил — не отклоняем
+              setОтклоняем(id);
+              return;
             }
-            const updated = await changeStatus(id, status, reason);
+            const updated = await changeStatus(id, status);
             // Детали НЕ закрываем: пользователь смотрит состав и после смены
             // статуса чаще всего продолжает смотреть. Раньше экран схлопывался
             // после «Одобрить», и чтобы просто отправить черновик, приходилось
@@ -858,6 +982,19 @@ export default function OtchetyPage({
             // Подтверждения нет ни там, ни здесь — иначе одно действие вело бы
             // себя по-разному в двух местах.
             removeWithUndo(rep);
+          }}
+        />
+      )}
+
+      {отклоняем != null && (
+        <RejectReasonSheet
+          onCancel={() => setОтклоняем(null)}
+          onConfirm={async (причина) => {
+            const id = отклоняем;
+            setОтклоняем(null);
+            const updated = await changeStatus(id, "Отклонён", причина);
+            if (updated)
+              setOpenRep((prev) => (prev ? { ...prev, ...updated } : prev));
           }}
         />
       )}
