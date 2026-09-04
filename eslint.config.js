@@ -20,6 +20,7 @@ export default defineConfig([
     "scripts/probe-live/__dist",
     "scripts/probe-skvoz/__dist",
     "scripts/probe-token/__dist",
+    "scripts/probe-avtor/__dist",
     "scripts/probe-boundary/__dist",
     "scripts/probe-scroll/__dist",
     "scripts/probe-vid/__dist",

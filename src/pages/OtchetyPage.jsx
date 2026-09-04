@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import {
+  АВТОР_НЕИЗВЕСТЕН,
+  идПоИмени as idПоИмени,
+  имяАвтора,
+} from "../lib/people";
 
 import { useFabHidden, fabHiddenStyle } from "../hooks/useFabHidden";
 import {
@@ -456,29 +461,17 @@ export default function OtchetyPage({
   // Считаем на фронте: GET /api/reports/ параметров не принимает и отдаёт
   // список целиком (с составом), а отчётов пока единицы. Когда их станет
   // много, узким местом будет сама загрузка списка, а не этот filter.
-  const empId = (name) => {
-    if (!name || !Array.isArray(users)) return null;
-    const u = users.find(
-      (x) =>
-        `${x.first_name || ""} ${x.last_name || ""}`.trim() === name ||
-        x.email === name,
-    );
-    return u ? u.id : null;
-  };
-  const fEmpId = empId(fEmp);
-
-  // «Фамилия И.» — формат из макета. Список сотрудников уже приходит пропом
-  // (он нужен фильтру). Нет фамилии — берём имя, нет и его — ничего
-  // не показываем: пустая метка хуже отсутствующей.
-  const authorName = (uid) => {
-    if (uid == null || !Array.isArray(users)) return "";
-    const u = users.find((x) => x.id === uid);
-    if (!u) return "";
-    const last = (u.last_name || "").trim();
-    const first = (u.first_name || "").trim();
-    if (last) return first ? `${last} ${first[0]}.` : last;
-    return first || "";
-  };
+  // ⚠️ ФУНКЦИИ ПЕРЕЕХАЛИ В `src/lib/people.js` 04.09.2026: тот же механизм
+  // понадобился чекам, и вторая копия рядом разошлась бы с этой молча.
+  // Поведение прежнее, изменился только источник. Единственная разница:
+  // неизвестный автор теперь возвращает «Автор не указан», а не пустую
+  // строку, — в отчётах это ничего не меняет, потому что показ обёрнут
+  // условием `authorName(rep.user_id)` и пустой автор туда не попадает.
+  const rep_автор_известен = (uid, люди) =>
+    имяАвтора(uid, люди) !== АВТОР_НЕИЗВЕСТЕН;
+  const fEmpId = idПоИмени(fEmp, users);
+  const authorName = (uid) =>
+    rep_автор_известен(uid, users) ? имяАвтора(uid, users) : "";
   const inRange = (rep) => {
     // Период — по created: других дат у отчёта нет, месяц в названии это текст.
     const d = (rep.created || "").slice(0, 10);

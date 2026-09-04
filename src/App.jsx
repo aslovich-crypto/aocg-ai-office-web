@@ -66,6 +66,7 @@ import {
 import CategorySheet from "./components/CategorySheet";
 import ReceiptDetailModal from "./components/ReceiptDetailModal";
 import LegalText from "./components/LegalText";
+import { идПоИмени, имяАвтора } from "./lib/people";
 // S-28: тот же предикат роли, что уже гейтит фильтр автора на «Отчётах».
 // Вторая копия условия разошлась бы с первой при следующей правке ролей.
 import { canApprove } from "./lib/reports";
@@ -765,11 +766,18 @@ function SvodkaPage({
   const [cats, setCats] = useState([]);
   const [selCards, setSelCards] = useState([]);
   const filtersActive = !!selEmployee || cats.length > 0 || selCards.length > 0;
+  // Имя из фильтра переводим в идентификатор ОДИН раз: сравнивать надо
+  // авторов, а не строки (см. src/lib/people.js).
+  const selEmployeeId = идПоИмени(selEmployee, users);
 
   const filtered = receipts.filter((r) => {
     if (!inPeriod(r.date, activePeriod)) return false;
-    if (selEmployee && (r.employee || "Алексей Шукалович") !== selEmployee)
-      return false;
+    // ⚠️ ОТБОР ПО `user_id`, А НЕ ПО ИМЕНИ (04.09.2026). Было сравнение
+    // `r.employee || "Алексей Шукалович"` с именем из списка людей: колонка
+    // `employee` пуста во всех 88 чеках прода, поэтому выбор ЛЮБОГО другого
+    // сотрудника давал пустой список всегда, а выбор владельца — ВСЕ чеки
+    // организации, включая чужие. Показ и отбор теперь на одном поле.
+    if (selEmployeeId != null && r.user_id !== selEmployeeId) return false;
     if (cats.length > 0 && !cats.includes(catName(r))) return false;
     if (selCards.length > 0 && !selCards.includes(r.payment)) return false;
     return true;
@@ -791,7 +799,10 @@ function SvodkaPage({
     if (!catMap[cn]) catMap[cn] = { value: 0, count: 0 };
     catMap[cn].value += Number(r.amount);
     catMap[cn].count++;
-    const e = r.employee || "Алексей Шукалович";
+    // ⚠️ ГРУППИРОВКА ПО АВТОРУ, А НЕ ПО ПУСТОЙ КОЛОНКЕ. Прежний ключ
+    // `r.employee || "Алексей Шукалович"` складывал ВСЕ расходы организации
+    // в одного человека — на «Сводке» это цифра, по которой возмещают деньги.
+    const e = имяАвтора(r.user_id, users);
     if (!empMap[e]) empMap[e] = { value: 0, count: 0 };
     empMap[e].value += Number(r.amount);
     empMap[e].count++;
@@ -1177,7 +1188,11 @@ function shortPayment(p) {
   return p;
 }
 
-function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
+function SwipeableReceiptCard({ receipt, onClick, onDelete, автор }) {
+  // ⚠️ ПОДПИСЬ ПРИХОДИТ ГОТОВОЙ, А НЕ СЧИТАЕТСЯ ЗДЕСЬ. Карточка не знает
+  // ни списка людей, ни роли смотрящего — и не должна: показывать ли автора,
+  // решает список (это зависит от роли), а как его назвать — общий модуль
+  // `src/lib/people.js`. Иначе в карточке появилась бы третья копия правила.
   const [tx, setTx] = useState(0);
   const [drag, setDrag] = useState(false); // render-safe mirror of dragging.current (no transition while dragging)
   const startX = useRef(0);
@@ -1347,6 +1362,26 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete }) {
             }}
           >
             <span style={{ flexShrink: 0 }}>{fmtDate(r.date)}</span>
+            {/* ⚠️ АВТОР — ТОЛЬКО ТЕМ, КТО ВИДИТ ЧУЖИЕ ЧЕКИ (решение владельца
+                04.09.2026, тот же приём, что в списке отчётов). У сотрудника
+                список и так свой: столбец с одним повторяющимся именем —
+                шум. Пустую строку не рисуем вовсе, поэтому и разделителя
+                перед ней нет. */}
+            {автор ? (
+              <>
+                <span style={dot} />
+                <span
+                  style={{
+                    flexShrink: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {автор}
+                </span>
+              </>
+            ) : null}
             <span style={dot} />
             {/* Способ оплаты — как в макете: иконка карты (или купюр
                 для наличных) и последние четыре цифры. Имя карты в списке
@@ -2739,6 +2774,7 @@ function OperaciiPage({
   сигналСканера, // плитка «Сканировать чек» с «Главной» (одноразовый)
   onScanSignalConsumed, // употребили — обнулить, иначе окно-призрак при возврате
   receipts,
+  users, // для подписи автора: имя ищется по user_id (см. src/lib/people.js)
   cards,
   catalog,
   role, // ЧП5б: до деталей отчёта, открытых из карточки чека
@@ -3460,6 +3496,7 @@ function OperaciiPage({
             receipt={r}
             onClick={() => openDetail(r)}
             onDelete={() => handleDelete(r.id)}
+            автор={canApprove(role) ? имяАвтора(r.user_id, users) : ""}
           />
         ))}
         {visible.length === 0 && (
@@ -3632,6 +3669,7 @@ function OperaciiPage({
             if (upd) setDetail(upd);
           }}
           role={role}
+          люди={users}
           onRefetchFns={async () => {
             // ⚠️ ПРИЧИНА ВОЗВРАЩАЕТСЯ, А НЕ ГЛОТАЕТСЯ: у 502/404/503 разные
             // тексты, и человеку нужен именно тот, что пришёл.
@@ -10333,6 +10371,7 @@ export default function App() {
             сигналСканера={сигналСканера}
             onScanSignalConsumed={() => setСигналСканера(0)}
             receipts={receipts}
+            users={users}
             cards={cards}
             catalog={catalog}
             handleAdd={handleAdd}

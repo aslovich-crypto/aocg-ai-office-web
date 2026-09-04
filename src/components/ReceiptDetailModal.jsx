@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { имяАвтора } from "../lib/people";
 import { snapdom } from "@zumer/snapdom";
 import {
   ChevronLeft,
@@ -392,6 +393,8 @@ export default function ReceiptDetailModal({
   onRefetchFns,
   onReportLinkChanged,
   role, // ЧП5б: прокидывается дальше в детали отчёта
+  // ⚠️ ОБЪЯВЛЕН ЯВНО (класс T130): необъявленный проп выбрасывается молча.
+  люди = [], // список людей организации — для подписи автора по user_id
   catalog,
   paymentOptions = [],
 }) {
@@ -582,6 +585,18 @@ export default function ReceiptDetailModal({
     ["Смена № · Чек №", shiftCheck, true],
     ["Кассир", r.cashier, false], // sans, не моно
   ].filter((x) => x[1]);
+
+  // ⚠️ АВТОР ЧЕКА — ОТДЕЛЬНО ОТ ФИСКАЛЬНЫХ РЕКВИЗИТОВ, и это не украшение.
+  // Реквизиты — то, что напечатала касса; автор — то, кто чек снял, и это
+  // наша запись. Показывается ВСЕГДА (в отличие от списка, где подпись
+  // видна только ролям, читающим чужие чеки): карточку чужого чека
+  // сотрудник открыть не может — бэкенд отдаёт ему 404.
+  //
+  // Неизвестный автор называется «Автор не указан», а не подменяется именем
+  // владельца: подстановка выдавала бы чужой чек за его (замер 04.09.2026 —
+  // колонка `employee` пуста во всех 88 чеках прода, и фронт подставлял туда
+  // жёстко вписанное имя).
+  const подписьАвтора = имяАвтора(r.user_id, люди);
 
   // Категория и оплата сохраняются мгновенно: тап в шторке → сразу PATCH через
   // onChangeCategory/onChangePayment (как в дореформенной модалке). Локального
@@ -1385,6 +1400,24 @@ export default function ReceiptDetailModal({
                 ))}
               </section>
             )}
+
+            {/* 5б · автор чека — НАША запись, а не то, что напечатала касса,
+                поэтому отдельной строкой перед фискальным блоком. */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "10px 0",
+                borderTop: `1px solid ${T.border}`,
+                font: `400 14px/1.35 ${FONT}`,
+              }}
+            >
+              <span style={{ color: T.fg2 }}>Автор</span>
+              <span style={{ color: T.fg1, textAlign: "right" }}>
+                {подписьАвтора}
+              </span>
+            </div>
 
             {/* 6 · fiscal (сворачиваемый; скрыт, если реквизитов нет) */}
             {fiscalRows.length > 0 && (
