@@ -435,6 +435,26 @@ export default function ReportDetailModal({
               )}
             </div>
 
+            {/* ⚠️ ПРИЧИНА ОТКАЗА — В САМОМ ОТЧЁТЕ, А НЕ ТОЛЬКО В ПИСЬМЕ (T159).
+                Письмо человек удалит или не увидит, а вопрос «что было не так»
+                вернётся через месяц, когда он откроет отчёт. Показываем только
+                у отклонённого: у остальных статусов поля нет. */}
+            {rep.status === "Отклонён" && rep.reject_reason && (
+              <div
+                style={{
+                  marginTop: 10,
+                  font: `400 13px/1.45 ${FONT}`,
+                  color: "#B91C1C",
+                  background: "#FEF2F2",
+                  border: "1px solid #FECACA",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                }}
+              >
+                <b>Причина отклонения:</b> {rep.reject_reason}
+              </div>
+            )}
+
             {/* Почему в этом статусе ничего нельзя — вместо мёртвых кнопок */}
             {hint && (
               <div
@@ -710,7 +730,9 @@ export default function ReportDetailModal({
                     style={{
                       padding: "6px 12px",
                       borderRadius: 999,
-                      border: `1px solid ${периодДоб === v ? theme.cherry : theme.border}`,
+                      border: `1px solid ${
+                        периодДоб === v ? theme.cherry : theme.border
+                      }`,
                       background:
                         периодДоб === v ? theme.cherryTint : theme.surface,
                       color: периодДоб === v ? theme.cherry : theme.fg2,
@@ -791,7 +813,9 @@ export default function ReportDetailModal({
                         >
                           {всеВыбраны
                             ? `Снять все за период (${видимые.length})`
-                            : `Выбрать все за период: ${видимые.length} · ${money(
+                            : `Выбрать все за период: ${
+                                видимые.length
+                              } · ${money(
                                 видимые.reduce(
                                   (s, r) => s + Number(r.amount),
                                   0,
@@ -818,7 +842,9 @@ export default function ReportDetailModal({
                               padding: "10px 12px",
                               marginBottom: 8,
                               background: theme.surface,
-                              border: `1px solid ${sel ? theme.cherry : theme.border}`,
+                              border: `1px solid ${
+                                sel ? theme.cherry : theme.border
+                              }`,
                               borderRadius: 10,
                               cursor: "pointer",
                             }}
@@ -827,7 +853,9 @@ export default function ReportDetailModal({
                               style={{
                                 width: 16,
                                 height: 16,
-                                border: `1.5px solid ${sel ? theme.cherry : theme.border}`,
+                                border: `1.5px solid ${
+                                  sel ? theme.cherry : theme.border
+                                }`,
                                 background: sel ? theme.cherry : "transparent",
                                 display: "flex",
                                 alignItems: "center",
@@ -895,8 +923,7 @@ export default function ReportDetailModal({
             </div>
             <div
               style={{
-                padding:
-                  "10px 16px calc(env(safe-area-inset-bottom) + 12px)",
+                padding: "10px 16px calc(env(safe-area-inset-bottom) + 12px)",
                 borderTop: `1px solid ${theme.border}`,
                 background: theme.surface,
               }}
@@ -917,9 +944,7 @@ export default function ReportDetailModal({
                   cursor: addSel.length ? "pointer" : "default",
                 }}
               >
-                {busyId === -1
-                  ? "Добавляем…"
-                  : `Добавить (${addSel.length})`}
+                {busyId === -1 ? "Добавляем…" : `Добавить (${addSel.length})`}
               </button>
             </div>
           </div>

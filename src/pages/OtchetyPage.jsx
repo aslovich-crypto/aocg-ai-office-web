@@ -237,12 +237,15 @@ export default function OtchetyPage({
     }
   }
 
-  async function changeStatus(id, status) {
+  async function changeStatus(id, status, reason) {
     try {
       const res = await authFetch(`/api/reports/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        // ⚠️ ПРИЧИНА ОТКАЗА ЕДЕТ ВМЕСТЕ СО СТАТУСОМ (T159). Сервер без неё
+        // отвечает 400 и ничего не меняет: уведомление без причины
+        // не экономит человеку ничего — он всё равно идёт выяснять.
+        body: JSON.stringify(reason ? { status, reason } : { status }),
       });
       // Без этой проверки объект-ошибка {detail: …} подменял отчёт в списке:
       // карточка без названия, «0 чеков», сумма NaN — а сам отчёт исчезал.
@@ -825,7 +828,21 @@ export default function OtchetyPage({
             );
           }}
           onStatus={async (id, status) => {
-            const updated = await changeStatus(id, status);
+            // ⚠️ ОТКЛОНЕНИЕ БЕЗ ПРИЧИНЫ НЕ ОТПРАВЛЯЕМ ВОВСЕ. Спрашиваем здесь,
+            // а не показываем ошибку сервера: человек уже нажал «Отклонить»,
+            // и объяснить он должен ДО, а не после отказа формы.
+            // `prompt` — не канон, но и не заглушка: он работает, а рисованное
+            // окно причины в макетах не нарисовано. Заменится, когда появится.
+            let reason;
+            if (status === "Отклонён") {
+              reason = (
+                window.prompt(
+                  "Причина отклонения — её увидит сотрудник в уведомлении:",
+                ) || ""
+              ).trim();
+              if (!reason) return; // передумал или не объяснил — не отклоняем
+            }
+            const updated = await changeStatus(id, status, reason);
             // Детали НЕ закрываем: пользователь смотрит состав и после смены
             // статуса чаще всего продолжает смотреть. Раньше экран схлопывался
             // после «Одобрить», и чтобы просто отправить черновик, приходилось
@@ -927,7 +944,9 @@ export default function OtchetyPage({
                   style={{
                     padding: "6px 12px",
                     borderRadius: 999,
-                    border: `1px solid ${период === v ? theme.cherry : theme.border}`,
+                    border: `1px solid ${
+                      период === v ? theme.cherry : theme.border
+                    }`,
                     background: период === v ? theme.cherryTint : theme.surface,
                     color: период === v ? theme.cherry : theme.fg2,
                     font: `500 12px/1.2 ${FONT}`,
@@ -978,7 +997,9 @@ export default function OtchetyPage({
                 >
                   {всеВыбраны
                     ? `Снять все за период (${видимые.length})`
-                    : `Выбрать все за период: ${видимые.length} · ${money(сумма)}`}
+                    : `Выбрать все за период: ${видимые.length} · ${money(
+                        сумма,
+                      )}`}
                 </button>
               );
             })()}

@@ -9401,6 +9401,48 @@ export default function App() {
   const [page, setPage] = useState("glavnaya");
   const [appMenu, setAppMenu] = useState(false); // Тип 2 header — app switcher dropdown
 
+  // ── УВЕДОМЛЕНИЯ (T159) ─────────────────────────────────────────────────────
+  // ⚠️ ТОЧКА СЧИТАЕТ, А НЕ РИСУЕТСЯ ВСЕГДА. До 04.09.2026 колокольчик показывал
+  // `alert("Уведомления — скоро")`, а красная точка стояла в разметке
+  // БЕЗУСЛОВНО: она обещала непрочитанное, которого не существует. Это хуже
+  // мёртвой кнопки — кнопка молчит, а точка утверждает.
+  const [уведомления, setУведомления] = useState([]);
+  const [непрочитано, setНепрочитано] = useState(0);
+  const [показатьУведомления, setПоказатьУведомления] = useState(false);
+
+  // ⚠️ БЕЗ useCallback НАМЕРЕННО. Обёртка здесь ничего не экономит (функция
+  // зовётся при смене экрана, не в списке), а компилятор React из-за неё
+  // переставал сохранять мемоизацию соседнего `loadCatalog` — линт показал
+  // это сразу же, «Existing memoization could not be preserved».
+  async function перечитатьУведомления() {
+    try {
+      const res = await authFetch("/api/notifications/");
+      if (!res.ok) return; // молчим: колокольчик не повод для тоста
+      const d = await res.json();
+      setУведомления(Array.isArray(d.items) ? d.items : []);
+      setНепрочитано(Number(d.unread) || 0);
+    } catch {
+      /* офлайн — оставляем прежнее число */
+    }
+  }
+
+  async function открытьУведомления() {
+    setПоказатьУведомления(true);
+    // Открыл список — увидел всё (решение владельца: прочитанность
+    // открытием, а не поштучно). Гасим точку сразу, не дожидаясь ответа:
+    // человек УЖЕ смотрит, и мигание точки после закрытия выглядело бы
+    // как новое событие.
+    if (непрочитано > 0) {
+      setНепрочитано(0);
+      try {
+        await authFetch("/api/notifications/read", { method: "POST" });
+      } catch {
+        /* не дошло — перечитаем при следующей смене экрана */
+      }
+      перечитатьУведомления();
+    }
+  }
+
   // ── ОТМЕНА ДЕЙСТВИЯ ────────────────────────────────────────────────────────
   // Свайп — жест лёгкий, промахнуться легко, поэтому у удаления обязана быть
   // либо модалка подтверждения, либо отмена. Модалку убрали (смахнуть и тапнуть
@@ -9551,6 +9593,20 @@ export default function App() {
       })
       .catch(() => {});
   }, []);
+
+  // ⚠️ ПЕРЕЧИТЫВАЕМ ПРИ СМЕНЕ ЭКРАНА, А НЕ ПО ТАЙМЕРУ. События рождаются
+  // редко (отчёт одобрили, отклонили, прислали на проверку), а опрос каждые
+  // 30 секунд — это запрос на каждого человека круглосуточно ради новости,
+  // которая подождёт до следующего касания. Дешевле и честнее: человек
+  // переключил экран — заодно узнали, есть ли новое.
+  useEffect(() => {
+    if (!me) return;
+    // ⚠️ ЧЕРЕЗ setTimeout, И ЭТО НЕ УКРАШЕНИЕ: правило react-hooks запрещает
+    // менять состояние синхронно внутри эффекта (каскад перерисовок).
+    // Наступали дважды — на поиске и на плитках «Главной».
+    const т = setTimeout(перечитатьУведомления, 0);
+    return () => clearTimeout(т);
+  }, [me, page]);
 
   // Don't fetch receipts/cards until the user has consented — keeps the
   // consent screen network-quiet, and re-runs the moment they accept.
@@ -9939,7 +9995,7 @@ export default function App() {
               />
             </button>
             <button
-              onClick={() => alert("Уведомления — скоро")}
+              onClick={открытьУведомления}
               aria-label="Уведомления"
               style={{
                 position: "relative",
@@ -9963,22 +10019,156 @@ export default function App() {
                 strokeWidth={1.75}
                 aria-hidden="true"
               />
-              <span
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 9,
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: theme.cherry,
-                  border: "1.5px solid #fff",
-                }}
-              />
+              {/* ⚠️ ТОЧКА ПОЯВЛЯЕТСЯ ТОЛЬКО ПРИ НЕПРОЧИТАННЫХ (T159).
+                  Канон рисует её у колокольчика — и это верно, но канон
+                  описывает вид, а не обещание: точка, горящая всегда,
+                  врёт про непрочитанное. */}
+              {непрочитано > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 9,
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: theme.cherry,
+                    border: "1.5px solid #fff",
+                  }}
+                />
+              )}
             </button>
           </div>
         </div>
       </div>
+      {/* ⚠️ СПИСОК СОБЫТИЙ (T159). Экрана уведомлений в каноне НЕТ ни одного
+          (в макетах шесть страниц, этой среди них нет) — канон нарисовал
+          индикатор, не нарисовав того, что за ним. Отступление именованное:
+          ЭкранУведомленийВнеКанона. Форма взята у существующих шторок
+          приложения, чтобы не изобретать новый язык. */}
+      {показатьУведомления && (
+        <div
+          onClick={() => setПоказатьУведомления(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(17,19,24,.35)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(е) => е.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              maxHeight: "78dvh",
+              overflowY: "auto",
+              background: theme.surface,
+              borderRadius: "16px 16px 0 0",
+              padding: "16px 16px calc(env(safe-area-inset-bottom) + 20px)",
+              // width:100% вместе с padding при content-box делает элемент
+              // ШИРЕ родителя всегда — сторож вёрстки (T14) поймал это сразу.
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
+              <span style={{ font: `600 17px/1.2 ${FONT}`, color: "#111318" }}>
+                Уведомления
+              </span>
+              <button
+                onClick={() => setПоказатьУведомления(false)}
+                aria-label="Закрыть"
+                style={{
+                  border: "none",
+                  background: "none",
+                  font: `400 15px/1 ${FONT}`,
+                  color: theme.fg2,
+                  cursor: "pointer",
+                  padding: 6,
+                }}
+              >
+                Закрыть
+              </button>
+            </div>
+
+            {/* ⚠️ ПУСТО — ЭТО ТОЖЕ ОТВЕТ, и он честный: список работает,
+                событий пока нет. Отличается от прежнего «Уведомления — скоро»,
+                которое обещало несделанное. */}
+            {уведомления.length === 0 ? (
+              <div
+                style={{
+                  font: `400 14px/1.5 ${FONT}`,
+                  color: theme.fg2,
+                  padding: "18px 4px 24px",
+                  textAlign: "center",
+                }}
+              >
+                Пока ничего нового.
+                <br />
+                Здесь появятся решения по вашим отчётам.
+              </div>
+            ) : (
+              уведомления.map((н) => (
+                <div
+                  key={н.id}
+                  style={{
+                    padding: "12px 0",
+                    borderBottom: `1px solid ${theme.border}`,
+                    display: "flex",
+                    gap: 10,
+                  }}
+                >
+                  {/* Непрочитанное отмечено точкой у строки — той же вишнёвой,
+                      что на колокольчике: один цвет, один смысл. */}
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      marginTop: 6,
+                      background: н.read ? "transparent" : theme.cherry,
+                    }}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        font: `${н.read ? 400 : 600} 14px/1.35 ${FONT}`,
+                        color: "#111318",
+                      }}
+                    >
+                      {н.title}
+                    </div>
+                    {н.body && (
+                      <div
+                        style={{
+                          marginTop: 3,
+                          font: `400 13px/1.4 ${FONT}`,
+                          color: theme.fg2,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {н.body}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Единственный скроллер страниц: к нему привязано прятанье
           плавающей кнопки на всех экранах, где она есть. */}
       <div
