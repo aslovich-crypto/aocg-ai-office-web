@@ -4582,6 +4582,8 @@ export function AccountTab({
   onDeleteCard,
   onSetDefaultCard,
 }) {
+  // Показ текста согласия из записи — нашей шторкой, не системным окном.
+  const [показатьСогласие, setПоказатьСогласие] = useState(false);
   const [newCard, setNewCard] = useState("");
   const [me, setMe] = useState(null);
   const [acc, setAcc] = useState({
@@ -5013,12 +5015,11 @@ export function AccountTab({
             <button
               // S-34: показываем текст ИЗ ЗАПИСИ (он приходит в consent.text),
               // а не текущую редакцию: человек соглашался со своей.
-              onClick={() =>
-                alert(
-                  consent.text ||
-                    "Текст этой записи не сохранён (запись сделана до перехода на единый источник).",
-                )
-              }
+              // ⚠️ БЫЛ `alert` (Р-ОТКАЗЫ, T116): юридический документ
+              // в системном окне без прокрутки и разметки — таблицы правовых
+              // оснований там превращались в кашу. Показываем той же шторкой,
+              // что и на экране согласия: один документ — один вид.
+              onClick={() => setПоказатьСогласие(true)}
               style={{
                 marginTop: 8,
                 background: "none",
@@ -5032,6 +5033,16 @@ export function AccountTab({
             >
               Посмотреть текст согласия
             </button>
+            {показатьСогласие && (
+              <ConsentBottomSheet
+                title="Согласие на обработку данных"
+                text={
+                  consent.text ||
+                  "Текст этой записи не сохранён (запись сделана до перехода на единый источник)."
+                }
+                onClose={() => setПоказатьСогласие(false)}
+              />
+            )}
           </div>
         </>
       )}
@@ -6333,13 +6344,34 @@ function инициалы(имя) {
 // макет об этом молчит.
 export function SecurityTab({ me }) {
   const [showPwModal, setShowPwModal] = useState(false);
-  const oauthSoon = () => alert("Скоро");
+  // ⚠️ БЫЛО `alert("Скоро")` — системное окно с обещанием (Р-ОТКАЗЫ, T116).
+  // Стало: подпись на месте. Обещание «скоро» без срока — то же, что мёртвая
+  // кнопка: человек ждёт того, чего никто не обещал делать. Здесь сказано,
+  // что доступно СЕЙЧАС, а не когда-нибудь.
+  const [oauthПодсказка, setOauthПодсказка] = useState(false);
+  const oauthSoon = () => setOauthПодсказка(true);
   const PROVIDERS = [
     ["yandex", "Я", "Яндекс", "#FC3F1D", "#fff"],
     ["google", "G", "Google", "#fff", "#4285F4"],
     ["mailru", "@", "Mail.ru", "#005FF9", "#fff"],
   ];
   const linked = (me && me.linked_providers) || [];
+  const подписьOauth = oauthПодсказка && (
+    <div
+      style={{
+        marginTop: 10,
+        padding: "10px 12px",
+        borderRadius: 8,
+        background: "#FFFBEB",
+        border: "1px solid #FDE68A",
+        font: `400 12px/1.45 ${FONT}`,
+        color: "#B45309",
+      }}
+    >
+      Вход через сервисы пока не подключён. Работает вход по почте и паролю — им
+      и пользуйтесь.
+    </div>
+  );
   return (
     <div style={{ padding: "12px 16px 80px" }}>
       {/* ⚠️ Заголовка «Безопасность» здесь нет намеренно: экран уже
@@ -6440,6 +6472,7 @@ export function SecurityTab({ me }) {
           </div>
         );
       })}
+      {подписьOauth}
       {showPwModal && (
         <ChangePasswordModal onClose={() => setShowPwModal(false)} />
       )}
@@ -7960,7 +7993,10 @@ function LoginScreen({ onAuthed, navigate }) {
       setBusy(false);
     }
   }
-  const oauthSoon = () => alert("OAuth скоро будет доступен");
+  // ⚠️ БЫЛО `alert("OAuth скоро будет доступен")`. Системное окно вместо
+  // нашего интерфейса, да ещё и с обещанием без срока (Р-ОТКАЗЫ, T116).
+  const [oauthПодсказка, setOauthПодсказка] = useState(false);
+  const oauthSoon = () => setOauthПодсказка(true);
   const fieldStyle = {
     width: "100%",
     height: 48,
@@ -8087,6 +8123,25 @@ function LoginScreen({ onAuthed, navigate }) {
                 </span>
               </button>
             ))}
+            {/* ⚠️ ПОДПИСЬ НА МЕСТЕ ВМЕСТО СИСТЕМНОГО ОКНА (Р-ОТКАЗЫ, T116).
+                Было `alert("OAuth скоро будет доступен")`: чужой интерфейс
+                и обещание без срока. Здесь сказано, что работает СЕЙЧАС —
+                человеку нужен вход, а не наши планы. */}
+            {oauthПодсказка && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background: "#FFFBEB",
+                  border: "1px solid #FDE68A",
+                  font: `400 12px/1.45 ${FONT}`,
+                  color: "#B45309",
+                }}
+              >
+                Вход через сервисы пока не подключён. Войдите по почте и паролю
+                — форма ниже.
+              </div>
+            )}
           </div>
 
           {/* Divider */}
@@ -8392,26 +8447,20 @@ function CheckEmailScreen({ email, navigate }) {
           Мы отправили письмо на <b style={{ color: C.dark }}>{email}</b>.
           Откройте ссылку в письме, чтобы подтвердить аккаунт.
         </div>
-        <button
-          onClick={() => {
-            window.location.href = "mailto:";
-          }}
-          type="button"
-          style={{
-            marginTop: 22,
-            padding: "12px 24px",
-            background: theme.cherry,
-            color: "#fff",
-            border: "none",
-            borderRadius: 10,
-            fontFamily: FONT,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Открыть почту
-        </button>
+        {/* ⚠️ КНОПКА «ОТКРЫТЬ ПОЧТУ» СНЯТА (находка владельца 04.09.2026).
+            Она делала `window.location.href = "mailto:"`, а `mailto:` — это
+            НЕ «открыть ящик», это «написать письмо»: на iPhone человек,
+            нажавший «Открыть почту», попадал в ЧЕРНОВИК НОВОГО ПИСЬМА.
+            Кнопка обещала одно, делала другое — тот же класс, что мёртвая
+            кнопка, только хуже: она работала, но не туда.
+
+            ПОЧЕМУ СНЯТА, А НЕ ПОЧИНЕНА. Способа открыть ЯЩИК из браузера
+            не существует: `mailto:` умеет только составление письма.
+            Обходной путь — угадывать веб-почту по домену адреса
+            (`gmail.com` → mail.google.com и так далее) — работает для
+            нескольких известных доменов и ломается на всех прочих, включая
+            корпоративные; кнопка, работающая у половины, хуже отсутствующей.
+            Человек знает, где его почта, лучше нас. */}
         <button
           onClick={() => navigate("/login")}
           type="button"
@@ -9667,16 +9716,53 @@ export default function App() {
       .catch(() => {});
   }, [consentGiven, authed, loadCatalog]);
 
+  // ⚠️ ОТКАЗ СЕРВЕРА ГОВОРИТ ЧЕЛОВЕКУ, А НЕ ПРОПАДАЕТ (Р-ОТКАЗЫ, T116).
+  // Замер 04.09.2026: справочники карт и людей молчали при любом отказе —
+  // нажал «Добавить карту», сервер ответил 403 или 500, экран не изменился
+  // и не сказал ничего. Хуже пустого экрана: человек считает, что действие
+  // прошло, и узнаёт правду через сутки, когда карты нет.
+  //
+  // Текст берём ИЗ ОТВЕТА (`текстОшибки`): у сервера он человеческий и точный
+  // («последний администратор», «нельзя себя»), а наше «что-то пошло не так»
+  // отправляет чинить наугад.
+  // Тост оболочки для отказов: он должен пережить и прокрутку, и переход
+  // между вкладками — как тост отмены рядом.
+  const [отказТост, setОтказТост] = useState(null);
+
+  async function сказатьОбОтказе(res, запасной) {
+    let тело = null;
+    try {
+      тело = await res.json();
+    } catch {
+      /* тело может быть пустым — тогда говорим запасным текстом */
+    }
+    setОтказТост({
+      type: "error",
+      message: текстОшибки(тело, запасной),
+      duration: 5000,
+    });
+  }
+
+  // Тост гаснет сам: держать отказ на экране до следующего действия — значит
+  // мешать работать. Пять секунд хватает прочитать две строки.
+  useEffect(() => {
+    if (!отказТост) return;
+    const т = setTimeout(() => setОтказТост(null), отказТост.duration || 5000);
+    return () => clearTimeout(т);
+  }, [отказТост]);
+
   async function addCard(name) {
     const res = await authFetch(`/api/cards/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    if (res.ok) {
-      const c = await res.json();
-      setCards((prev) => [...prev, c]);
+    if (!res.ok) {
+      await сказатьОбОтказе(res, "Не удалось добавить карту");
+      return;
     }
+    const c = await res.json();
+    setCards((prev) => [...prev, c]);
   }
 
   async function updateCard(id, name) {
@@ -9685,14 +9771,24 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    if (res.ok) {
-      const c = await res.json();
-      setCards((prev) => prev.map((x) => (x.id === id ? c : x)));
+    if (!res.ok) {
+      await сказатьОбОтказе(res, "Не удалось переименовать карту");
+      return;
     }
+    const c = await res.json();
+    setCards((prev) => prev.map((x) => (x.id === id ? c : x)));
   }
 
   async function deleteCard(id) {
-    await authFetch(`/api/cards/${id}`, { method: "DELETE" });
+    // ⚠️ РАНЬШЕ КАРТА ИСЧЕЗАЛА С ЭКРАНА НЕЗАВИСИМО ОТ ОТВЕТА — сервер мог
+    // отказать (у сотрудника нет прав), а человек видел успех. Это худший
+    // вид молчания: экран расходится с базой, и обнаруживается это после
+    // перезагрузки.
+    const res = await authFetch(`/api/cards/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      await сказатьОбОтказе(res, "Не удалось удалить карту");
+      return;
+    }
     setCards((prev) => prev.filter((x) => x.id !== id));
   }
 
@@ -9700,8 +9796,11 @@ export default function App() {
     const res = await authFetch(`/api/cards/${id}/default`, {
       method: "PATCH",
     });
-    if (res.ok)
-      setCards((prev) => prev.map((x) => ({ ...x, is_default: x.id === id })));
+    if (!res.ok) {
+      await сказатьОбОтказе(res, "Не удалось назначить карту основной");
+      return;
+    }
+    setCards((prev) => prev.map((x) => ({ ...x, is_default: x.id === id })));
   }
 
   async function updateUser(id, patch) {
@@ -9727,6 +9826,13 @@ export default function App() {
 
   async function deleteUser(id) {
     const res = await authFetch(`/api/users/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      // Здесь у сервера самые нужные тексты: «единственный администратор,
+      // пригласите второго», «последний администратор, назначьте другого».
+      // Проглотить их — значит оставить человека в тупике без объяснения.
+      await сказатьОбОтказе(res, "Не удалось отключить сотрудника");
+      return;
+    }
     // ⚠️ СТРОКА НЕ ВЫБРАСЫВАЕТСЯ ИЗ СПИСКА (T118/④). Прежняя редакция
     // удаляла её из состояния — и человек пропадал с экрана, как пропадал
     // и с сервера. Гашение мягкое: строка остаётся, помечается неактивной,
@@ -9759,7 +9865,7 @@ export default function App() {
   async function handleDelete(id) {
     const res = await authFetch(`/api/receipts/${id}`, { method: "DELETE" });
     if (res.ok) setReceipts((prev) => prev.filter((x) => x.id !== id));
-    else alert("Не удалось удалить чек");
+    else await сказатьОбОтказе(res, "Не удалось удалить чек");
   }
 
   // Массовое удаление дублей из баннера (задача №9 фаза D). Возвращает тело ответа
@@ -10286,14 +10392,19 @@ export default function App() {
           вкладками нижнего меню. Внутри экрана он умирал бы вместе с ним. */}
       <Toast
         toast={
-          undo && {
-            type: "success",
-            message: undo.message,
-            action: {
-              label: undo.actionLabel,
-              onClick: () => finishUndo("cancel"),
-            },
-          }
+          // ⚠️ ОДИН ТОСТ НА ДВА ПОВОДА, А НЕ ДВА РЯДОМ: наложенные друг
+          // на друга сообщения читаются хуже одного. Отмена важнее отказа —
+          // в ней есть действие с коротким сроком.
+          undo
+            ? {
+                type: "success",
+                message: undo.message,
+                action: {
+                  label: undo.actionLabel,
+                  onClick: () => finishUndo("cancel"),
+                },
+              }
+            : отказТост
         }
       />
       <div

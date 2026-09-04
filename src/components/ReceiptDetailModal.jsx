@@ -597,6 +597,8 @@ export default function ReceiptDetailModal({
   const [reportsList, setReportsList] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [attachError, setAttachError] = useState("");
+  // Отказ подготовки снимка — на месте, а не системным окном (Р-ОТКАЗЫ).
+  const [shareError, setShareError] = useState("");
   const [attachBusy, setAttachBusy] = useState(false);
   // Переход «В отчёте „…“» → детали отчёта поверх карточки. Глубина ровно
   // одна: из деталей отчёта чек НЕ открывается, поэтому цикла чек → отчёт →
@@ -619,6 +621,7 @@ export default function ReceiptDetailModal({
   const contentRef = useRef(null);
   const [sharing, setSharing] = useState(false);
   async function handleShare() {
+    setShareError("");
     const node = contentRef.current;
     if (!node || sharing) return;
     setSharing(true);
@@ -673,7 +676,10 @@ export default function ReceiptDetailModal({
     } catch (e) {
       if (!(e && e.name === "AbortError")) {
         console.error("receipt share failed", e);
-        alert("Не удалось подготовить изображение чека");
+        // ⚠️ БЫЛО СИСТЕМНОЕ ОКНО (Р-ОТКАЗЫ, T116): чужой интерфейс поверх
+        // нашего, да ещё и блокирующий. Тост говорит то же самое, но не
+        // перехватывает управление и гаснет сам.
+        setShareError("Не удалось подготовить изображение чека");
       }
     } finally {
       setSharing(false);
@@ -901,6 +907,24 @@ export default function ReceiptDetailModal({
               </button>
             </div>
           </div>
+          {/* ⚠️ ОТКАЗ ПОДГОТОВКИ СНИМКА — НА ЭКРАНЕ, А НЕ СИСТЕМНЫМ ОКНОМ
+              (Р-ОТКАЗЫ, T116). Гаснет при следующей попытке: держать
+              старую ошибку рядом с новой кнопкой — врать про состояние. */}
+          {shareError && (
+            <div
+              style={{
+                margin: "8px 0 0",
+                padding: "8px 10px",
+                borderRadius: 8,
+                background: "#FEF2F2",
+                border: "1px solid #FECACA",
+                font: `400 12px/1.4 ${FONT}`,
+                color: "#B91C1C",
+              }}
+            >
+              {shareError}
+            </div>
+          )}
           {menuOpen && (
             <>
               <div
@@ -1640,7 +1664,11 @@ export default function ReceiptDetailModal({
                 onClick={async () => {
                   setДозапрос("идёт");
                   const итог = await onRefetchFns();
-                  setДозапрос(итог && итог.ok ? null : (итог && итог.причина) || "Не получилось");
+                  setДозапрос(
+                    итог && итог.ok
+                      ? null
+                      : (итог && итог.причина) || "Не получилось",
+                  );
                 }}
                 style={{
                   width: "100%",
@@ -1660,7 +1688,9 @@ export default function ReceiptDetailModal({
                   gap: 8,
                 }}
               >
-                {дозапрос === "идёт" ? "Спрашиваем ФНС…" : "Запросить данные ФНС ещё раз"}
+                {дозапрос === "идёт"
+                  ? "Спрашиваем ФНС…"
+                  : "Запросить данные ФНС ещё раз"}
               </button>
               {/* ⚠️ ОТКАЗ ПОКАЗЫВАЕТСЯ ДОСЛОВНО. Кнопка, после которой ничего
                   видимого не происходит, — это то, на что владелец уже
