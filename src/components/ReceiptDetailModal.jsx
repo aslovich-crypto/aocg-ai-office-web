@@ -331,9 +331,19 @@ const sheetHintStyle = {
   lineHeight: 1.4,
 };
 
-function ConfirmDeleteSheet({ onConfirm, onClose }) {
+// ⚠️ ОДНО ПОДТВЕРЖДЕНИЕ НА ВСЕ МЕСТА, ГДЕ УДАЛЯЮТ ЧЕК (05.09.2026). Экспорт
+// появился потому, что свайп в списке удалял БЕЗ спроса: жест, который легко
+// сделать случайно, был необратимым действием. Второе такое же окно рядом со
+// временем разошлось бы с этим — «готовое прежде своего».
+export function ConfirmDeleteSheet({ onConfirm, onClose, чек }) {
+  // ⚠️ ПРО ОТЧЁТ ГОВОРИМ ДО ЖЕСТА, А НЕ ОТКАЗОМ ПОСЛЕ. Бэкенд с c0f2963
+  // отвечает 409 «чек входит в отчёт», но человек к этому моменту уже нажал
+  // «Удалить» и ждёт результата. Признак `in_report` приходит в списке чеков —
+  // значит предупредить можно заранее, ничего не спрашивая у сервера.
+  const вОтчёте = !!(чек && чек.in_report);
+  const названиеОтчёта = (чек && чек.report_title) || "";
   return (
-    <Sheet title="Удалить чек?" onClose={onClose}>
+    <Sheet title={вОтчёте ? "Чек в отчёте" : "Удалить чек?"} onClose={onClose}>
       <p
         style={{
           font: `400 14px/1.45 ${FONT}`,
@@ -341,7 +351,11 @@ function ConfirmDeleteSheet({ onConfirm, onClose }) {
           margin: "0 2px 16px",
         }}
       >
-        Чек будет удалён без возможности восстановления.
+        {вОтчёте
+          ? `Чек входит в отчёт${
+              названиеОтчёта ? ` «${названиеОтчёта}»` : ""
+            } — удалить его не получится. Сначала уберите чек из отчёта.`
+          : "Чек будет удалён без возможности восстановления."}
       </p>
       <div style={{ display: "flex", gap: 8 }}>
         <button
@@ -357,23 +371,28 @@ function ConfirmDeleteSheet({ onConfirm, onClose }) {
             cursor: "pointer",
           }}
         >
-          Отмена
+          {вОтчёте ? "Понятно" : "Отмена"}
         </button>
-        <button
-          onClick={onConfirm}
-          style={{
-            flex: 1,
-            height: 48,
-            borderRadius: 8,
-            border: "none",
-            background: T.errorFg,
-            font: `600 15px/1 ${FONT}`,
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          Удалить
-        </button>
+        {/* ⚠️ КНОПКИ «УДАЛИТЬ» У ЧЕКА В ОТЧЁТЕ НЕТ ВОВСЕ. Оставить её значило бы
+            звать человека на действие, которое сервер заведомо отклонит: мёртвая
+            кнопка хуже отсутствующей — она обещает работу и отдаёт отказ. */}
+        {!вОтчёте && (
+          <button
+            onClick={onConfirm}
+            style={{
+              flex: 1,
+              height: 48,
+              borderRadius: 8,
+              border: "none",
+              background: T.errorFg,
+              font: `600 15px/1 ${FONT}`,
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Удалить
+          </button>
+        )}
       </div>
     </Sheet>
   );
@@ -1774,6 +1793,7 @@ export default function ReceiptDetailModal({
         )}
         {confirmDel && (
           <ConfirmDeleteSheet
+            чек={r}
             onConfirm={onDelete}
             onClose={() => setConfirmDel(false)}
           />

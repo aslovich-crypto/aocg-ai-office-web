@@ -16,7 +16,8 @@
     "scroll": "node scripts/check-scroll-reset.mjs",
     "skvoz": "node scripts/check-skvoznoy.mjs",
     "token": "node scripts/check-token-expiry.mjs",
-    "author": "node scripts/check-author.mjs"
+    "author": "node scripts/check-author.mjs",
+    "delete": "node scripts/check-delete.mjs"
   },
   "dependencies": {
     "@zumer/snapdom": "^2.12.8",

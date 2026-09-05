@@ -64,7 +64,11 @@ import {
   catColorById,
 } from "./lib/categories";
 import CategorySheet from "./components/CategorySheet";
-import ReceiptDetailModal from "./components/ReceiptDetailModal";
+import ReceiptDetailModal, {
+  // ⚠️ ПОДТВЕРЖДЕНИЕ БЕРЁМ ГОТОВОЕ, а не пишем второе: оно уже написано
+  // для карточки чека и знает про отчёт (см. ReceiptDetailModal.jsx).
+  ConfirmDeleteSheet,
+} from "./components/ReceiptDetailModal";
 import LegalText from "./components/LegalText";
 import { идПоИмени, имяАвтора } from "./lib/people";
 // S-28: тот же предикат роли, что уже гейтит фильтр автора на «Отчётах».
@@ -1263,7 +1267,13 @@ function SwipeableReceiptCard({ receipt, onClick, onDelete, автор }) {
         boxShadow: "0 1px 3px rgba(17,19,24,.08)",
       }}
     >
+      {/* ⚠️ У ДЕЙСТВИЯ ПОЯВИЛОСЬ ИМЯ. Раньше это был безымянный div с одной
+          иконкой: скринридер о нём не сообщал вовсе, а сторож не мог его
+          найти — удаление было доступно только зрячему пальцу. */}
       <div
+        role="button"
+        tabIndex={-1}
+        aria-label="Удалить чек"
         onClick={onDelete}
         style={{
           position: "absolute",
@@ -2132,7 +2142,13 @@ function Toast({ toast }) {
     <div
       style={{
         position: "fixed",
-        top: "calc(env(safe-area-inset-top) + 8px)",
+        // ⚠️ НИЖЕ ШАПКИ, А НЕ ПОВЕРХ НЕЁ (замер владельца по снимку 05.09.2026,
+        // iPhone): плашка закрывала собой заголовок раздела и переключатель
+        // приложений — человек читал отказ и терял, где находится. 64px —
+        // высота шапки Тип-2: safe-area + 10px отступа сверху, 44px кнопок,
+        // 10px снизу. Сторож `npm run delete` требует, чтобы прямоугольники
+        // плашки и шапки не пересекались.
+        top: "calc(env(safe-area-inset-top) + 64px)",
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 200,
@@ -2828,6 +2844,8 @@ function OperaciiPage({
   const [reqPrefill, setReqPrefill] = useState(null); // парсинг QR при заходе с неудачного скана
   const [showCatSheet, setShowCatSheet] = useState(false); // D1: bottom-sheet выбора статьи
   const [detail, setDetail] = useState(null);
+  // Чек, по которому спрашивают подтверждение удаления из списка.
+  const [подтвердитьУдаление, setПодтвердитьУдаление] = useState(null);
   // Счётчик открытий карточки: ответ на перечитывание применяем, только если
   // с момента запроса не открыли другой чек и не закрыли карточку — иначе
   // поздний ответ подменил бы чужие данные или «воскресил» закрытую карточку.
@@ -3508,7 +3526,10 @@ function OperaciiPage({
             key={r.id}
             receipt={r}
             onClick={() => openDetail(r)}
-            onDelete={() => handleDelete(r.id)}
+            // ⚠️ ЖЕСТ НЕ ДЕЛАЕТ НЕОБРАТИМОГО (05.09.2026). Свайп срабатывает
+            // легко и случайно, а удалял сразу: отказ сервера человек видел
+            // уже ПОСЛЕ жеста. Теперь тот же вопрос, что и в карточке чека.
+            onDelete={() => setПодтвердитьУдаление(r)}
             автор={canApprove(role) ? имяАвтора(r.user_id, users) : ""}
           />
         ))}
@@ -3669,6 +3690,17 @@ function OperaciiPage({
             setSources([]);
           }}
           onClose={() => setShowFilters(false)}
+        />
+      )}
+      {подтвердитьУдаление && (
+        <ConfirmDeleteSheet
+          чек={подтвердитьУдаление}
+          onConfirm={async () => {
+            const чек = подтвердитьУдаление;
+            setПодтвердитьУдаление(null);
+            await handleDelete(чек.id);
+          }}
+          onClose={() => setПодтвердитьУдаление(null)}
         />
       )}
       {detail && (
@@ -9921,10 +9953,42 @@ export default function App() {
     );
   }
 
+  // ⚠️ УСПЕХ — ЭТО ПОДТВЕРЖДЁННОЕ УДАЛЕНИЕ, А НЕ КОД 200 (05.09.2026).
+  //
+  // ЗАМЕР: `DELETE /api/receipts/{id}` отвечает 200 `{"ok": true}` ВСЕГДА —
+  // и когда чек удалён, и когда нет (`receipts.py:1009-1010`, анти-разведка:
+  // чужой чек обязан быть неотличим от несуществующего). Прежний код считал
+  // успехом любой `res.ok` и убирал строку с экрана: бухгалтер удалял чужой
+  // чек, экран говорил «удалено», а после перезагрузки чек был на месте.
+  // Экран расходился с базой молча — это хуже отказа.
+  //
+  // ⚠️ ЗА СЕРВЕР НИЧЕГО НЕ ВЫДУМЫВАЕМ: из ответа удаление неотличимо от
+  // отказа, поэтому спрашиваем ФАКТ — перечитываем чек. Нет его (404) —
+  // удалён; отвечает — не удалён, и мы об этом говорим, а строку не трогаем.
+  // Лишний запрос здесь дешевле вранья на экране.
+  //
+  // ЧТО ЭТО СТОИТ ИСПРАВИТЬ В БЭКЕНДЕ (отдельной работой, здесь не трогаем):
+  // вернуть в теле `{"ok": true, "deleted": true|false}`. Разведки это не
+  // открывает — для чужого чека и для несуществующего id ответ одинаков
+  // (`deleted: false`), а фронт перестанет ходить вторым запросом.
   async function handleDelete(id) {
     const res = await authFetch(`/api/receipts/${id}`, { method: "DELETE" });
-    if (res.ok) setReceipts((prev) => prev.filter((x) => x.id !== id));
-    else await сказатьОбОтказе(res, "Не удалось удалить чек");
+    if (!res.ok) {
+      // 409 «чек входит в отчёт «X»» — текст берём у сервера, он точнее.
+      await сказатьОбОтказе(res, "Не удалось удалить чек");
+      return false;
+    }
+    const проверка = await authFetch(`/api/receipts/${id}`);
+    if (проверка.ok) {
+      setОтказТост({
+        type: "error",
+        message: "Чек не удалён: удалять чужие чеки может только администратор",
+        duration: 5000,
+      });
+      return false;
+    }
+    setReceipts((prev) => prev.filter((x) => x.id !== id));
+    return true;
   }
 
   // Массовое удаление дублей из баннера (задача №9 фаза D). Возвращает тело ответа
@@ -10069,6 +10133,10 @@ export default function App() {
       }}
     >
       <div
+        // role="banner" — не украшение: это опора и для скринридера, и для
+        // сторожа, которому нужно найти шапку, чтобы проверить, не легла ли
+        // на неё плашка отказа.
+        role="banner"
         style={{
           background: theme.surface,
           borderBottom: `1px solid ${theme.border}`,

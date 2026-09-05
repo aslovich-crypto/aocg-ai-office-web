@@ -1,0 +1,180 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>проба удаления чека</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div>
+<div id="ЗАМЕР"></div>
+<script>
+// ⚠️ СЦЕНАРИЙ ИДЁТ ПО ЭКРАНУ «ЧЕКИ» — ТОМУ, ГДЕ ЧЕЛОВЕК НАЖИМАЕТ (правило
+// T165). Проверяется не «что ответил сервер», а что осталось на экране:
+// строка исчезает ТОЛЬКО когда чек действительно удалён.
+(function(){
+  var шаги=[], ждём=0;
+  function кнопки(){ return [].slice.call(document.querySelectorAll('button')); }
+  function кнопкаРовно(т){
+    return кнопки().find(function(б){ return (б.textContent||"").trim()===т; });
+  }
+  // ⚠️ НЕ `body.textContent`. Сам этот сценарий лежит инлайновым <script>
+  // ВНУТРИ body, и его исходник попадает в текст страницы: замер находил
+  // «Чек будет удалён без возможности восстановления» в собственном коде и
+  // отвечал «спрашивает» на экране, где ничего не спрашивали. Сторож был
+  // ЛОЖНО-ЗЕЛЁНЫМ — худший вид поломки прибора. Смотрим только на то, что
+  // ВИДНО: у <script> нет размеров, у настоящей шторки есть.
+  function видимыйТекст(){
+    var ходок=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var куски=[];
+    while(ходок.nextNode()){
+      var р=ходок.currentNode.parentElement;
+      if(!р || р.tagName==="SCRIPT" || р.tagName==="STYLE") continue;
+      var рект=р.getBoundingClientRect();
+      if(рект.width<=0 || рект.height<=0) continue;
+      куски.push(ходок.currentNode.nodeValue);
+    }
+    return куски.join(" ");
+  }
+  function естьНаЭкране(подстрока){
+    return видимыйТекст().indexOf(подстрока)>=0;
+  }
+  function видимый(э){
+    if(!э) return false;
+    var р=э.getBoundingClientRect();
+    return р.width>0 && р.height>0;
+  }
+  function чекиНаЭкране(){
+    return ["Кофейня","Канцтовары","Такси","Аптека"].filter(function(о){
+      return [].slice.call(document.querySelectorAll("*")).some(function(э){
+        return э.children.length===0 && (э.textContent||"").trim()===о && видимый(э);
+      });
+    });
+  }
+  // Карточка чека → её кнопка удаления. Ищем ИМЕННО внутри карточки: одна
+  // кнопка на строку, и промах по соседней карточке был бы незаметен.
+  function удалитьЧек(продавец){
+    var узел=[].slice.call(document.querySelectorAll("*")).find(function(э){
+      return э.children.length===0 && (э.textContent||"").trim()===продавец;
+    });
+    if(!узел) return "КАРТОЧКИ НЕТ";
+    var у=узел, кн=null;
+    while(у && !кн){
+      кн=у.querySelector ? у.querySelector('[aria-label="Удалить чек"]') : null;
+      if(!кн) у=у.parentElement;
+    }
+    if(!кн) return "КНОПКИ НЕТ";
+    кн.click();
+    return "нажато";
+  }
+  function шторкаПодтверждения(){
+    if(естьНаЭкране("Чек будет удалён без возможности восстановления"))
+      return "спрашивает";
+    if(естьНаЭкране("удалить его не получится")) return "говорит про отчёт";
+    return "нет вопроса";
+  }
+  function плашка(){
+    // Плашка отказа — единственный fixed-элемент с текстом отказа наверху.
+    return [].slice.call(document.querySelectorAll("div")).find(function(э){
+      var с=getComputedStyle(э);
+      return с.position==="fixed" && видимый(э) &&
+        /не удал|Чек входит в отчёт/i.test(э.textContent||"");
+    });
+  }
+
+  var сценарий=[
+    ["① экран чеков", function(){
+        var ч=кнопкаРовно("Чеки"); if(ч) ч.click();
+      }, function(){ return чекиНаЭкране().join("+")||"ПУСТО"; }],
+
+    // ⚠️ ЖЕСТ СПРАШИВАЕТ. До правки удаление уходило на сервер сразу.
+    ["② удаление спрашивает до жеста", function(){
+        удалитьЧек("Такси");
+      }, function(){
+        var есть=чекиНаЭкране().indexOf("Такси")>=0;
+        return шторкаПодтверждения()+(есть?" · чек на месте":" · ЧЕК ИСЧЕЗ");
+      }],
+
+    ["③ подтверждённое удаление убирает строку", function(){
+        var к=кнопкаРовно("Удалить"); if(к) к.click();
+      }, function(){
+        return чекиНaЭкранеБезопасно();
+      }],
+
+    // ⚠️ ГЛАВНОЕ: 200 БЕЗ УДАЛЕНИЯ. Сервер отвечает то же самое, что и при
+    // удаче, — экран обязан проверить факт, а не поверить коду ответа.
+    ["④ «200 без удаления» не убирает строку", function(){
+        удалитьЧек("Канцтовары");
+        setTimeout(function(){
+          var к=кнопкаРовно("Удалить"); if(к) к.click();
+        }, 200);
+      }, function(){
+        var есть=чекиНаЭкране().indexOf("Канцтовары")>=0;
+        var п=плашка();
+        return (есть?"чек на месте":"ЧЕК ИСЧЕЗ")+" · "+(п?"сказано":"МОЛЧА");
+      }],
+
+    ["⑤ плашка не перекрывает шапку", null, function(){
+        var п=плашка();
+        if(!п) return "ПЛАШКИ НЕТ";
+        var ш=document.querySelector('[role="banner"]');
+        if(!ш) return "ШАПКИ НЕТ";
+        var а=п.getBoundingClientRect(), б=ш.getBoundingClientRect();
+        return а.top >= б.bottom ? "ниже шапки"
+          : "перекрывает на "+Math.round(б.bottom-а.top)+"px";
+      }],
+
+    // Чек в отчёте: про отчёт говорим ДО жеста, и кнопки «Удалить» нет вовсе.
+    ["⑥ чек в отчёте предупреждает заранее", function(){
+        удалитьЧек("Кофейня");
+      }, function(){
+        var назвал=естьНаЭкране("Отчёт за май");
+        var кнопка=!!кнопкаРовно("Удалить");
+        return (назвал?"назвал отчёт":"НЕ НАЗВАЛ")+
+          (кнопка?" · кнопка «Удалить» ЕСТЬ":" · без кнопки «Удалить»");
+      }],
+
+    ["⑦ отказ 409 не убирает строку", function(){
+        var п=кнопкаРовно("Понятно"); if(п) п.click();
+        setTimeout(function(){
+          удалитьЧек("Аптека");
+          setTimeout(function(){
+            var к=кнопкаРовно("Удалить"); if(к) к.click();
+          }, 200);
+        }, 200);
+      }, function(){
+        var есть=чекиНаЭкране().indexOf("Аптека")>=0;
+        var п=плашка();
+        var сказал=p_текст(п).indexOf("Отчёт за май")>=0;
+        return (есть?"чек на месте":"ЧЕК ИСЧЕЗ")+" · "+
+          (п?(сказал?"текст сервера":"свой текст"):"МОЛЧА");
+      }],
+  ];
+
+  function p_текст(э){ return э ? (э.textContent||"") : ""; }
+  function чекиНaЭкранеБезопасно(){
+    return чекиНаЭкране().indexOf("Такси")>=0 ? "Такси на месте" : "строка убрана";
+  }
+
+  function идти(i){
+    if(i>=сценарий.length){
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify(шаги);
+      return;
+    }
+    if(сценарий[i][1]) сценарий[i][1]();
+    setTimeout(function(){
+      var что="—";
+      try { что=сценарий[i][2](); } catch(е){ что="ОШИБКА ЗАМЕРА"; }
+      шаги.push(сценарий[i][0]+": "+что);
+      идти(i+1);
+    }, 700);
+  }
+  function старт(){
+    if(!кнопкаРовно("Чеки") && ждём++<80) return setTimeout(старт,150);
+    if(!кнопкаРовно("Чеки")){
+      document.getElementById("ЗАМЕР").textContent=
+        JSON.stringify({"НЕ_ОТРИСОВАЛОСЬ":true});
+      return;
+    }
+    идти(0);
+  }
+  старт();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>
