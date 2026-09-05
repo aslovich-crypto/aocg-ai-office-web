@@ -5338,7 +5338,13 @@ function InviteSheet({ onClose, onCreated }) {
   const [имя, setИмя] = useState("");
   const [фамилия, setФамилия] = useState("");
   const [role, setRole] = useState("employee");
-  const [hours, setHours] = useState(null); // null = бессрочная
+  // ⚠️ СРОК ВЫБРАН ВСЕГДА. Раньше здесь стоял `null` («Бессрочная»), и не
+  // выбравший ничего выпускал ВЕЧНУЮ ссылку. Замер прода 04.09.2026: пять
+  // бессрочных из восьми, включая последнюю выпущенную. Бэкенд с d376799
+  // такую ссылку и не примет — но умолчание чинится здесь, а не отказом.
+  const [hours, setHours] = useState(168);
+  // Общая ссылка НИКОГДА не возникает сама: её открывают явно.
+  const [общаяОткрыта, setОбщаяОткрыта] = useState(false);
   const [created, setCreated] = useState(null);
   const [busy, setBusy] = useState(false);
   const [ошибка, setОшибка] = useState("");
@@ -5354,11 +5360,13 @@ function InviteSheet({ onClose, onCreated }) {
   // ⚠️ ПОРЯДОК ОТ МЕНЬШИХ ПРАВ К БОЛЬШИМ, умолчание — «Сотрудник»:
   // самый широкий доступ не должен стоять первым и ловить случайное нажатие.
   const ROLE_CHIPS = ROLES.map((r) => [r.id, r.label]);
+  // ⚠️ «БЕССРОЧНАЯ» СНЯТА (05.09.2026). Приглашение — это вход в организацию,
+  // лежащий в чужом почтовом ящике; ссылка без срока это дверь, которую забыли
+  // закрыть, и никто не знает, что она открыта.
   const TTL_CHIPS = [
     [24, "1 день"],
     [168, "7 дней"],
     [720, "30 дней"],
-    [null, "Бессрочная"],
   ];
   const chip = (on) => ({
     padding: "6px 12px",
@@ -5393,10 +5401,13 @@ function InviteSheet({ onClose, onCreated }) {
     outline: "none",
   };
 
-  // ⚠️ ОДИН ЗАПРОС НА ОБЕ КНОПКИ. Приглашение создаётся ровно одно;
-  // «Отправить» отличается от «Скопировать» только тем, передана ли почта.
-  // Два отдельных запроса плодили бы два приглашения на одного человека.
-  async function создать(сПочтой) {
+  // ⚠️ ОДИН ЗАПРОС НА ОБЕ КНОПКИ, И ОБЕ — С ПОЧТОЙ. Раньше «Скопировать
+  // ссылку» слала `email: null`, и введённый адрес МОЛЧА ТЕРЯЛСЯ: человек
+  // видел форму с почтой, а выпускал предъявительскую ссылку. Природу ссылки
+  // определяла нажатая кнопка, и увидеть это было негде.
+  // Теперь кнопки различаются ТОЛЬКО доставкой: письмо или буфер обмена.
+  // `общая = true` — отдельная дорога ниже, где почты нет вовсе.
+  async function создать({ общая = false } = {}) {
     if (busy) return null;
     setBusy(true);
     setОшибка("");
@@ -5404,14 +5415,21 @@ function InviteSheet({ onClose, onCreated }) {
       const res = await authFetch("/api/invite/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role,
-          expires_hours: hours,
-          max_uses: 1,
-          email: сПочтой ? почта.trim() : null,
-          first_name: имя.trim(),
-          last_name: фамилия.trim(),
-        }),
+        // ⚠️ У ОБЩЕЙ ССЫЛКИ РОЛЬ И СРОК НЕ НАШИ: их ставит сервер
+        // (employee, сутки) и из тела не читает вовсе. Поэтому не шлём их
+        // и здесь — иначе форма делала бы вид, что решает, а решает не она.
+        body: JSON.stringify(
+          общая
+            ? { max_uses: 1 }
+            : {
+                role,
+                expires_hours: hours,
+                max_uses: 1,
+                email: почта.trim(),
+                first_name: имя.trim(),
+                last_name: фамилия.trim(),
+              },
+        ),
       });
       const тело = await res.json().catch(() => null);
       if (!res.ok) {
@@ -5640,13 +5658,22 @@ function InviteSheet({ onClose, onCreated }) {
                   письмом и ссылкой. Требование владельца дословно. */}
               <Btn
                 full
-                onClick={() => создать(true)}
+                onClick={() => создать()}
                 disabled={busy || !почтаВерна}
               >
                 {busy ? "Отправляем…" : "Отправить приглашение"}
               </Btn>
               <div style={{ height: 8 }} />
-              <Btn full outline onClick={() => создать(false)} disabled={busy}>
+              {/* ⚠️ ТА ЖЕ ССЫЛКА, ДРУГАЯ ДОСТАВКА — поэтому и почта тут
+                  обязательна так же. Кнопка, выпускавшая «ссылку без адресата»
+                  при заполненной почте, обманывала дважды: теряла адрес и
+                  меняла природу приглашения молча. */}
+              <Btn
+                full
+                outline
+                onClick={() => создать()}
+                disabled={busy || !почтаВерна}
+              >
                 Скопировать ссылку
               </Btn>
               {!почтаВерна && почта.trim() !== "" && (
@@ -5662,6 +5689,61 @@ function InviteSheet({ onClose, onCreated }) {
                   Адрес не похож на почтовый — письмо отправить не получится
                 </div>
               )}
+
+              {/* ⚠️ ОБЩАЯ ССЫЛКА — ОТДЕЛЬНАЯ ДОРОГА, И ОНА НЕ ОТКРЫВАЕТСЯ САМА.
+                  Раньше она получалась побочно: нажал «Скопировать ссылку» —
+                  и вместо именного приглашения вышло предъявительское, о чём
+                  форма не сказала ни слова. Теперь её берут осознанно, а что
+                  именно берут — написано до нажатия. */}
+              <div
+                style={{
+                  marginTop: 24,
+                  paddingTop: 16,
+                  borderTop: `1px solid ${theme.border}`,
+                }}
+              >
+                <button
+                  onClick={() => setОбщаяОткрыта((о) => !о)}
+                  aria-expanded={общаяОткрыта}
+                  style={{
+                    border: "none",
+                    background: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    fontFamily: FONT,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: theme.fg1,
+                  }}
+                >
+                  Общая ссылка {общаяОткрыта ? "▴" : "▾"}
+                </button>
+                {общаяОткрыта && (
+                  <div style={{ marginTop: 12 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        color: theme.fg2,
+                        fontFamily: FONT,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Пускает любого, кто её получил — адресата у неё нет.
+                      Поэтому роль всегда «Сотрудник», а срок — одни сутки.
+                      Выбрать их нельзя: это её природа, а не настройка.
+                    </div>
+                    <Btn
+                      full
+                      outline
+                      onClick={() => создать({ общая: true })}
+                      disabled={busy}
+                    >
+                      Создать общую ссылку
+                    </Btn>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -7205,7 +7287,37 @@ export function NastroykiPage({
                       )}`
                     : inv.email
                       ? " · письмо не отправлялось"
-                      : " · без почты, ссылку передают вручную"}
+                      : " · общая ссылка, адресата нет"}
+                </div>
+
+                {/* ⚠️ СРОК И ПЕРЕХОДЫ ВИДНЫ У КАЖДОЙ ССЫЛКИ, а у общей это
+                    единственный способ понять, что с ней происходит: адресата
+                    у неё нет, и «ждут ли кого-то» по имени не прочитать.
+                    Оба числа приходят в /api/invite/list, показывать их было
+                    нечем — строки просто не было. */}
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: theme.fg2,
+                    fontFamily: FONT,
+                    marginTop: 2,
+                  }}
+                >
+                  {inv.expires_at
+                    ? `действует до ${new Date(inv.expires_at).toLocaleString(
+                        "ru-RU",
+                        {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}`
+                    : "без срока"}
+                  {` · переходов ${inv.uses_count ?? 0} из ${
+                    inv.max_uses ?? 1
+                  }`}
                 </div>
 
                 {/* ⚠️ ССЫЛКА ВИДНА ВСЕГДА. Раньше её показывали ровно один

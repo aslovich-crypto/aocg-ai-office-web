@@ -1,0 +1,162 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>проба формы приглашения</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div>
+<div id="ЗАМЕР"></div>
+<script>
+// ⚠️ СЦЕНАРИЙ ИДЁТ ПО ЭКРАНУ ПРИГЛАШЕНИЯ — тому, где человек нажимает
+// (правило T165). И смотрит на ДВЕ вещи сразу: что показано на экране и
+// КАКОЙ ЗАПРОС УШЁЛ. Форма может выглядеть правильно и слать не то — ровно
+// это и случилось с кнопкой «Скопировать ссылку».
+(function(){
+  var шаги=[], ждём=0;
+  var ОТКАЗ=new URLSearchParams(location.search).get("otkaz")==="1";
+  function кнопки(){ return [].slice.call(document.querySelectorAll('button')); }
+  function кнопкаРовно(т){
+    return кнопки().find(function(б){ return (б.textContent||"").trim()===т; });
+  }
+  function кнопкаСо(п){
+    return кнопки().find(function(б){ return (б.textContent||"").indexOf(п)>=0; });
+  }
+  // ⚠️ ТОЛЬКО ВИДИМЫЙ ТЕКСТ (T169). `body.textContent` включает исходник
+  // этого самого сценария — он лежит инлайновым <script> внутри body, и
+  // замер находил бы искомые строки в самом себе.
+  function видимыйТекст(){
+    var ходок=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var куски=[];
+    while(ходок.nextNode()){
+      var р=ходок.currentNode.parentElement;
+      if(!р || р.tagName==="SCRIPT" || р.tagName==="STYLE") continue;
+      var рект=р.getBoundingClientRect();
+      if(рект.width<=0 || рект.height<=0) continue;
+      куски.push(ходок.currentNode.nodeValue);
+    }
+    return куски.join(" ");
+  }
+  function естьНаЭкране(п){ return видимыйТекст().indexOf(п)>=0; }
+  function запросы(){ return window.__ЗАПРОСЫ || []; }
+  function последний(){ var з=запросы(); return з.length ? з[з.length-1] : null; }
+  function ввести(метка, значение){
+    var поле=document.querySelector('input[aria-label="'+метка+'"]');
+    if(!поле) return "ПОЛЯ НЕТ";
+    var сеттер=Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, "value").set;
+    сеттер.call(поле, значение);
+    поле.dispatchEvent(new Event("input", {bubbles:true}));
+    return "введено";
+  }
+
+  var сценарий=[
+    ["① форма приглашения открыта", function(){
+        // Путь человека: шапка → «Аккаунт» (кабинет) → «Пользователи» →
+        // «Пригласить сотрудника». Клики разнесены по тикам: React не успеет
+        // перерисовать экран, если жать всё в одном (урок пробы «Сводки»).
+        var а=document.querySelector('button[aria-label="Аккаунт"]');
+        if(а) а.click();
+        setTimeout(function(){
+          var л=кнопкаСо("Пользователи"); if(л) л.click();
+          setTimeout(function(){
+            var п=кнопкаСо("Пригласить сотрудника"); if(п) п.click();
+          }, 300);
+        }, 300);
+      }, function(){
+        return document.querySelector('input[aria-label="Почта сотрудника"]')
+          ? "открыта" : "НЕТ";
+      }],
+
+    // ⚠️ СРОК ВЫБРАН ВСЕГДА, «Бессрочной» в ряду нет.
+    ["② срока «Бессрочная» в форме нет", null, function(){
+        var есть=!!кнопкаРовно("Бессрочная");
+        var выбран=["1 день","7 дней","30 дней"].filter(function(п){
+          var к=кнопкаРовно(п);
+          return к && getComputedStyle(к).backgroundColor==="rgb(164, 22, 26)";
+        });
+        return (есть?"«Бессрочная» ЕСТЬ":"нет «Бессрочной»")+" · выбрано: "+
+          (выбран.join("+")||"НИЧЕГО");
+      }],
+
+    ["③ общей ссылки по умолчанию не видно", null, function(){
+        return естьНаЭкране("Пускает любого, кто её получил")
+          ? "ВИДНА СРАЗУ" : "скрыта до включения";
+      }],
+
+    // ⚠️ ГЛАВНОЕ: «Скопировать ссылку» шлёт ПОЧТУ, а не null.
+    ["④ «Скопировать ссылку» шлёт почту", function(){
+        ввести("Почта сотрудника", "ivan@example.com");
+        setTimeout(function(){
+          var к=кнопкаРовно("Скопировать ссылку"); if(к) к.click();
+        }, 250);
+      }, function(){
+        var з=последний();
+        if(!з) return "ЗАПРОСА НЕТ";
+        return "email="+(з.email===null?"null":з.email)+
+          " · срок="+(з.expires_hours===null?"null":з.expires_hours);
+      }],
+
+    // ⚠️ ОТКАЗ 400 ДОХОДИТ ДО ЧЕЛОВЕКА СЛОВАМИ СЕРВЕРА, а не глотается и не
+    // выдаётся за успех: показать «ссылка готова» после отказа значит
+    // отправить человека копировать то, чего нет.
+    ["⑤о отказ 400 виден словами сервера", null, function(){
+        if(!ОТКАЗ) return "прогон без отказа";
+        var сказано=естьНаЭкране("бессрочных ссылок не бывает");
+        // ⚠️ ИЩЕМ ИМЕННО НОВУЮ ССЫЛКУ (токен «novyi»), а не любую: на экране
+        // за шторкой лежит список с УЖЕ выпущенной общей ссылкой, и замер по
+        // «join/» краснел бы на исправном коде, находя чужую строку.
+        var ссылка=естьНаЭкране("join/novyi");
+        return (сказано?"сказано сервером":"МОЛЧА")+
+          (ссылка?" · НО ССЫЛКА ПОКАЗАНА":" · ссылки нет");
+      }],
+
+    ["⑤ общая ссылка — за явным включением", function(){
+        var г=кнопкаСо("Готово"); if(г) г.click();
+        setTimeout(function(){
+          var п=кнопкаСо("Пригласить сотрудника"); if(п) п.click();
+          setTimeout(function(){
+            var о=кнопкаСо("Общая ссылка"); if(о) о.click();
+          }, 250);
+        }, 250);
+      }, function(){
+        return естьНаЭкране("Пускает любого, кто её получил")
+          ? "объяснено до нажатия" : "НЕТ ОБЪЯСНЕНИЯ";
+      }],
+
+    ["⑥ общая ссылка шлёт запрос без почты и роли", function(){
+        var к=кнопкаРовно("Создать общую ссылку"); if(к) к.click();
+      }, function(){
+        var з=последний();
+        if(!з) return "ЗАПРОСА НЕТ";
+        var поля=Object.keys(з).sort().join(",");
+        return "поля: "+поля;
+      }],
+  ];
+
+  function идти(i){
+    if(i>=сценарий.length){
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify(шаги);
+      return;
+    }
+    if(сценарий[i][1]) сценарий[i][1]();
+    setTimeout(function(){
+      var что="—";
+      try { что=сценарий[i][2](); } catch(е){ что="ОШИБКА ЗАМЕРА"; }
+      шаги.push(сценарий[i][0]+": "+что);
+      идти(i+1);
+    }, 800);
+  }
+  function старт(){
+    var готов=function(){
+      return !!document.querySelector('button[aria-label="Аккаунт"]');
+    };
+    if(!готов() && ждём++<80) return setTimeout(старт,150);
+    if(!готов()){
+      document.getElementById("ЗАМЕР").textContent=
+        JSON.stringify({"НЕ_ОТРИСОВАЛОСЬ":true});
+      return;
+    }
+    идти(0);
+  }
+  старт();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>

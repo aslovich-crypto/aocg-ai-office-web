@@ -17,7 +17,8 @@
     "skvoz": "node scripts/check-skvoznoy.mjs",
     "token": "node scripts/check-token-expiry.mjs",
     "author": "node scripts/check-author.mjs",
-    "delete": "node scripts/check-delete.mjs"
+    "delete": "node scripts/check-delete.mjs",
+    "invite": "node scripts/check-invite.mjs"
   },
   "dependencies": {
     "@zumer/snapdom": "^2.12.8",
