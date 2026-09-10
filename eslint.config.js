@@ -23,6 +23,7 @@ export default defineConfig([
     "scripts/probe-summa/__dist",
     "scripts/probe-geroy/__dist",
     "scripts/probe-stroka/__dist",
+    "scripts/probe-uvedomleniya/__dist",
     "scripts/probe-avtor/__dist",
     "scripts/probe-udalenie/__dist",
     "scripts/probe-priglashenie/__dist",

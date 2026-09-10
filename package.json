@@ -22,6 +22,7 @@
     "join": "node scripts/check-join.mjs",
     "invites": "node scripts/check-invites-list.mjs",
     "otkaz": "node scripts/check-otkaz.mjs",
+    "uvedomleniya": "node scripts/check-uvedomleniya.mjs",
     "summa": "node scripts/check-summa.mjs",
     "summa-mut": "node scripts/summa-mutations.mjs",
     "geroy": "node scripts/check-geroy.mjs",

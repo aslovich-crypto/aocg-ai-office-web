@@ -1,0 +1,158 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>проба колокольчика</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div>
+<div id="ЗАМЕР"></div>
+<script>
+// ⚠️ СЦЕНАРИЙ ИДЁТ ПО ЭКРАНУ, КОТОРЫЙ ОТКРЫВАЕТ ЧЕЛОВЕК (T165): шапка
+// с колокольчиком видна на любом экране, начинаем с «Главной».
+// Замер — по ВИДИМОМУ тексту и по геометрии (T169): точка это
+// элемент без текста, её textContent не выдаст.
+(function(){
+  var шаги=[], ждём=0;
+  var СЛУЧАЙ=new URLSearchParams(location.search).get("sluchay")||"est";
+
+  // ⚠️ МОЛЧАНИЕ ПРОБЫ — НЕ ОТВЕТ. Падение сценария обязано доехать
+  // до отчёта именем и стеком, иначе пустой вывод читается как
+  // «экран не отрисовался» (улика 08.09.2026).
+  function сдаться(что){
+    try {
+      document.getElementById("ЗАМЕР").textContent=
+        JSON.stringify({ОШИБКА_ПРОБЫ:String(что && что.stack || что)});
+    } catch(е){}
+  }
+  window.addEventListener("error", function(е){ сдаться(е.error||е.message); });
+  window.addEventListener("unhandledrejection", function(е){ сдаться(е.reason); });
+
+  function кнопки(){ return [].slice.call(document.querySelectorAll('button')); }
+  function колокольчик(){
+    return кнопки().find(function(б){
+      return б.getAttribute("aria-label")==="Уведомления";
+    });
+  }
+  function видимыйТекст(){
+    var ходок=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var куски=[];
+    while(ходок.nextNode()){
+      var р=ходок.currentNode.parentElement;
+      if(!р || р.tagName==="SCRIPT" || р.tagName==="STYLE") continue;
+      var рект=р.getBoundingClientRect();
+      if(рект.width<=0 || рект.height<=0) continue;
+      куски.push(ходок.currentNode.nodeValue);
+    }
+    return куски.join(" ");
+  }
+  function естьНаЭкране(п){ return видимыйТекст().indexOf(п)>=0; }
+
+  // ⚠️ ТОЧКА ИЩЕТСЯ ГЕОМЕТРИЕЙ ВНУТРИ КОЛОКОЛЬЧИКА, а не по всей странице:
+  // круглых вишнёвых элементов на экране много (точки строк, плитки),
+  // и поиск по цвету нашёл бы чужой. Признак: потомок кнопки уведомлений,
+  // без текста, со скруглением 50%.
+  function точка(){
+    var к=колокольчик(); if(!к) return null;
+    return [].slice.call(к.querySelectorAll('span,div')).find(function(э){
+      if((э.textContent||"").trim()) return false;
+      var с=getComputedStyle(э);
+      var р=э.getBoundingClientRect();
+      return с.borderRadius.indexOf("50%")>=0 && р.width>0 && р.height>0;
+    }) || null;
+  }
+  function шторка(){ return document.querySelector('[role="dialog"][aria-label="Уведомления"]'); }
+
+  var сценарий=[
+    ["① колокольчик на месте", null, function(){
+        return колокольчик() ? "есть" : "НЕТ";
+      }],
+
+    ["② точка отвечает счётчику, а не разметке", null, function(){
+        var т=точка();
+        if(СЛУЧАЙ==="est") return т ? "точка есть" : "ТОЧКИ НЕТ";
+        return т ? "ТОЧКА ГОРИТ ЗРЯ" : "точки нет";
+      }],
+
+    ["③ шторка открылась и доступна с клавиатуры", function(){
+        var к=колокольчик(); if(к) к.click();
+      }, function(){
+        var ш=шторка();
+        if(!ш) return "ШТОРКИ НЕТ";
+        // ⚠️ ГЛАВНОЕ ЗДЕСЬ — НЕ «ОТКРЫЛАСЬ», А «ДОСТУПНА»: до 10.09.2026
+        // это была единственная модалка без useModalA11y, и закрыть её
+        // клавиатурой было нельзя ничем.
+        var внутри=ш.contains(document.activeElement);
+        return "открыта" + (внутри ? " · фокус внутри" : " · ФОКУС СНАРУЖИ");
+      }],
+
+    ["④ отказ сервера назван отказом, а не пустотой", null, function(){
+        if(СЛУЧАЙ!=="otkaz") return "случай без отказа";
+        var пусто=естьНаЭкране("Пока ничего нового");
+        var сказано=естьНаЭкране("сервер не ответил") || естьНаЭкране("уведомления");
+        if(пусто && !сказано) return "ВЫДАНО ЗА ПУСТОТУ";
+        return сказано ? "сказано об отказе" : "МОЛЧИТ";
+      }],
+
+    ["⑤ пусто сказано словами", null, function(){
+        if(СЛУЧАЙ!=="pusto") return "случай не пустой";
+        return естьНаЭкране("Пока ничего нового") ? "сказано" : "МОЛЧИТ";
+      }],
+
+    ["⑥ строка с отчётом ведёт к отчёту", null, function(){
+        if(СЛУЧАЙ!=="est" && СЛУЧАЙ!=="prochit") return "случай без событий";
+        var ш=шторка(); if(!ш) return "ШТОРКИ НЕТ";
+        var строки=[].slice.call(ш.querySelectorAll('button')).filter(function(б){
+          return (б.textContent||"").indexOf("Отчёт отклонён")>=0;
+        });
+        var несобытие=[].slice.call(ш.querySelectorAll('button')).filter(function(б){
+          return (б.textContent||"").indexOf("Новый сотрудник")>=0;
+        });
+        // ⚠️ ОБЕ СТОРОНЫ: у события с report_id кнопка ЕСТЬ, у события
+        // без него — НЕТ. Мёртвая кнопка хуже её отсутствия.
+        return (строки.length?"ведёт":"НЕ ВЕДЁТ") +
+               " · без отчёта " + (несобытие.length?"ТОЖЕ КНОПКА":"не кнопка");
+      }],
+
+    ["⑦ точка погасла после открытия", null, function(){
+        if(СЛУЧАЙ!=="est") return "случай без непрочитанных";
+        return точка() ? "ТОЧКА ОСТАЛАСЬ" : "погасла";
+      }],
+
+    ["⑧ POST шлётся только когда есть что гасить", null, function(){
+        var п=window.__ПОСТОВ||0;
+        if(СЛУЧАЙ==="est") return п>0 ? "послан" : "НЕ ПОСЛАН";
+        return п===0 ? "не послан" : "ПОСЛАН ЗРЯ";
+      }],
+
+    ["⑨ Escape закрывает шторку", function(){
+        document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));
+      }, function(){
+        return шторка() ? "ШТОРКА ОСТАЛАСЬ" : "закрылась";
+      }],
+  ];
+
+  function идти(i){
+    if(i>=сценарий.length){
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify(шаги);
+      return;
+    }
+    try { if(сценарий[i][1]) сценарий[i][1](); } catch(е){ сдаться(е); return; }
+    setTimeout(function(){
+      var что="—";
+      try { что=сценарий[i][2](); } catch(е){ что="ОШИБКА ЗАМЕРА: "+е.message; }
+      шаги.push(сценарий[i][0]+": "+что);
+      идти(i+1);
+    }, 500);
+  }
+  function готов(){ return !!колокольчик(); }
+  function старт(){
+    if(!готов() && ждём++<100) return setTimeout(старт,150);
+    if(!готов()){
+      document.getElementById("ЗАМЕР").textContent=
+        JSON.stringify({"НЕ_ОТРИСОВАЛОСЬ":true});
+      return;
+    }
+    идти(0);
+  }
+  старт();
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>
