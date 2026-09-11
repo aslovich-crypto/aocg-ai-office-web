@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronLeft, X, Undo2 } from "lucide-react";
+import { ChevronLeft, X, Undo2, MoreHorizontal, Download } from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime, money } from "../lib/format";
 import { catName, catColor } from "../lib/categories";
 import { useModalA11y } from "../hooks/useModalA11y";
-import { authFetch } from "../lib/api";
+import { authFetch, текстОшибки } from "../lib/api";
 import { BADGE, isEditable, FROZEN_HINT, canApprove } from "../lib/reports";
 import { РЕЖИМЫ_ПЕРИОДА, вПериоде } from "../lib/period";
 
@@ -23,6 +23,16 @@ import { РЕЖИМЫ_ПЕРИОДА, вПериоде } from "../lib/period";
 function receiptWhen(r) {
   if (r.datetime) return fmtDateTime(r.datetime);
   return fmtDate(r.date);
+}
+
+// Имя файла берём из ответа СЕРВЕРА, а не собираем рядом: второе место, где
+// строится то же имя, разошлось бы с первым молча. Заголовок виден клиенту
+// только потому, что бэкенд открыл его через expose_headers — без этого здесь
+// всегда было бы null, и запасное имя выглядело бы «рабочим».
+function имяИзЗаголовка(res) {
+  const заголовок = res.headers.get("Content-Disposition") || "";
+  const совпадение = /filename="?([^";]+)"?/i.exec(заголовок);
+  return совпадение ? совпадение[1] : null;
 }
 
 // Пояснения, когда действий нет. Пустой низ экрана читается как поломка.
@@ -140,6 +150,55 @@ export default function ReportDetailModal({
   const [пул, setПул] = useState(null); // null = грузится
   const [addSel, setAddSel] = useState([]);
   const [периодДоб, setПериодДоб] = useState("все");
+  // Меню «Ещё» в шапке и выгрузка в 1С. Форма вызова — КАНОН: ровно так
+  // в поставке «Детали чека» нарисован пункт «Скачать PDF» в кебаб-меню.
+  // Заводить футер у статуса «Одобрен», которого в поставке нет, — отступление
+  // от макета; решение владельца 11.09.2026, вариант А.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [скачивается, setСкачивается] = useState(false);
+  const [ошибкаВыгрузки, setОшибкаВыгрузки] = useState("");
+
+  // ⚠️ ССЫЛКОЙ ЭТУ РУЧКУ НЕ ДЁРНУТЬ. Авторизация у нас в заголовке, а не
+  // в куках, поэтому <a href> и window.open ушли бы БЕЗ токена и получили 401.
+  // Значит только fetch с последующим Blob — и отсюда же берётся имя файла:
+  // сервер присылает его в Content-Disposition, а бэкенд отдельно открывает
+  // этот заголовок клиенту (expose_headers), чтобы имя не задавалось дважды.
+  async function скачатьXlsx() {
+    if (скачивается) return;
+    setСкачивается(true);
+    setОшибкаВыгрузки("");
+    let url = null;
+    try {
+      const res = await authFetch(
+        `/api/reports/${rep.id}/export.xlsx`,
+        {},
+        30000,
+      );
+      if (!res.ok) {
+        const тело = await res.json().catch(() => null);
+        setОшибкаВыгрузки(текстОшибки(тело, "Не удалось собрать файл"));
+        return;
+      }
+      const blob = await res.blob();
+      url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = имяИзЗаголовка(res) || `otchet-${rep.id}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {
+      // Сеть или таймаут. Текст говорит, ЧТО делать, а не как называется сбой.
+      setОшибкаВыгрузки(
+        "Файл не скачался — проверьте связь и попробуйте снова",
+      );
+    } finally {
+      // Отпускаем объект после клика: браузер к этому моменту уже начал
+      // сохранение, а держать его — течь памятью на каждой выгрузке.
+      if (url) URL.revokeObjectURL(url);
+      setСкачивается(false);
+    }
+  }
 
   async function openAdd() {
     setShowAdd(true);
@@ -371,6 +430,8 @@ export default function ReportDetailModal({
             alignItems: "center",
             gap: 4,
             flexShrink: 0,
+            // Меню «Ещё» раскрывается ОТНОСИТЕЛЬНО шапки, как в карточке чека.
+            position: "relative",
           }}
         >
           <button
@@ -391,7 +452,114 @@ export default function ReportDetailModal({
           <span style={{ font: `600 17px/1.2 ${FONT}`, color: C.dark }}>
             Отчёт
           </span>
+          {/* ⚠️ КНОПКА ПОКАЗЫВАЕТСЯ ТОЛЬКО ТЕМ, КОМУ РУЧКА ОТВЕТИТ. Гейт тот
+              же, что у «Одобрить/Отклонить» (canApprove), и он совпадает с
+              гейтом бэкенда: сотрудник получил бы 403, то есть мёртвый жест.
+              role == null — роль ещё грузится, а не «прав нет»: рисовать
+              меню рано. */}
+          {role != null && canApprove(role) && (
+            <>
+              {/* Распорка: отодвигает «Ещё» вправо. minWidth:0 — по общему
+                  правилу вёрстки, иначе элемент не сожмётся уже содержимого. */}
+              <div style={{ flex: 1, minWidth: 0 }} />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((v) => !v);
+                }}
+                aria-label="Ещё"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: C.dark,
+                  padding: 8,
+                }}
+              >
+                <MoreHorizontal size={22} />
+              </button>
+            </>
+          )}
+          {menuOpen && (
+            <>
+              {/* Подложка ловит тап мимо меню. Слой ниже самого меню на один
+                  уровень — правило слоёв: число берётся по РОЛИ, а не на глаз. */}
+              <div
+                onClick={() => setMenuOpen(false)}
+                style={{ position: "fixed", inset: 0, zIndex: zIndex + 1 }}
+              />
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  top: 54,
+                  right: 10,
+                  background: theme.surface,
+                  borderRadius: 12,
+                  boxShadow: "0 8px 30px rgba(17,19,24,.18)",
+                  border: `1px solid ${theme.border}`,
+                  minWidth: 200,
+                  padding: 6,
+                  zIndex: zIndex + 2,
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={скачивается}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    скачатьXlsx();
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    background: "none",
+                    border: "none",
+                    cursor: скачивается ? "default" : "pointer",
+                    padding: "11px 12px",
+                    borderRadius: 8,
+                    font: `400 15px/1 ${FONT}`,
+                    color: скачивается ? theme.fg3 : C.dark,
+                    textAlign: "left",
+                  }}
+                >
+                  <Download size={18} />
+                  {скачивается ? "Готовим файл…" : "Скачать для 1С"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
+        {/* ⚠️ ОТКАЗ ВЫГРУЗКИ — НА ЭКРАНЕ, А НЕ СИСТЕМНЫМ ОКНОМ (Р-ОТКАЗЫ).
+            Тот же приём, что у «Поделиться» в карточке чека. Гаснет при
+            следующей попытке: старая ошибка рядом с новой кнопкой врёт
+            про состояние. */}
+        {ошибкаВыгрузки && (
+          <div
+            role="alert"
+            style={{
+              margin: "8px 16px 0",
+              padding: "8px 10px",
+              borderRadius: 8,
+              background: theme.errorBg,
+              border: `1px solid ${theme.errorBd}`,
+              font: `400 12px/1.4 ${FONT}`,
+              color: theme.errorFg,
+            }}
+          >
+            {ошибкаВыгрузки}
+          </div>
+        )}
 
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 90px" }}>
           {/* заголовок + статус + итог */}
