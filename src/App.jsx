@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useModalA11y } from "./hooks/useModalA11y";
 import { useFabHidden, fabHiddenStyle } from "./hooks/useFabHidden";
 import OrganizationTab from "./pages/OrganizationTab";
+import IntegrationKeys from "./components/IntegrationKeys";
 import GlavnayaPage from "./pages/GlavnayaPage";
 import OtchetyPage from "./pages/OtchetyPage";
 import ScanReceiptModal from "./pages/ScanReceiptModal";
@@ -7029,7 +7030,19 @@ export function ProfileHub({ role, me, onOpen, onLogout }) {
 // переписывает T104 (одна кнопка «Пригласить» вместо двух, статус
 // «приглашён, ожидает»). Двигать 126 строк за день до переписывания —
 // шум в diff и лишний повод для конфликта.
-export function ServicesTab({ servicesList, сбойУслуг, onRetry }) {
+export function ServicesTab({
+  servicesList,
+  сбойУслуг,
+  onRetry,
+  // ⚠️ ПРИХОДЯТ ПРОПСАМИ И ОБЪЯВЛЕНЫ ЯВНО. Необъявленный проп молча
+  // выбрасывается — так `onUpdateUser` не работал с 13.06.2026, и увидеть
+  // это было нельзя. Блок ключей без `authFetch` вёл бы себя так же: пустой
+  // список вместо отказа.
+  authFetch,
+  role,
+  Btn,
+  SectionHead,
+}) {
   return (
     <div style={{ padding: "12px 16px 80px" }}>
       {/* ⚠️ Пустой список читается как «других приложений нет» (T171). */}
@@ -7056,6 +7069,17 @@ export function ServicesTab({ servicesList, сбойУслуг, onRetry }) {
           Загрузка…
         </div>
       )}
+      {/* ⚠️ ВТОРОЙ БЛОК ЭКРАНА, И У НЕГО СВОЙ ЗАГОЛОВОК. Выше — услуги,
+          которые мы ПОТРЕБЛЯЕМ; ниже — ключи доступа, которые мы ВЫДАЁМ.
+          Заголовки разводят смысл, чтобы одно слово «интеграции» не склеило
+          две разные вещи. Решение владельца 13.09.2026: канон настроек
+          не трогаем, нового пункта не заводим. */}
+      <IntegrationKeys
+        authFetch={authFetch}
+        role={role}
+        Btn={Btn}
+        SectionHead={SectionHead}
+      />
     </div>
   );
 }
@@ -7613,6 +7637,10 @@ export function NastroykiPage({
           servicesList={servicesList}
           сбойУслуг={сбойУслуг}
           onRetry={() => setПопыткаУслуг((н) => н + 1)}
+          authFetch={authFetch}
+          role={role}
+          Btn={Btn}
+          SectionHead={SectionHead}
         />
       )}
       {tab === "Категории" && (

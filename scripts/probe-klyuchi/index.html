@@ -1,0 +1,141 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>проба ключей доступа</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div>
+<div id="ЗАМЕР"></div>
+<script>
+// ⚠️ СЦЕНАРИЙ ИДЁТ ПО ЭКРАНУ «ИНТЕГРАЦИИ» — тому, где человек ищет ключ.
+(function(){
+  var СЛУЧАЙ=new URLSearchParams(location.search).get("sluchay")||"";
+  function кнопки(){ return [].slice.call(document.querySelectorAll('button')); }
+  function кнопкаСо(п){
+    return кнопки().find(function(б){ return (б.textContent||"").indexOf(п)>=0; });
+  }
+  // ⚠️ ТОЛЬКО ВИДИМЫЙ ТЕКСТ (T169): инлайновый script лежит внутри body,
+  // и body.textContent вернул бы собственный исходник сценария.
+  function видимыйТекст(){
+    var ходок=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var куски=[];
+    while(ходок.nextNode()){
+      var р=ходок.currentNode.parentElement;
+      if(!р || р.tagName==="SCRIPT" || р.tagName==="STYLE") continue;
+      var рект=р.getBoundingClientRect();
+      if(рект.width<=0 || рект.height<=0) continue;
+      куски.push(ходок.currentNode.nodeValue);
+    }
+    return куски.join(" ");
+  }
+  function естьНаЭкране(п){ return видимыйТекст().indexOf(п)>=0; }
+  function место(п){ return видимыйТекст().indexOf(п); }
+
+  var сценарий=[
+    ["① экран интеграций", function(){
+        var а=document.querySelector('button[aria-label="Аккаунт"]');
+        if(а) а.click();
+        setTimeout(function(){
+          var л=кнопкаСо("Интеграции"); if(л) л.click();
+        }, 300);
+      }, function(){
+        if(СЛУЧАЙ==="sotrudnik")
+          return естьНаЭкране("Ключи доступа") ? "БЛОК ВИДЕН СОТРУДНИКУ" : "блока нет";
+        return естьНаЭкране("Ключи доступа") ? "открыт" : "НЕТ";
+      }],
+
+    // ⚠️ ГЛАВНОЕ ПРО ТЕКСТ: предупреждение стоит ДО кнопки, а не после.
+    // После — это уже не предупреждение, а соболезнование.
+    ["② предупреждение раньше кнопки", null, function(){
+        if(СЛУЧАЙ==="sotrudnik"||СЛУЧАЙ==="sboy") return "случай без списка";
+        if(!естьНаЭкране("не восстанавливается")) return "ПРЕДУПРЕЖДЕНИЯ НЕТ";
+        if(СЛУЧАЙ==="buhgalter") return "сказано · кнопки нет";
+        var п=место("не восстанавливается"), к=место("Выпустить ключ");
+        if(к<0) return "КНОПКИ НЕТ";
+        return п<к ? "сказано до кнопки" : "СКАЗАНО ПОСЛЕ КНОПКИ";
+      }],
+
+    ["③ выпуск и отзыв только администратору", null, function(){
+        if(СЛУЧАЙ==="sotrudnik") return "случай без блока";
+        if(СЛУЧАЙ==="sboy") return "случай без списка";
+        var есть=!!кнопкаСо("Выпустить ключ"), отз=!!кнопкаСо("Отозвать");
+        if(СЛУЧАЙ==="buhgalter")
+          return (есть||отз) ? "БУХГАЛТЕРУ ПОКАЗАНЫ КНОПКИ" : "кнопок нет";
+        return (есть&&отз) ? "обе на месте" : "КНОПКИ ПРОПАЛИ";
+      }],
+
+    ["④ срок и остаток дней видны", null, function(){
+        if(СЛУЧАЙ==="sotrudnik"||СЛУЧАЙ==="sboy") return "случай без списка";
+        return естьНаЭкране("осталось 353") ? "названы" : "НЕТ";
+      }],
+
+    ["⑤ пусто отличается от отказа", null, function(){
+        if(СЛУЧАЙ==="sboy")
+          return естьНаЭкране("Ключей пока нет") ? "ОТКАЗ ВЫДАН ЗА ПУСТОТУ"
+               : (естьНаЭкране("Не удалось загрузить список ключей")
+                  && естьНаЭкране("Загрузить ещё раз")
+                  ? "сказано про сбой" : "МОЛЧИТ");
+        return "случай со списком";
+      }],
+
+    ["⑥ секрет показан один раз", function(){
+        if(СЛУЧАЙ!=="vypusk"&&СЛУЧАЙ!=="predel") return;
+        var б=кнопкаСо("Выпустить ключ"); if(б) б.click();
+        setTimeout(function(){
+          var поля=document.querySelectorAll('input');
+          if(поля[0]){
+            var s=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value").set;
+            s.call(поля[0],"Проба");
+            поля[0].dispatchEvent(new Event("input",{bubbles:true}));
+          }
+          setTimeout(function(){
+            var в=кнопки().find(function(б){ return (б.textContent||"").trim()==="Выпустить"; });
+            if(в) в.click();
+          }, 200);
+        }, 250);
+      }, function(){
+        if(СЛУЧАЙ==="predel")
+          return естьНаЭкране("Отзовите ненужный") ? "отказ слышен" : "ОТКАЗ ПРОГЛОЧЕН";
+        if(СЛУЧАЙ!=="vypusk") return "случай без выпуска";
+        return естьНаЭкране("SEKRET-POKAZAN-ODIN-RAZ") ? "показан" : "НЕ ПОКАЗАН";
+      }],
+
+    ["⑦ после закрытия секрета его нет", function(){
+        if(СЛУЧАЙ!=="vypusk") return;
+        var б=кнопкаСо("Я скопировал"); if(б) б.click();
+      }, function(){
+        if(СЛУЧАЙ!=="vypusk") return "случай без выпуска";
+        return естьНаЭкране("SEKRET-POKAZAN-ODIN-RAZ") ? "СЕКРЕТ ОСТАЛСЯ" : "убран";
+      }],
+
+    // ⚠️ 404 НА ОТЗЫВЕ — ИСХОД, А НЕ ОШИБКА (решение владельца 13.09.2026):
+    // ключ уже отозван с другого устройства, человеку нужен свежий список.
+    ["⑧ повторный отзыв не ошибка", function(){
+        if(СЛУЧАЙ!=="otozvan") return;
+        var б=кнопкаСо("Отозвать"); if(б) б.click();
+        setTimeout(function(){
+          var д=кнопкаСо("Да, отозвать"); if(д) д.click();
+        }, 250);
+      }, function(){
+        if(СЛУЧАЙ!=="otozvan") return "случай без отзыва";
+        if(естьНаЭкране("Отозвать не удалось")) return "ПОКАЗАН КАК ОШИБКА";
+        return естьНаЭкране("уже отозван") ? "принят как отозванный" : "МОЛЧИТ";
+      }]
+  ];
+
+  var шаги=[], и=0;
+  function дальше(){
+    if(и>=сценарий.length){
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify(шаги);
+      document.title="ГОТОВО";
+      return;
+    }
+    var ш=сценарий[и++];
+    if(ш[1]) ш[1]();
+    setTimeout(function(){
+      шаги.push([ш[0], ш[2]()]);
+      дальше();
+    }, 700);
+  }
+  setTimeout(дальше, 700);
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>
