@@ -35,6 +35,7 @@ export default defineConfig([
     "scripts/probe-vid/__dist",
     "scripts/probe-pos/__dist",
     "scripts/probe-klyuchi/__dist",
+    "scripts/probe-sebya/__dist",
   ]),
   {
     files: ["**/*.{js,jsx}"],

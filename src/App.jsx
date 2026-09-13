@@ -4,6 +4,7 @@ import { useModalA11y } from "./hooks/useModalA11y";
 import { useFabHidden, fabHiddenStyle } from "./hooks/useFabHidden";
 import OrganizationTab from "./pages/OrganizationTab";
 import IntegrationKeys from "./components/IntegrationKeys";
+import SelfLockSheet from "./components/SelfLockSheet";
 import GlavnayaPage from "./pages/GlavnayaPage";
 import OtchetyPage from "./pages/OtchetyPage";
 import ScanReceiptModal from "./pages/ScanReceiptModal";
@@ -5278,18 +5279,34 @@ export function AccountTab({
 // последнего администратора запрещает бэкенд (`проверить_что_админ_останется`),
 // и он же объясняет, ПОЧЕМУ. Прятать такие роли из списка значило бы оставить
 // человека без объяснения — молчаливо неработающая кнопка хуже честного отказа.
-function RoleSheet({ user, onClose, onApply }) {
+function RoleSheet({ user, onClose, onApply, этоЯ = false, ктоВернёт = [] }) {
   const [роль, setРоль] = useState(user.role || "employee");
   const [busy, setBusy] = useState(false);
   const [ошибка, setОшибка] = useState("");
+  // ⚠️ T137: подтверждение ТОЛЬКО на себе и только когда уходят права
+  // администратора. Понижение чужого и смена роли между не-админскими
+  // остаются в одно движение — граница поставлена владельцем.
+  const [подтверждаем, setПодтверждаем] = useState(false);
   const dialogRef = useModalA11y(onClose);
   const имя =
     [user.last_name, user.first_name].filter(Boolean).join(" ") ||
     user.email ||
     "сотрудник";
 
+  // ⚠️ ПРЕДУПРЕЖДАТЬ НЕКОГО — НЕ ПРЕДУПРЕЖДАЕМ, И ЭТО НЕ ЭКОНОМИЯ. Когда
+  // других активных администраторов нет, сервер этот PATCH отвергнет
+  // (`проверить_что_админ_останется`) и объяснит причину сам. Окно
+  // «вернуть сможет: никто» обещало бы действие, которого не будет.
+  const теряюПрава =
+    этоЯ && user.role === "admin" && роль !== "admin" && ктоВернёт.length > 0;
+
   async function применить() {
     if (busy || роль === user.role) return;
+    if (теряюПрава && !подтверждаем) {
+      setПодтверждаем(true);
+      return;
+    }
+    setПодтверждаем(false);
     setBusy(true);
     setОшибка("");
     const итог = await onApply(роль);
@@ -5423,6 +5440,15 @@ function RoleSheet({ user, onClose, onApply }) {
           Отмена
         </Btn>
       </div>
+      {подтверждаем && (
+        <SelfLockSheet
+          случай="роль"
+          ктоВернёт={ктоВернёт}
+          busy={busy}
+          onConfirm={применить}
+          onClose={() => setПодтверждаем(false)}
+        />
+      )}
     </div>
   );
 }
@@ -7418,9 +7444,21 @@ export function NastroykiPage({
   // и прежний счёт принял бы отключённого админа за живого: запрет «нельзя
   // снять последнего» перестал бы срабатывать ровно там, где он нужен.
   const [меняемРоль, setМеняемРоль] = useState(null);
-  const активныхАдминов = (users || []).filter(
+  // ⚠️ T137: кого гасим СЕБЯ — держим строку человека, а не флаг: тот же
+  // диалог показывает имена, и после подтверждения нужен его id.
+  const [гасимСебя, setГасимСебя] = useState(null);
+  const активныеАдмины = (users || []).filter(
     (u) => u.role === "admin" && u.is_active !== false,
-  ).length;
+  );
+  const активныхАдминов = активныеАдмины.length;
+  // ⚠️ ИМЕНА БЕРУТСЯ ИЗ УЖЕ ЗАГРУЖЕННОГО СПИСКА, новой ручки не заводится
+  // (требование владельца 13.09.2026): `users` здесь уже есть, и второй
+  // источник тех же людей разошёлся бы с первым молча.
+  // ⚠️ Формат — общий `имяАвтора` («Шукалович А.»), а не пятая копия склейки
+  // имени по месту: их и так четыре, это записано черновиком T193.
+  const ктоВернёт = активныеАдмины
+    .filter((u) => u.id !== me?.id)
+    .map((u) => имяАвтора(u.id, users));
 
   // Хвост S-29: управление людьми на бэкенде только у админа
   // (_require_admin). Гейт переехал из ленты вкладок в состав хаба —
@@ -7507,7 +7545,13 @@ export function NastroykiPage({
                   активныхАдминов <= 1
                 )
               }
-              onDelete={() => onDeleteUser(u.id)}
+              // ⚠️ T137: СВОЯ строка — через подтверждение, чужая — сразу.
+              // Граница владельца: спрашиваем только там, где человек
+              // теряет доступ НЕМЕДЛЕННО, иначе «вы уверены?» становится
+              // фоном и не срабатывает там, где оно единственное.
+              onDelete={() =>
+                u.id === me?.id ? setГасимСебя(u) : onDeleteUser(u.id)
+              }
               onRestore={onRestoreUser ? () => onRestoreUser(u.id) : undefined}
               // ⚠️ ТАП ОТКРЫВАЕТ РОЛЬ У ЛЮБОЙ СТРОКИ, включая свою и
               // последнего администратора. Отказ там объясняет сервер, и это
@@ -7655,6 +7699,20 @@ export function NastroykiPage({
           user={меняемРоль}
           onClose={() => setМеняемРоль(null)}
           onApply={(роль) => onUpdateUser(меняемРоль.id, { role: роль })}
+          этоЯ={меняемРоль.id === me?.id}
+          ктоВернёт={ктоВернёт}
+        />
+      )}
+      {гасимСебя && (
+        <SelfLockSheet
+          случай="гашение"
+          ктоВернёт={ктоВернёт}
+          onConfirm={() => {
+            const id = гасимСебя.id;
+            setГасимСебя(null);
+            onDeleteUser(id);
+          }}
+          onClose={() => setГасимСебя(null)}
         />
       )}
       {showInvite && (

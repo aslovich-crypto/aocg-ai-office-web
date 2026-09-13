@@ -29,7 +29,9 @@
     "geroy-mut": "node scripts/geroy-mutations.mjs",
     "author-mut": "node scripts/author-mutations.mjs",
     "klyuchi": "node scripts/check-klyuchi.mjs",
-    "klyuchi-mut": "node scripts/klyuchi-mutations.mjs"
+    "klyuchi-mut": "node scripts/klyuchi-mutations.mjs",
+    "sebya": "node scripts/check-sebya.mjs",
+    "sebya-mut": "node scripts/sebya-mutations.mjs"
   },
   "dependencies": {
     "@zumer/snapdom": "^2.12.8",

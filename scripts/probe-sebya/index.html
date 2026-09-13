@@ -1,0 +1,161 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>проба подтверждения «теряете доступ»</title>
+<style>body{margin:0;background:#F6F7F9;width:430px}</style></head>
+<body><div id="root"></div>
+<div id="ЗАМЕР"></div>
+<script>
+// ⚠️ СЦЕНАРИЙ ИДЁТ ПО ЭКРАНУ «ПОЛЬЗОВАТЕЛИ» — тому, где владелец запер себя.
+(function(){
+  var СЛУЧАЙ=new URLSearchParams(location.search).get("sluchay")||"";
+  function кнопки(){ return [].slice.call(document.querySelectorAll('button')); }
+  function кнопкаСо(п){
+    return кнопки().find(function(б){ return (б.textContent||"").indexOf(п)>=0; });
+  }
+  // ⚠️ ТОЛЬКО ВИДИМЫЙ ТЕКСТ (T169): инлайновый script лежит внутри body,
+  // и body.textContent вернул бы собственный исходник сценария.
+  function видимыйТекст(){
+    var ходок=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var куски=[];
+    while(ходок.nextNode()){
+      var р=ходок.currentNode.parentElement;
+      if(!р || р.tagName==="SCRIPT" || р.tagName==="STYLE") continue;
+      var рект=р.getBoundingClientRect();
+      if(рект.width<=0 || рект.height<=0) continue;
+      куски.push(ходок.currentNode.nodeValue);
+    }
+    return куски.join(" ");
+  }
+  function естьНаЭкране(п){ return видимыйТекст().indexOf(п)>=0; }
+  function окно(){ return document.querySelector('[aria-label="Вы потеряете доступ сразу"]'); }
+
+  // ⚠️ СТРОКА ИЩЕТСЯ ПО ИМЕНИ ЧЕЛОВЕКА, А НЕ ПО ПОРЯДКУ В СПИСКЕ: промах
+  // по соседней карточке был бы незаметен и дал бы зелёный не о том.
+  function строкаСо(имя){
+    var все=[].slice.call(document.querySelectorAll('div[style*="translateX"]'));
+    var своя=все.find(function(э){ return (э.textContent||"").indexOf(имя)>=0; });
+    return своя ? своя.parentElement : null;
+  }
+  function жатьДействие(имя){
+    var с=строкаСо(имя); if(!с) return false;
+    var д=[].slice.call(с.querySelectorAll('div')).find(function(э){
+      return (э.textContent||"").trim()==="Удалить";
+    });
+    if(!д) return false;
+    д.click(); return true;
+  }
+  function тапПо(имя){
+    var с=строкаСо(имя); if(!с) return false;
+    var перед=с.querySelector('div[style*="translateX"]');
+    if(!перед) return false;
+    // Тап — это «не было протаскивания»: down и сразу up, без move.
+    var о={bubbles:true, clientX:120, clientY:120, pointerId:1};
+    перед.dispatchEvent(new PointerEvent("pointerdown", о));
+    перед.dispatchEvent(new PointerEvent("pointerup", о));
+    return true;
+  }
+
+  var ЧУЖОЙ="Петров";
+  var сценарий=[
+    ["① экран пользователей", function(){
+        var а=document.querySelector('button[aria-label="Аккаунт"]');
+        if(а) а.click();
+        setTimeout(function(){
+          var л=кнопкаСо("Пользователи"); if(л) л.click();
+        }, 300);
+      }, function(){
+        return естьНаЭкране("Шукалович") ? "открыт" : "НЕТ";
+      }],
+
+    // ⚠️ ГЛАВНОЕ: СВОЯ СТРОКА СПРАШИВАЕТ, ЧУЖАЯ НЕТ. Граница владельца —
+    // подтверждение только там, где доступ теряется НЕМЕДЛЕННО.
+    ["② гашение себя спрашивает", function(){
+        if(СЛУЧАЙ!=="") return;
+        жатьДействие("Шукалович");
+      }, function(){
+        if(СЛУЧАЙ!=="") return "случай без гашения себя";
+        if(window.__УШЛО.length) return "ПОГАШЕН БЕЗ ВОПРОСА";
+        return окно() ? "спросило" : "НЕ СПРОСИЛО";
+      }],
+
+    ["③ гашение чужого не спрашивает", function(){
+        if(СЛУЧАЙ!=="chuzhoy") return;
+        жатьДействие(ЧУЖОЙ);
+      }, function(){
+        if(СЛУЧАЙ!=="chuzhoy") return "случай без чужого";
+        if(окно()) return "СПРОСИЛО О ЧУЖОМ";
+        return window.__УШЛО.indexOf("DELETE /api/users/2")>=0
+          ? "погашен сразу" : "НЕ ПОГАШЕН";
+      }],
+
+    ["④ понижение себя спрашивает", function(){
+        if(СЛУЧАЙ!=="rol" && СЛУЧАЙ!=="odin" && СЛУЧАЙ!=="mnogo") return;
+        тапПо("Шукалович");
+        setTimeout(function(){
+          var с=кнопкаСо("Сотрудник"); if(с) с.click();
+          setTimeout(function(){
+            var и=кнопкаСо("Изменить роль"); if(и) и.click();
+          }, 200);
+        }, 250);
+      }, function(){
+        if(СЛУЧАЙ==="odin")
+          return окно() ? "СПРОСИЛО, ХОТЯ НЕКОГО НАЗВАТЬ"
+               : (window.__УШЛО.indexOf("PATCH /api/users/1")>=0
+                  ? "не спросило, сервер ответил" : "НИЧЕГО НЕ ПРОИЗОШЛО");
+        if(СЛУЧАЙ!=="rol" && СЛУЧАЙ!=="mnogo") return "случай без роли";
+        if(window.__УШЛО.length) return "ПОНИЖЕН БЕЗ ВОПРОСА";
+        return окно() ? "спросило" : "НЕ СПРОСИЛО";
+      }],
+
+    ["⑤ понижение чужого не спрашивает", function(){
+        if(СЛУЧАЙ!=="rol-chuzhoy") return;
+        тапПо(ЧУЖОЙ);
+        setTimeout(function(){
+          var с=кнопкаСо("Сотрудник"); if(с) с.click();
+          setTimeout(function(){
+            var и=кнопкаСо("Изменить роль"); if(и) и.click();
+          }, 200);
+        }, 250);
+      }, function(){
+        if(СЛУЧАЙ!=="rol-chuzhoy") return "случай без чужой роли";
+        if(окно()) return "СПРОСИЛО О ЧУЖОМ";
+        return window.__УШЛО.indexOf("PATCH /api/users/2")>=0
+          ? "понижен сразу" : "НЕ ПОНИЖЕН";
+      }],
+
+    // ⚠️ РАДИ ЭТОГО ОКНО И ЕСТЬ: не вопрос, а ИМЯ того, кто вернёт.
+    ["⑥ названы имена, а не вопрос", null, function(){
+        if(!окно()) return "случай без окна";
+        var т=видимыйТекст();
+        if(т.indexOf("Вернуть доступ сможет")<0) return "ИМЁН НЕТ";
+        if(СЛУЧАЙ==="mnogo")
+          return (т.indexOf("Петров П., Сидоров С. и ещё 2")>=0)
+            ? "двое и счёт" : "ОБРЕЗКА НЕ ТА";
+        return (т.indexOf("Петров П., Сидоров С.")>=0) ? "оба поимённо" : "НЕ ТЕ ИМЕНА";
+      }],
+
+    ["⑦ себя среди спасителей нет", null, function(){
+        if(!окно()) return "случай без окна";
+        return видимыйТекст().indexOf("Вернуть доступ сможет: Шукалович")>=0
+          ? "СЕБЯ НАЗВАЛО" : "себя нет";
+      }]
+  ];
+
+  var шаги=[], и=0;
+  function дальше(){
+    if(и>=сценарий.length){
+      document.getElementById("ЗАМЕР").textContent=JSON.stringify(шаги);
+      document.title="ГОТОВО";
+      return;
+    }
+    var ш=сценарий[и++];
+    if(ш[1]) ш[1]();
+    setTimeout(function(){
+      шаги.push([ш[0], ш[2]()]);
+      дальше();
+    }, 700);
+  }
+  setTimeout(дальше, 900);
+})();
+</script>
+<script type="module" src="./probe.jsx"></script></body></html>
