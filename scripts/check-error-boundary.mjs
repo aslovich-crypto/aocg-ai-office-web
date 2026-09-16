@@ -21,19 +21,58 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const КОРЕНЬ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// ⚠️ ДО 16.09.2026 ЗДЕСЬ БЫЛИ ТОЛЬКО ПУТИ macOS, И СТОРОЖ БЫЛ МЁРТВ В CI
+// С САМОГО РОЖДЕНИЯ. CI идёт на ubuntu-latest, Chrome там лежит в /usr/bin.
+// Сторож отвечал «ПРОВЕРКА НЕ ВЫПОЛНЕНА», и, поскольку цепочка `npm run lint`
+// собрана на &&, вместе с ним молчали восемь сторожей после него и оба шага
+// сборки: 58 прогонов подряд, с bf13a9e (31.08) по a4caffa (16.09). Локально
+// и в pre-commit всё было зелёным, поэтому по package.json этого не видно.
+//
+// ПОРЯДОК ПОИСКА. Переменная окружения — первой: её выставляют, чтобы
+// выбрать браузер явно. CHROME_PATH читает chrome-launcher (Lighthouse),
+// CHROME_BIN — Karma и образы CI. Выставлена, а файла нет — это отказ, а не
+// повод тихо взять другой браузер: иначе ошибку в настройке никто не увидит.
+const ПЕРЕМЕННЫЕ_CHROME = ["CHROME_PATH", "CHROME_BIN"];
 const ПУТИ_CHROME = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
 ];
 
 console.log("\nПЕРЕХВАТ ОШИБОК (по отрисованному экрану)");
 
-const браузер = ПУТИ_CHROME.find((п) => existsSync(п));
-if (!браузер) {
-  console.log("  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: не найден Chrome ни по одному пути:");
-  ПУТИ_CHROME.forEach((п) => console.log(`      ${п}`));
-  process.exit(1);
+const переменная = ПЕРЕМЕННЫЕ_CHROME.find((и) => process.env[и]);
+let браузер;
+if (переменная) {
+  браузер = process.env[переменная];
+  if (!existsSync(браузер)) {
+    console.log(
+      `  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: ${переменная}=${браузер} — файла нет`,
+    );
+    process.exit(1);
+  }
+} else {
+  браузер = ПУТИ_CHROME.find((п) => existsSync(п));
+  if (!браузер) {
+    console.log(
+      `  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: браузер не найден — ` +
+        `${ПЕРЕМЕННЫЕ_CHROME.join(" и ")} не выставлены, и ни одного пути:`,
+    );
+    ПУТИ_CHROME.forEach((п) => console.log(`      ${п}`));
+    process.exit(1);
+  }
 }
+// Какой браузер взят и откуда — строкой в отчёте: в логе CI это единственное
+// доказательство, что сторож мерил, а не молчал.
+console.log(
+  `  браузер: ${браузер} (${
+    переменная ? `из ${переменная}` : "известный путь"
+  })`,
+);
 
 const собрать = () =>
   new Promise((готово, споткнулись) => {
@@ -55,6 +94,9 @@ try {
 const ФАЙЛ =
   "file://" + path.join(КОРЕНЬ, "scripts/probe-boundary/__dist/index.html");
 
+// Хвост stderr браузера — только для отказа: без него «DOM 0 знаков» в CI
+// не отличает «браузер не запустился» от «страница не отрисовалась».
+let stderr_браузера = "";
 const снять_разом = () =>
   new Promise((готово) => {
     const дитя = spawn(
@@ -68,11 +110,15 @@ const снять_разом = () =>
         "--dump-dom",
         ФАЙЛ,
       ],
-      { stdio: ["ignore", "pipe", "ignore"] },
+      { stdio: ["ignore", "pipe", "pipe"] },
     );
     let вывод = "";
+    stderr_браузера = "";
     const часы = setTimeout(() => дитя.kill("SIGKILL"), 90000);
     дитя.stdout.on("data", (к) => (вывод += к));
+    дитя.stderr.on("data", (к) => {
+      stderr_браузера = (stderr_браузера + к).slice(-4000);
+    });
     дитя.on("close", () => {
       clearTimeout(часы);
       готово(вывод);
@@ -97,6 +143,11 @@ if (!м || !м[1].trim()) {
     `  ✗ ПРОВЕРКА НЕ ВЫПОЛНЕНА: браузер не вернул замер за 3 попытки ` +
       `(DOM ${dom.length} знаков)`,
   );
+  stderr_браузера
+    .split("\n")
+    .filter((с) => с.trim())
+    .slice(-6)
+    .forEach((с) => console.log(`      stderr: ${с.slice(0, 200)}`));
   process.exit(1);
 }
 if (попыток > 0)
