@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<!-- Проба камеры сканера чеков (T-аудит 17.09.2026). Запускает камеру как ScanReceiptModal
+     и показывает объектив, разрешение, фокус, резкость. Ничего не отправляет.
+     Лежит на домене приложения, потому что артефакт claude.ai держит страницу
+     во фрейме без права на камеру (замерено на iPhone: приложение Claude и Safari). -->
+<title>Проба камеры сканера</title>
+<link rel="stylesheet" href="/fonts/inter.css">
+<style>
+  :root {
+    --page: #F6F7F9; --surface: #FFFFFF; --text: #111318; --text2: #636B7D;
+    --border: #EEF0F4; --divider: #E2E5EB; --accent: #A4161A; --accent-ink: #FFFFFF;
+    --tint: #FDF2F2; --good: #15803D; --warn: #B45309; --bad: #A4161A;
+    --chip: rgba(17,19,24,.72); --chip-ink: #FFFFFF; --shadow: 0 1px 3px rgba(17,19,24,.10);
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, 'Roboto Mono', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #111318; --surface: #1A1D23; --text: #FFFFFF; --text2: #9CA3AF;
+      --border: #262A33; --divider: #2E333D; --accent: #D9484D; --accent-ink: #FFFFFF;
+      --tint: #2A1A1B; --good: #4ADE80; --warn: #FBBF24; --bad: #F87171;
+      --chip: rgba(0,0,0,.62); --chip-ink: #FFFFFF; --shadow: 0 1px 3px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #111318; --surface: #1A1D23; --text: #FFFFFF; --text2: #9CA3AF;
+    --border: #262A33; --divider: #2E333D; --accent: #D9484D; --accent-ink: #FFFFFF;
+    --tint: #2A1A1B; --good: #4ADE80; --warn: #FBBF24; --bad: #F87171;
+    --chip: rgba(0,0,0,.62); --chip-ink: #FFFFFF; --shadow: 0 1px 3px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 400 15px/1.45 var(--font); padding-block: 16px 40px; padding-inline: 16px; }
+  .wrap { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  .lead { color: var(--text2); margin: 4px 0 0; }
+  .status { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--tint); color: var(--text); }
+  .status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
+  .status[data-k="good"]::before { background: var(--good); }
+  .status[data-k="warn"]::before { background: var(--warn); }
+  .status[data-k="bad"]::before  { background: var(--bad); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text2); margin: 0 0 10px; }
+  .vf { position: relative; border-radius: 12px; overflow: hidden; background: #000; height: 62vh; min-height: 280px; max-width: 100%; box-shadow: var(--shadow); }
+  .vf video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .chips { position: absolute; left: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .chip { background: var(--chip); color: var(--chip-ink); font: 500 12px/1 var(--mono); padding: 6px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+  .lens { position: absolute; left: 10px; right: 10px; bottom: 10px; background: var(--chip); color: var(--chip-ink); font: 400 12px/1.3 var(--font); padding: 6px 8px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frame { position: absolute; left: 50%; top: 50%; width: 200px; height: 200px; transform: translate(-50%,-50%); pointer-events: none; }
+  .frame i { position: absolute; width: 20px; height: 20px; border: 3px solid #fff; }
+  .frame i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0;border-radius:3px 0 0 0}
+  .frame i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0;border-radius:0 3px 0 0}
+  .frame i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0;border-radius:0 0 0 3px}
+  .frame i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0;border-radius:0 0 3px 0}
+  .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { appearance: none; border: 1px solid var(--divider); background: var(--surface); color: var(--text); font: 500 14px/1 var(--font); padding: 11px 14px; border-radius: 10px; cursor: pointer; }
+  .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); width: 100%; padding: 13px; font-size: 15px; }
+  .btn:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  label.sel { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 13px; color: var(--text2); }
+  select { font: 400 14px var(--font); padding: 10px; border-radius: 10px; border: 1px solid var(--divider); background: var(--surface); color: var(--text); max-width: 100%; }
+  dl.kv { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.5fr); gap: 7px 12px; margin: 0; }
+  dl.kv dt { color: var(--text2); font-size: 13px; }
+  dl.kv dd { margin: 0; font: 400 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .verdict { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .verdict[data-k="good"] { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+  .verdict[data-k="warn"] { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+  .verdict[data-k="bad"]  { background: var(--tint); color: var(--bad); }
+  .big { font: 600 28px/1 var(--mono); font-variant-numeric: tabular-nums; }
+  .meter { height: 6px; background: var(--divider); border-radius: 3px; margin: 10px 0 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--good); transition: width .2s; }
+  @media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+  .note { font-size: 13px; color: var(--text2); margin: 6px 0 0; }
+  ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+  textarea { width: 100%; height: 170px; font: 400 12px/1.45 var(--mono); border: 1px solid var(--divider); border-radius: 10px; padding: 10px; background: var(--page); color: var(--text); resize: vertical; }
+  .devs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .devs li { font: 400 13px/1.4 var(--mono); overflow-wrap: anywhere; padding-left: 14px; position: relative; }
+  .devs li::before { content: '·'; position: absolute; left: 2px; color: var(--text2); }
+  .devs li.cur::before { content: '●'; color: var(--accent); left: 0; font-size: 10px; top: 2px; }
+  .err { border-color: var(--bad); }
+  .err dd { color: var(--bad); }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--chip); color: var(--chip-ink); padding: 10px 14px; border-radius: 10px; font-size: 14px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Проба камеры сканера</h1>
+    <p class="lead">Запускает камеру ровно так же, как экран «Сканировать чек», и показывает, что ей на самом деле отдал телефон: объектив, разрешение, взялся ли фокус.</p>
+    <div class="status" id="status" data-k="">Камера ещё не запрошена</div>
+  </header>
+
+  <div class="vf">
+    <video id="v" autoplay muted playsinline></video>
+    <div class="frame"><i></i><i></i><i></i><i></i></div>
+    <div class="chips">
+      <span class="chip" id="chipFrame">Кадр —</span>
+      <span class="chip" id="chipSharp">Резкость —</span>
+    </div>
+    <div class="lens" id="lens">Объектив —</div>
+  </div>
+
+  <section class="card">
+    <h2>Как запросить поток</h2>
+    <div class="seg" id="seg">
+      <button class="btn" type="button" data-v="A" aria-pressed="false">А · как в приложении</button>
+      <button class="btn" type="button" data-v="B" aria-pressed="false">Б · + запросить 1920×1080</button>
+      <button class="btn" type="button" data-v="C" aria-pressed="false">В · + aspectRatio 1.0 (как до 17.05)</button>
+    </div>
+    <label class="sel">Или выбрать объектив напрямую (deviceId)
+      <select id="devsel"><option value="">— сначала запустите вариант А —</option></select>
+    </label>
+    <p class="note">Держите тот же чек на том же расстоянии, что и в приложении. Рамка 200px — ориентир, как там.</p>
+  </section>
+
+  <section class="card">
+    <h2>Резкость кадра</h2>
+    <div class="big" id="sharp">—</div>
+    <div class="meter"><i id="meter"></i></div>
+    <p class="note">Дисперсия Лапласа по центру кадра. Число относительное: сравнивать между вариантами на одном и том же чеке. Когда камера ловит фокус — растёт; когда плавает — гуляет. Максимум за прогон: <span id="sharpMax">—</span></p>
+  </section>
+
+  <section class="card" id="focusCard">
+    <h2>Фокус — повтор блока приложения</h2>
+    <span class="verdict" id="focusVerdict" data-k="">не запускалось</span>
+    <dl class="kv">
+      <dt>focusMode в capabilities</dt><dd id="fCaps">—</dd>
+      <dt>applyConstraints(continuous)</dt><dd id="fApply">—</dd>
+      <dt>focusMode в settings после</dt><dd id="fAfter">—</dd>
+      <dt>focusDistance</dt><dd id="fDist">—</dd>
+    </dl>
+  </section>
+
+  <section class="card" id="trackCard">
+    <h2>Дорожка — getSettings()</h2>
+    <dl class="kv">
+      <dt>label</dt><dd id="sLabel">—</dd>
+      <dt>width × height</dt><dd id="sWH">—</dd>
+      <dt>frameRate</dt><dd id="sFps">—</dd>
+      <dt>facingMode</dt><dd id="sFacing">—</dd>
+      <dt>aspectRatio</dt><dd id="sAR">—</dd>
+      <dt>zoom</dt><dd id="sZoom">—</dd>
+      <dt>deviceId</dt><dd id="sDev">—</dd>
+      <dt>кадр → холст сканера</dt><dd id="aniso">—</dd>
+      <dt>ограничения запроса</dt><dd id="sReq">—</dd>
+      <dt>доп. ограничение варианта</dt><dd id="sAfter">—</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Возможности — getCapabilities()</h2>
+    <dl class="kv">
+      <dt>width / height, max</dt><dd id="cWH">—</dd>
+      <dt>frameRate, max</dt><dd id="cFps">—</dd>
+      <dt>focusMode</dt><dd id="cFocus">—</dd>
+      <dt>focusDistance</dt><dd id="cDist">—</dd>
+      <dt>zoom</dt><dd id="cZoom">—</dd>
+      <dt>torch</dt><dd id="cTorch">—</dd>
+      <dt>facingMode</dt><dd id="cFacing">—</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Камеры — enumerateDevices()</h2>
+    <ul class="devs" id="devs"><li>— после разрешения на камеру —</li></ul>
+    <p class="note">Точка — та, что отдана сейчас. На Samsung подписи вида «camera2 0, facing back» — основной объектив, «camera2 2/3» — ширик или теле.</p>
+  </section>
+
+  <section class="card err" id="errCard" hidden>
+    <h2>Ошибка</h2>
+    <dl class="kv">
+      <dt>name</dt><dd id="eName">—</dd>
+      <dt>message</dt><dd id="eMsg">—</dd>
+      <dt>что это значит</dt><dd id="eHint">—</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Отчёт</h2>
+    <ol class="steps">
+      <li>Прогоните А, потом Б, потом В — на одном чеке.</li>
+      <li>Если объективов несколько — прогоните каждый из списка.</li>
+      <li>После каждого прогона нажмите «Скопировать отчёт» и пришлите текст.</li>
+    </ol>
+    <textarea id="report" readonly aria-label="Текст отчёта">Отчёт появится после запуска камеры.</textarea>
+    <button class="btn primary" type="button" id="copy" style="margin-top:10px">Скопировать отчёт</button>
+    <p class="note">Ничего никуда не отправляется — страница только показывает и копирует текст.</p>
+  </section>
+</div>
+<div class="toast" id="toast" hidden>Скопировано</div>
+
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var VARIANTS = {
+    A: { name: 'А · как в приложении', video: { facingMode: 'environment' } },
+    B: { name: 'Б · + запросить 1920×1080', video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } },
+    C: { name: 'В · + aspectRatio 1.0 (как до 17.05)', video: { facingMode: 'environment' }, after: { aspectRatio: 1.0 } }
+  };
+  var st = { stream: null, track: null, variant: null, deviceId: null, samples: [], max: 0, err: null,
+             label: '', settings0: null, settings1: null, caps: {}, after: null, focus: null, devices: [], started: null };
+
+  function safe(fn, dflt) { try { return fn(); } catch (e) { return dflt; } }
+  function fmt(v) { return v === undefined || v === null ? '—' : (typeof v === 'object' ? JSON.stringify(v) : String(v)); }
+  function range(r) { return r && typeof r === 'object' ? (fmt(r.min) + '…' + fmt(r.max) + (r.step !== undefined ? ' шаг ' + r.step : '')) : fmt(r); }
+  function shortId(id) { return id ? String(id).slice(0, 10) + '…' : '—'; }
+  function setStatus(text, k) { var s = $('#status'); s.textContent = text; s.setAttribute('data-k', k || ''); }
+
+  function stop() {
+    if (st.stream) { st.stream.getTracks().forEach(function (t) { t.stop(); }); }
+    st.stream = null; st.track = null;
+  }
+
+  // Контекст, в котором живёт страница: вложена ли, и разрешает ли политика фрейма камеру.
+  // permissionsPolicy есть в Chrome (Samsung) — там это прямой ответ «заблокировано фреймом»;
+  // в Safari API нет, и ответ даёт только сам NotAllowedError без запроса разрешения.
+  function ctx() {
+    var inFrame = safe(function () { return window.self !== window.top; }, true);
+    var pp = document.permissionsPolicy || document.featurePolicy;
+    var cam = pp && pp.allowsFeature ? String(pp.allowsFeature('camera')) : 'API нет (Safari)';
+    return (inFrame ? 'вложенная страница (iframe)' : 'верхний уровень') + ' · политика camera: ' + cam + ' · secureContext ' + window.isSecureContext;
+  }
+  function hintFor(e) {
+    var n = e && e.name;
+    if (n === 'NotAllowedError' || n === 'PermissionDeniedError')
+      return 'Доступ к камере отклонён. Если запрос разрешения вообще не появлялся — просмотрщик не пропускает камеру во вложенную страницу: тогда этот же файл нужно открыть с домена приложения. Контекст: ' + ctx();
+    if (n === 'NotReadableError' || n === 'TrackStartError') return 'Камера занята другим приложением.';
+    if (n === 'OverconstrainedError') return 'Телефон не смог выполнить ограничения: ' + fmt(e.constraint);
+    if (n === 'NotFoundError') return 'Камера с такими ограничениями не найдена.';
+    return 'Не удалось запустить камеру.';
+  }
+
+  async function start(variant, deviceId) {
+    stop();
+    st.variant = variant; st.deviceId = deviceId || null; st.samples = []; st.max = 0; st.err = null;
+    st.focus = null; st.after = null; st.settings0 = null; st.settings1 = null; st.caps = {}; st.label = '';
+    document.querySelectorAll('#seg .btn').forEach(function (b) { b.setAttribute('aria-pressed', String(!deviceId && b.dataset.v === variant)); });
+    setStatus('Запрашиваю камеру…', 'warn');
+    var video = deviceId ? { deviceId: { exact: deviceId } } : VARIANTS[variant].video;
+    st.constraints = { audio: false, video: video };
+    try {
+      st.stream = await navigator.mediaDevices.getUserMedia(st.constraints);
+    } catch (e) {
+      st.err = e; render(); setStatus('Камера не запустилась: ' + (e.name || e), 'bad'); return;
+    }
+    var v = $('#v'); v.srcObject = st.stream;
+    try { await v.play(); } catch (e) { /* автозапуск может требовать жест — muted+playsinline обычно хватает */ }
+    st.track = st.stream.getVideoTracks()[0];
+    st.label = st.track.label || '';
+    st.settings0 = safe(function () { return st.track.getSettings(); }, {});
+    st.caps = safe(function () { return st.track.getCapabilities ? st.track.getCapabilities() : {}; }, {}) || {};
+
+    var aft = !deviceId && VARIANTS[variant].after;
+    if (aft) {
+      try { await st.track.applyConstraints(aft); st.after = 'применено ' + JSON.stringify(aft); }
+      catch (e) { st.after = 'отказ ' + e.name + ': ' + e.message; }
+    }
+
+    // Точный повтор блока приложения (ScanReceiptModal.jsx:676-685):
+    var fm = st.caps.focusMode;
+    if (Array.isArray(fm) && fm.indexOf('continuous') >= 0) {
+      try { await st.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); st.focus = { k: 'good', apply: 'прошёл без ошибки' }; }
+      catch (e) { st.focus = { k: 'bad', apply: 'отказ ' + e.name + ': ' + e.message }; }
+    } else {
+      st.focus = { k: 'warn', apply: Array.isArray(fm) ? 'пропущен: continuous нет среди ' + fm.join(', ') : 'пропущен: focusMode в capabilities отсутствует — приложение молча ничего не делает' };
+    }
+    st.settings1 = safe(function () { return st.track.getSettings(); }, {});
+    try { st.devices = (await navigator.mediaDevices.enumerateDevices()).filter(function (d) { return d.kind === 'videoinput'; }); } catch (e) { st.devices = []; }
+    st.started = new Date();
+    render();
+    setStatus('Поток идёт · ' + (deviceId ? 'объектив по deviceId' : VARIANTS[variant].name), 'good');
+  }
+
+  function render() {
+    var s0 = st.settings0 || {}, s1 = st.settings1 || {}, c = st.caps || {};
+    $('#lens').textContent = 'Объектив: ' + (st.label || '—');
+    $('#sLabel').textContent = st.label || '—';
+    $('#sWH').textContent = s0.width ? s0.width + ' × ' + s0.height + (s1.width && (s1.width !== s0.width || s1.height !== s0.height) ? ' → после ограничений ' + s1.width + ' × ' + s1.height : '') : '—';
+    $('#sFps').textContent = fmt(s0.frameRate);
+    $('#sFacing').textContent = fmt(s0.facingMode);
+    $('#sAR').textContent = s0.aspectRatio ? Number(s0.aspectRatio).toFixed(3) : '—';
+    $('#sZoom').textContent = fmt(s0.zoom);
+    $('#sDev').textContent = shortId(s0.deviceId);
+    $('#sReq').textContent = st.constraints ? JSON.stringify(st.constraints.video) : '—';
+    $('#sAfter').textContent = st.after || 'нет';
+
+    $('#cWH').textContent = c.width ? fmt(c.width.max) + ' × ' + fmt(c.height && c.height.max) : (Object.keys(c).length ? 'не сообщается' : '—');
+    $('#cFps').textContent = c.frameRate ? fmt(c.frameRate.max) : '—';
+    $('#cFocus').textContent = Array.isArray(c.focusMode) ? c.focusMode.join(', ') : (Object.keys(c).length ? 'ОТСУТСТВУЕТ' : '—');
+    $('#cDist').textContent = c.focusDistance ? range(c.focusDistance) : (Object.keys(c).length ? 'отсутствует' : '—');
+    $('#cZoom').textContent = c.zoom ? range(c.zoom) : (Object.keys(c).length ? 'отсутствует' : '—');
+    $('#cTorch').textContent = c.torch === undefined ? (Object.keys(c).length ? 'отсутствует' : '—') : String(c.torch);
+    $('#cFacing').textContent = Array.isArray(c.facingMode) ? c.facingMode.join(', ') : fmt(c.facingMode);
+
+    if (st.focus) {
+      var fv = $('#focusVerdict'); fv.setAttribute('data-k', st.focus.k);
+      fv.textContent = st.focus.k === 'good' ? 'непрерывный фокус запрошен' : st.focus.k === 'warn' ? 'блок приложения пропущен' : 'applyConstraints отказал';
+      $('#fCaps').textContent = Array.isArray(c.focusMode) ? c.focusMode.join(', ') : 'нет';
+      $('#fApply').textContent = st.focus.apply;
+      $('#fAfter').textContent = fmt(s1.focusMode);
+      $('#fDist').textContent = fmt(s1.focusDistance);
+    }
+
+    var ul = $('#devs'), sel = $('#devsel');
+    ul.innerHTML = '';
+    sel.innerHTML = '<option value="">' + (st.err ? '— камера не запустилась, списка нет —' : st.devices.length ? '— выбрать объектив —' : '— список появится после разрешения на камеру —') + '</option>';
+    if (!st.devices.length) { ul.innerHTML = '<li>' + (st.err ? 'пусто: без разрешения на камеру телефон не называет объективы' : 'список пуст') + '</li>'; }
+    st.devices.forEach(function (d, i) {
+      var cur = d.deviceId && d.deviceId === s0.deviceId;
+      var li = document.createElement('li'); li.className = cur ? 'cur' : '';
+      li.textContent = (i + 1) + '. ' + (d.label || '(без подписи)') + ' [' + shortId(d.deviceId) + ']' + (cur ? ' ← сейчас' : '');
+      ul.appendChild(li);
+      var o = document.createElement('option'); o.value = d.deviceId; o.textContent = (i + 1) + '. ' + (d.label || 'камера ' + (i + 1)); sel.appendChild(o);
+    });
+    if (st.deviceId) sel.value = st.deviceId;
+
+    var ec = $('#errCard');
+    if (st.err) { ec.hidden = false; $('#eName').textContent = st.err.name || '—'; $('#eMsg').textContent = st.err.message || '—'; $('#eHint').textContent = hintFor(st.err); }
+    else ec.hidden = true;
+    $('#report').value = report();
+  }
+
+  function report() {
+    var s0 = st.settings0 || {}, s1 = st.settings1 || {}, v = $('#v');
+    var L = [];
+    L.push('ПРОБА КАМЕРЫ СКАНЕРА · ' + (st.started ? st.started.toISOString() : new Date().toISOString()));
+    L.push('UA: ' + navigator.userAgent);
+    L.push('Экран: ' + screen.width + '×' + screen.height + ' css-px · DPR ' + window.devicePixelRatio + ' · окно ' + window.innerWidth + '×' + window.innerHeight);
+    L.push('Вариант: ' + (st.deviceId ? 'D · deviceId ' + st.deviceId : (st.variant ? VARIANTS[st.variant].name : '—')));
+    L.push('Ограничения: ' + (st.constraints ? JSON.stringify(st.constraints) : '—'));
+    L.push('Контекст: ' + ctx());
+    if (st.err) { L.push('ОШИБКА: ' + st.err.name + ' — ' + st.err.message); L.push('  → ' + hintFor(st.err)); return L.join('\n'); }
+    L.push('Объектив (label): ' + (st.label || '—'));
+    L.push('getSettings до: ' + JSON.stringify(s0));
+    L.push('getCapabilities: ' + JSON.stringify(st.caps || {}));
+    L.push('Доп. ограничение варианта: ' + (st.after || 'нет'));
+    L.push('Фокус (повтор блока приложения): ' + (st.focus ? st.focus.apply : '—'));
+    L.push('getSettings после: ' + JSON.stringify(s1));
+    if (v.videoWidth) {
+      var wr = v.videoWidth / v.clientWidth, hr = v.videoHeight / v.clientHeight;
+      L.push('Кадр → холст: ' + v.videoWidth + '×' + v.videoHeight + ' → ' + v.clientWidth + '×' + v.clientHeight + ' css-px · анизотропия ' + (wr / hr).toFixed(2));
+    }
+    if (st.samples.length) {
+      var last = st.samples[st.samples.length - 1], avg = st.samples.reduce(function (a, b) { return a + b; }, 0) / st.samples.length;
+      L.push('Резкость: последняя ' + last.toFixed(0) + ' · средняя ' + avg.toFixed(0) + ' · макс ' + st.max.toFixed(0) + ' · выборок ' + st.samples.length);
+    }
+    L.push('Камеры: ' + (st.devices.length ? '' : 'список пуст'));
+    st.devices.forEach(function (d, i) { L.push('  ' + (i + 1) + '. ' + (d.label || '(без подписи)') + ' [' + d.deviceId + ']' + (d.deviceId === s0.deviceId ? ' ← сейчас' : '')); });
+    return L.join('\n');
+  }
+
+  // Резкость: дисперсия Лапласа по центральным 60% кадра, ~4 раза в секунду.
+  var cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+  function tick() {
+    var v = $('#v');
+    if (st.track && v.videoWidth && !v.paused) {
+      try {
+        var W = 160, H = Math.max(40, Math.round(W * v.videoHeight / v.videoWidth));
+        cv.width = W; cv.height = H;
+        var sw = v.videoWidth * 0.6, sh = v.videoHeight * 0.6;
+        cx.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) / 2, sw, sh, 0, 0, W, H);
+        var d = cx.getImageData(0, 0, W, H).data, g = new Float32Array(W * H);
+        for (var i = 0, p = 0; i < d.length; i += 4, p++) g[p] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+        var sum = 0, sum2 = 0, n = 0;
+        for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) {
+          var q = y * W + x, l = 4 * g[q] - g[q - 1] - g[q + 1] - g[q - W] - g[q + W];
+          sum += l; sum2 += l * l; n++;
+        }
+        var mean = sum / n, varL = Math.max(0, sum2 / n - mean * mean);
+        st.samples.push(varL); if (st.samples.length > 40) st.samples.shift();
+        if (varL > st.max) st.max = varL;
+        $('#sharp').textContent = varL.toFixed(0);
+        $('#sharpMax').textContent = st.max.toFixed(0);
+        $('#chipSharp').textContent = 'Резкость ' + varL.toFixed(0);
+        $('#meter').style.width = Math.min(100, Math.sqrt(varL) * 3) + '%';
+        $('#chipFrame').textContent = 'Кадр ' + v.videoWidth + '×' + v.videoHeight;
+        var wr = v.videoWidth / v.clientWidth, hr = v.videoHeight / v.clientHeight;
+        $('#aniso').textContent = (wr / hr).toFixed(2) + ' · кадр ' + v.videoWidth + '×' + v.videoHeight + ' → холст ' + v.clientWidth + '×' + v.clientHeight + ' css-px';
+        $('#report').value = report();
+      } catch (e) { /* кадр ещё не готов */ }
+    }
+    setTimeout(tick, 250);
+  }
+
+  document.querySelectorAll('#seg .btn').forEach(function (b) { b.addEventListener('click', function () { start(b.dataset.v); }); });
+  $('#devsel').addEventListener('change', function (e) { if (e.target.value) start('D', e.target.value); });
+  $('#copy').addEventListener('click', function () {
+    var t = $('#report'); t.value = report();
+    var done = function () { var to = $('#toast'); to.hidden = false; setTimeout(function () { to.hidden = true; }, 1600); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(done, function () { t.focus(); t.select(); });
+    else { t.focus(); t.select(); try { document.execCommand('copy'); done(); } catch (e) { /* выделено — скопирует человек */ } }
+  });
+  window.addEventListener('pagehide', stop);
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus('Этот браузер не даёт getUserMedia', 'bad');
+  }
+  tick();
+})();
+</script>
+
+</body>
+</html>
