@@ -155,6 +155,39 @@ function isFiscalQR(text) {
   );
 }
 
+// Объектив без автофокуса → задняя камера с МЕНЬШИМ номером.
+// Замер 17–18.09.2026, Samsung S24+ / Chrome 152, проба
+// public/proba-kamery.html: по facingMode:"environment" Chrome отдаёт
+// «camera 2, facing back» — focusMode:["manual"], диапазон focusDistance без
+// границ, фонарика нет, резкость 528–748. «camera 0, facing back» —
+// focusMode с "continuous", focusDistance 0,1–8,1 м, фонарик есть, резкость
+// 3015–3638 на том же чеке, том же расстоянии и том же 480×640. То есть
+// приложение получало объектив, который не умеет наводиться. Camera2
+// нумерует основную заднюю нулём — конвенция Android; Chrome подписывает
+// «camera N, facing back». На iOS подписи словесные («Задняя тройная
+// камера»), а focusMode в capabilities нет вовсе — здесь вернётся null,
+// объектив не меняется; замер iPhone 18.09: объектив по умолчанию
+// фокусируется (резкость 4260–5939), менять и не нужно.
+// Возвращает deviceId кандидата либо null: текущая уже младшая, подписи
+// не по схеме или пусты (до разрешения на камеру label пустой).
+function pickLowerBackCamera(devices, currentDeviceId) {
+  const num = (label) => {
+    const m = /^camera (\d+), facing back$/i.exec(label || "");
+    return m ? Number(m[1]) : null;
+  };
+  const cur = devices.find((d) => d.deviceId === currentDeviceId);
+  const curNum = cur ? num(cur.label) : null;
+  if (curNum === null) return null;
+  let best = null;
+  for (const d of devices) {
+    if (d.kind !== "videoinput") continue;
+    const n = num(d.label);
+    if (n === null || n >= curNum) continue;
+    if (!best || n < best.n) best = { n, id: d.deviceId };
+  }
+  return best ? best.id : null;
+}
+
 const QR_MASK_PADDING = 6; // px of slack around a QR's bounding box when erasing it
 
 // Erase an already-read QR from the ImageData buffer IN PLACE so jsQR can find
@@ -639,53 +672,122 @@ export default function ScanReceiptModal({
     // shaded overlay, which would stack with our cutout overlay and look
     // broken. Without qrbox the lib scans the full frame and renders only
     // a bare <video>, leaving the visual layer entirely to us.
-    const config = {
+    // Разрешение просим ЯВНО. Замер 17–18.09.2026 (проба
+    // public/proba-kamery.html; Samsung S24+ / Chrome 152 и iPhone / Safari
+    // 26.6, iOS 18.7): без width/height ОБА движка отдают 640×480 при камере
+    // 4000×3000 — 480 столбцов кадра растянуты на экран в ~3,75 раза, картинка
+    // плывёт при исправном автофокусе. По запросу оба отдают ровно 1080×1920.
+    // Это же ужимает холст сканера: без qrbox библиотека читает QR с холста
+    // размером с элемент видео, и 480×640 в 412×892 давало искажение ~1,7;
+    // с 1080×1920 остаток ~1,2 — приёмлемо для декодера, дальше только ценой
+    // полос. `ideal`, не `exact`: телефон без такого режима даёт ближайший,
+    // а не отказ. aspectRatio, снятый редизайном 17.05, не возвращаем: iOS
+    // его принял и проигнорировал (settings не изменились), Android при
+    // width/height в нём не нуждается.
+    // ⚠️ videoConstraints ЗАМЕЩАЕТ первый аргумент start() целиком (проверено
+    // по html5-qrcode 2.3.8), поэтому facingMode/deviceId живут здесь; первый
+    // аргумент остаётся ради сигнатуры.
+    const RESOLUTION = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+    const config = (videoConstraints) => ({
       fps: 15,
       disableFlip: false,
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      videoConstraints,
+    });
+    const onScan = (text) => {
+      if (!cameraOn.current) return;
+      if (!isFiscalQR(text)) {
+        console.log("[Camera] non-fiscal QR ignored:", text.substring(0, 60));
+        return; // keep scanning — don't pause on a non-fiscal QR (netmonet/url)
+      }
+      console.log("[Camera] fiscal QR detected"); // no QR text in logs (fn privacy)
+      cameraOn.current = false;
+      try {
+        s.pause(true);
+      } catch {
+        /* not in scanning state */
+      }
+      capture(text);
     };
-    s.start(
-      { facingMode: "environment" },
-      config,
-      (text) => {
-        if (!cameraOn.current) return;
-        if (!isFiscalQR(text)) {
-          console.log("[Camera] non-fiscal QR ignored:", text.substring(0, 60));
-          return; // keep scanning — don't pause on a non-fiscal QR (netmonet/url)
+    const launch = (videoConstraints) =>
+      s.start(
+        { facingMode: "environment" },
+        config(videoConstraints),
+        onScan,
+        () => {
+          /* per-frame parse failures are noise */
+        },
+      );
+
+    // После старта (и после смены объектива — повторно): поток в streamRef,
+    // фонарик, непрерывный автофокус. Возвращает capabilities дорожки.
+    // Если модалку закрыли, пока камера стартовала, — глушим поток сами:
+    // releaseCamera его не видел, streamRef был ещё пуст.
+    const afterStart = () => {
+      const vEl = document.getElementById("qr-reader")?.querySelector("video");
+      const stream = vEl && vEl.srcObject ? vEl.srcObject : null;
+      if (scannerRef.current !== s) {
+        try {
+          stream && stream.getTracks().forEach((t) => t.stop());
+        } catch {
+          /* ignored */
         }
-        console.log("[Camera] fiscal QR detected"); // no QR text in logs (fn privacy)
+        Promise.resolve()
+          .then(() => s.stop())
+          .catch(() => {});
+        return null;
+      }
+      cameraOn.current = true;
+      streamRef.current = stream;
+      let caps = {};
+      try {
+        caps = s.getRunningTrackCapabilities?.() || {};
+        setTorchSupported(!!caps.torch);
+        if (
+          Array.isArray(caps.focusMode) &&
+          caps.focusMode.includes("continuous")
+        ) {
+          s.applyVideoConstraints({
+            advanced: [{ focusMode: "continuous" }],
+          }).catch(() => {});
+        }
+      } catch {
+        /* capabilities unavailable */
+      }
+      return caps;
+    };
+
+    launch({ facingMode: "environment", ...RESOLUTION })
+      .then(async () => {
+        const caps = afterStart();
+        if (!caps) return;
+        // Смена объектива — только по ИЗМЕРЕННОМУ признаку (объектив не умеет
+        // непрерывный автофокус) и только на младшую по номеру заднюю камеру,
+        // см. pickLowerBackCamera. На iOS focusMode в capabilities нет —
+        // ветка не срабатывает. Один перезапуск, ~секунда, до первого кадра.
+        const noAutofocus =
+          Array.isArray(caps.focusMode) &&
+          !caps.focusMode.includes("continuous");
+        if (!noAutofocus) return;
+        const devices = await navigator.mediaDevices
+          .enumerateDevices()
+          .catch(() => []);
+        const current = s.getRunningTrackSettings?.()?.deviceId;
+        const better = pickLowerBackCamera(devices, current);
+        if (!better) return;
+        console.log(
+          "[Camera] lens without autofocus → lower-numbered back camera",
+        );
+        await s.stop();
+        if (scannerRef.current !== s) return; // модалку закрыли, пока переключались
         cameraOn.current = false;
         try {
-          s.pause(true);
+          await launch({ deviceId: { exact: better }, ...RESOLUTION });
         } catch {
-          /* not in scanning state */
+          // Кандидат не запустился — возвращаем прежний объектив, а не тёмный экран.
+          await launch({ facingMode: "environment", ...RESOLUTION });
         }
-        capture(text);
-      },
-      () => {
-        /* per-frame parse failures are noise */
-      },
-    )
-      .then(() => {
-        cameraOn.current = true;
-        const vEl = document
-          .getElementById("qr-reader")
-          ?.querySelector("video");
-        streamRef.current = vEl && vEl.srcObject ? vEl.srcObject : null;
-        try {
-          const caps = s.getRunningTrackCapabilities?.() || {};
-          if (caps.torch) setTorchSupported(true);
-          if (
-            Array.isArray(caps.focusMode) &&
-            caps.focusMode.includes("continuous")
-          ) {
-            s.applyVideoConstraints({
-              advanced: [{ focusMode: "continuous" }],
-            }).catch(() => {});
-          }
-        } catch {
-          /* capabilities unavailable */
-        }
+        afterStart();
       })
       .catch((err) => {
         const name = err && err.name;
