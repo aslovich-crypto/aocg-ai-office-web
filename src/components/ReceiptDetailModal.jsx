@@ -1333,16 +1333,6 @@ export default function ReceiptDetailModal({
                   // это третье состояние, и оно тоже обязано быть названо.
                   const vat = vatRateLabel(it.nds) || "Нет данных";
                   const showVat = true;
-                  // NDS-ЧП5: СУММА НДС по позиции в рублях — в том же чипе, что
-                  // и ставка. ФНС отдаёт items[].ndsSum в копейках, дорога та же,
-                  // что у price/sum (isFns → /100). У фото-чеков поля нет — чип
-                  // остаётся со ставкой, как был. Ноль не печатаем: «Без НДС»
-                  // сказано ставкой, «Без НДС · 0,00 ₽» — шум.
-                  const ndsKop = Number(it.ndsSum);
-                  const ndsRub =
-                    isFns && Number.isFinite(ndsKop) && ndsKop > 0
-                      ? ndsKop / 100
-                      : 0;
                   return (
                     <div
                       key={i}
@@ -1405,7 +1395,7 @@ export default function ReceiptDetailModal({
                                   font: `500 11px/1.5 ${FONT}`,
                                 }}
                               >
-                                {ndsRub > 0 ? `${vat} · ${money(ndsRub)}` : vat}
+                                {vat}
                               </span>
                             )}
                           </span>
