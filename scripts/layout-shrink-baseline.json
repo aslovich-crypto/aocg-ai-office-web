@@ -11,7 +11,7 @@
       "full-width-padding": 5
     },
     "src/components/ReportDetailModal.jsx": {
-      "flex-no-minwidth": 2
+      "flex-no-minwidth": 1
     },
     "src/pages/GlavnayaPage.jsx": {
       "flex-no-minwidth": 1,
