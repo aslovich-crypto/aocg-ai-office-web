@@ -15,6 +15,8 @@
     "behaviour": "node scripts/check-behaviour.mjs",
     "scroll": "node scripts/check-scroll-reset.mjs",
     "skvoz": "node scripts/check-skvoznoy.mjs",
+    "v1s": "node scripts/check-v1s.mjs",
+    "v1s-mut": "node scripts/v1s-mutations.mjs",
     "token": "node scripts/check-token-expiry.mjs",
     "author": "node scripts/check-author.mjs",
     "delete": "node scripts/check-delete.mjs",
