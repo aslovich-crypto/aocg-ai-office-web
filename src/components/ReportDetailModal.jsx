@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronLeft, X, Undo2, MoreHorizontal, Download } from "lucide-react";
+import {
+  ChevronLeft,
+  X,
+  Undo2,
+  MoreHorizontal,
+  Download,
+  Send,
+} from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime, money } from "../lib/format";
@@ -13,7 +20,9 @@ import {
   отправитьВ1С,
   отменитьОтправку,
 } from "../lib/export1c";
-import Status1C from "./Status1C";
+import Status1C, { Status1CLine, Status1CPlate } from "./Status1C";
+// Кнопки шапки и подвала — общие с карточкой чека (1C-29 ③).
+import { hbtn, iconBtn, кнопкаПодвала } from "../lib/cardUi";
 import Cancel1CSheet from "./Cancel1CSheet";
 
 // Детали отчёта — полноэкранная карточка по образцу «Детали чека».
@@ -164,15 +173,15 @@ export default function ReportDetailModal({
   const [пул, setПул] = useState(null); // null = грузится
   const [addSel, setAddSel] = useState([]);
   const [периодДоб, setПериодДоб] = useState("все");
-  // Меню «Ещё» в шапке и скачивание файла для 1С. Форма вызова — КАНОН: ровно
-  // так в поставке «Детали чека» нарисован пункт «Скачать PDF» в кебаб-меню.
-  // ⚠️ ФУТЕР У «ОДОБРЕН» ЕСТЬ С 22.09.2026 (1C-29 ②а, решение владельца).
-  // Прежняя строка здесь называла его отступлением от макета (решение
-  // 11.09.2026, вариант А) — то решение было про СКАЧИВАНИЕ файла, и файл
-  // остался в меню. Отправка в 1С — главное действие над одобренным отчётом,
-  // и её место — футер: правило экрана чека (футер — главное, ⋯ — редкое
-  // и опасное) и ответы дизайн-линии п. 3.3 и 9.3 («действия с последствиями
-  // — в футере, вишнёвое одно»). В меню к файлу добавилась только отмена.
+  // ⚠️ КАРТОЧКА ОДОБРЕННОГО ОТЧЁТА ПОВТОРЯЕТ КАРТОЧКУ ЧЕКА (1C-29 ③, решение
+  // владельца 22.09.2026 после приёмки). Шапка: «‹ Назад», справа иконка
+  // «Скачать файл для 1С» на месте «поделиться» у чека и «⋯» только с отменой
+  // отправки. Состояние 1С — бейджем рядом с «Одобрен · от даты», как «ФНС»
+  // у чека. Низ — одна белая «Отправить в 1С», как «Прикрепить к отчёту».
+  // История: 11.09.2026 (вариант А) скачивание файла жило в меню «⋯»;
+  // 22.09.2026 в заходе ②а отправка встала в футер вишнёвой кнопкой по п. 9.3
+  // дизайн-линии («вишнёвое одно») — от этого отступили в том же дне: канон
+  // вишнёвого — только «Сканировать чек» (журнал отступлений трекера).
   const [menuOpen, setMenuOpen] = useState(false);
   const [скачивается, setСкачивается] = useState(false);
   const [ошибкаВыгрузки, setОшибкаВыгрузки] = useState("");
@@ -416,6 +425,12 @@ export default function ReportDetailModal({
   // ручка ответила бы 403, а в справочных открытиях (из карточки чека,
   // из уведомлений) кнопок нет по правилу footerFor.
   const нужно1С = !!(footer && footer.одинЭс);
+  // Что разрешил сервер — одним местом: и для кнопки, и для «⋯».
+  const можноОтправить1С = нужно1С && !!сост1С && !!сост1С.можно_отправить;
+  const можноОтменить1С = нужно1С && !!сост1С && !!сост1С.можно_отменить;
+  // У одобренного низ есть, ТОЛЬКО когда можно отправить: во всех остальных
+  // состояниях статус уже в бейдже (решение владельца 22.09.2026, 1C-29 ③).
+  const естьНиз = !!footer && (!footer.одинЭс || можноОтправить1С);
   const repId = rep.id;
   useEffect(() => {
     if (!нужно1С) return;
@@ -504,48 +519,73 @@ export default function ReportDetailModal({
           outline: "none",
         }}
       >
-        {/* шапка */}
+        {/* ⚠️ ШАПКА — ПО ОБРАЗЦУ КАРТОЧКИ ЧЕКА (1C-29 ③, решение владельца
+            22.09.2026): «‹ Назад» текстом, имя экрана по центру, справа
+            иконки. Кнопки общие с чеком (src/lib/cardUi.js). Меню «Ещё»
+            раскрывается относительно шапки, как у чека. */}
         <div
           style={{
             background: theme.surface,
             borderBottom: `1px solid ${theme.border}`,
-            padding: "calc(env(safe-area-inset-top) + 8px) 8px 8px",
+            padding: "calc(env(safe-area-inset-top) + 6px) 8px 6px",
             display: "flex",
             alignItems: "center",
-            gap: 4,
+            minHeight: 52,
             flexShrink: 0,
-            // Меню «Ещё» раскрывается ОТНОСИТЕЛЬНО шапки, как в карточке чека.
             position: "relative",
           }}
         >
           <button
+            type="button"
             onClick={onClose}
             aria-label="Назад"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: C.dark,
-              padding: 8,
-            }}
+            style={{ ...hbtn, marginLeft: -2 }}
           >
             <ChevronLeft size={22} />
+            Назад
           </button>
-          <span style={{ font: `600 17px/1.2 ${FONT}`, color: C.dark }}>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              textAlign: "center",
+              font: `600 17px/1 ${FONT}`,
+              color: theme.fg1,
+            }}
+          >
             Отчёт
-          </span>
-          {/* ⚠️ КНОПКА ПОКАЗЫВАЕТСЯ ТОЛЬКО ТЕМ, КОМУ РУЧКА ОТВЕТИТ. Гейт тот
-              же, что у «Одобрить/Отклонить» (canApprove), и он совпадает с
-              гейтом бэкенда: сотрудник получил бы 403, то есть мёртвый жест.
-              role == null — роль ещё грузится, а не «прав нет»: рисовать
-              меню рано. */}
-          {role != null && canApprove(role) && (
-            <>
-              {/* Распорка: отодвигает «Ещё» вправо. minWidth:0 — по общему
-                  правилу вёрстки, иначе элемент не сожмётся уже содержимого. */}
-              <div style={{ flex: 1, minWidth: 0 }} />
+          </div>
+          {/* ⚠️ ИКОНКИ — ТОЛЬКО ТЕМ, КОМУ РУЧКА ОТВЕТИТ. Гейт тот же, что
+              у «Одобрить/Отклонить» (canApprove), и он совпадает с гейтом
+              бэкенда: сотрудник получил бы 403 — мёртвый жест. role == null —
+              роль ещё грузится, рисовать рано. «Скачать файл для 1С» стоит
+              там же и тем же стилем, что «поделиться» у чека. «⋯» — только
+              когда в меню есть что показать (отмена отправки): мёртвых меню
+              нет. Пустое место занимает невидимая заглушка размером с иконку:
+              у чека справа всегда две иконки, и они держат имя экрана по
+              центру; без заглушек «Отчёт» съезжал вправо. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {role != null && canApprove(role) ? (
+              <button
+                type="button"
+                onClick={скачатьXlsx}
+                disabled={скачивается}
+                aria-label="Скачать файл для 1С"
+                title="Скачать файл для 1С"
+                style={{
+                  ...iconBtn,
+                  color: скачивается ? theme.fg3 : theme.fg1,
+                }}
+              >
+                <Download size={21} />
+              </button>
+            ) : (
+              <span
+                aria-hidden="true"
+                style={{ ...iconBtn, visibility: "hidden" }}
+              />
+            )}
+            {можноОтменить1С ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -555,21 +595,18 @@ export default function ReportDetailModal({
                 aria-label="Ещё"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: C.dark,
-                  padding: 8,
-                }}
+                style={iconBtn}
               >
                 <MoreHorizontal size={22} />
               </button>
-            </>
-          )}
-          {menuOpen && (
+            ) : (
+              <span
+                aria-hidden="true"
+                style={{ ...iconBtn, visibility: "hidden" }}
+              />
+            )}
+          </div>
+          {menuOpen && можноОтменить1С && (
             <>
               {/* Подложка ловит тап мимо меню. Слой ниже самого меню на один
                   уровень — правило слоёв: число берётся по РОЛИ, а не на глаз. */}
@@ -593,13 +630,14 @@ export default function ReportDetailModal({
                   overflow: "hidden",
                 }}
               >
+                {/* Отмена отправки — редкое и опасное, поэтому в меню; цвет —
+                    как у «Удалить чек» в меню карточки чека. */}
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={скачивается}
                   onClick={() => {
                     setMenuOpen(false);
-                    скачатьXlsx();
+                    setСпроситьОтмену(true);
                   }}
                   style={{
                     display: "flex",
@@ -609,49 +647,17 @@ export default function ReportDetailModal({
                     boxSizing: "border-box",
                     background: "none",
                     border: "none",
-                    cursor: скачивается ? "default" : "pointer",
+                    cursor: "pointer",
                     padding: "11px 12px",
                     borderRadius: 8,
                     font: `400 15px/1 ${FONT}`,
-                    color: скачивается ? theme.fg3 : C.dark,
+                    color: theme.errorFg,
                     textAlign: "left",
                   }}
                 >
-                  <Download size={18} />
-                  {скачивается ? "Готовим файл…" : "Скачать файл для 1С"}
+                  <Undo2 size={18} />
+                  Отменить отправку в 1С
                 </button>
-                {/* Отмена отправки — редкое и опасное, поэтому в меню, а не
-                    в футере; и только когда сервер сказал, что можно:
-                    идущую отправку бэкенд отменить не даст. Цвет — как у
-                    «Удалить чек» в меню карточки чека. */}
-                {нужно1С && сост1С && сост1С.можно_отменить && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setСпроситьОтмену(true);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      width: "100%",
-                      boxSizing: "border-box",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "11px 12px",
-                      borderRadius: 8,
-                      font: `400 15px/1 ${FONT}`,
-                      color: theme.errorFg,
-                      textAlign: "left",
-                    }}
-                  >
-                    <Undo2 size={18} />
-                    Отменить отправку в 1С
-                  </button>
-                )}
               </div>
             </>
           )}
@@ -717,7 +723,17 @@ export default function ReportDetailModal({
                   от {fmtDate(rep.created)}
                 </span>
               )}
+              {/* 1С — рядом с «Одобрен · от даты», тем же стилем, что «ФНС»
+                  у чека (1C-29 ③). */}
+              {нужно1С && <Status1C состояние={сост1С} />}
             </div>
+            {нужно1С && (
+              <Status1CLine
+                состояние={сост1С}
+                сбой={сбой1С}
+                onRetry={() => setКлюч1С((к) => к + 1)}
+              />
+            )}
 
             {/* ⚠️ ПРИЧИНА ОТКАЗА — В САМОМ ОТЧЁТЕ, А НЕ ТОЛЬКО В ПИСЬМЕ (T159).
                 Письмо человек удалит или не увидит, а вопрос «что было не так»
@@ -753,6 +769,7 @@ export default function ReportDetailModal({
                 }}
               >
                 {hint}
+                {нужно1С && <Status1CPlate состояние={сост1С} />}
               </div>
             )}
 
@@ -1293,7 +1310,7 @@ export default function ReportDetailModal({
           footerFor, здесь только отрисовка. Кнопки повторяют вид тех же
           действий в списке отчётов, чтобы одно и то же не выглядело
           по-разному в двух местах. */}
-        {footer && (
+        {естьНиз && (
           <div
             style={{
               flexShrink: 0,
@@ -1305,35 +1322,25 @@ export default function ReportDetailModal({
               gap: 10,
             }}
           >
-            {/* ⚠️ ОДОБРЕННЫЙ: СТРОКА СОСТОЯНИЯ ВСЕГДА, КНОПКА — ТОЛЬКО ПО
-                ОТВЕТУ СЕРВЕРА (можно_отправить). Живая отправка есть —
-                вишнёвой кнопки нет, мёртвых кнопок нет (решение владельца
-                22.09.2026). Строка здесь, а не в теле карточки: футер уже
-                рисуется по footerFor, и правка остаётся в одном месте. */}
-            {footer.одинЭс && (
-              <>
-                <Status1C
-                  состояние={сост1С}
-                  сбой={сбой1С}
-                  onRetry={() => setКлюч1С((к) => к + 1)}
-                />
-                {сост1С && сост1С.можно_отправить && (
-                  <div
-                    style={{ display: "flex", gap: 8, alignItems: "stretch" }}
-                  >
-                    <button
-                      onClick={отправить}
-                      disabled={отправляется}
-                      style={{
-                        ...BTN.primary,
-                        cursor: отправляется ? "default" : "pointer",
-                      }}
-                    >
-                      {отправляется ? "Отправляется в 1С…" : "Отправить в 1С"}
-                    </button>
-                  </div>
-                )}
-              </>
+            {/* ⚠️ ОДОБРЕННЫЙ: ОДНА БЕЛАЯ КНОПКА С РАМКОЙ — тот же стиль, что
+                «Прикрепить к отчёту» у чека (1C-29 ③). Вишнёвого нет: канон
+                вишнёвого — только «Сканировать чек» (решение владельца
+                22.09.2026). Во время отправки — она же, неактивная. */}
+            {footer.одинЭс && можноОтправить1С && (
+              <button
+                type="button"
+                onClick={отправить}
+                disabled={отправляется}
+                style={{
+                  ...кнопкаПодвала,
+                  cursor: отправляется ? "default" : "pointer",
+                }}
+              >
+                {/* Значок из того же набора, что скрепка у «Прикрепить к
+                    отчёту» (решение владельца 22.09.2026, Р7). */}
+                <Send size={18} />
+                {отправляется ? "Отправляется в 1С…" : "Отправить в 1С"}
+              </button>
             )}
             {(footer.approve ||
               footer.withdraw ||

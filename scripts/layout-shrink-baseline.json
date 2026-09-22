@@ -8,7 +8,7 @@
     },
     "src/components/ReceiptDetailModal.jsx": {
       "flex-no-minwidth": 4,
-      "full-width-padding": 6
+      "full-width-padding": 5
     },
     "src/components/ReportDetailModal.jsx": {
       "flex-no-minwidth": 2

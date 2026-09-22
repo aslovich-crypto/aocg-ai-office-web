@@ -25,6 +25,8 @@ import { useModalA11y } from "../hooks/useModalA11y";
 import { authFetch } from "../lib/api";
 import CategorySheet from "./CategorySheet";
 import ReportDetailModal from "./ReportDetailModal";
+// Кнопки шапки, бейдж и кнопка подвала — общие с карточкой отчёта (1C-29 ③).
+import { hbtn, iconBtn, кнопкаПодвала, пилюля } from "../lib/cardUi";
 
 // Токены дизайн-системы (colors_and_type.css), смапленные на палитру C +
 // несколько литералов, которых нет в C (success/error/cherry-hover).
@@ -848,24 +850,6 @@ export default function ReceiptDetailModal({
     borderRadius: 12,
     boxShadow: "0 1px 3px rgba(17,19,24,.04)",
   };
-  const hbtn = {
-    display: "flex",
-    alignItems: "center",
-    gap: 2,
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    color: T.fg1,
-    padding: 8,
-    borderRadius: 8,
-    font: `400 16px/1 ${FONT}`,
-  };
-  const iconBtn = {
-    ...hbtn,
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-  };
 
   return (
     <div
@@ -1199,16 +1183,8 @@ export default function ReceiptDetailModal({
                         setShowTip((v) => !v);
                       }}
                       style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                        border: "none",
+                        ...пилюля("success"),
                         cursor: "pointer",
-                        background: T.successBg,
-                        color: T.successFg,
-                        borderRadius: 999,
-                        padding: "3px 8px",
-                        font: `500 13px/1 ${FONT}`,
                         position: "relative",
                       }}
                     >
@@ -1741,24 +1717,7 @@ export default function ReceiptDetailModal({
               )}
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={openAttach}
-              style={{
-                width: "100%",
-                height: 50,
-                borderRadius: 8,
-                border: `1px solid ${T.borderStrong}`,
-                background: T.white,
-                color: T.fg1,
-                font: `500 15px/1 ${FONT}`,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-              }}
-            >
+            <button type="button" onClick={openAttach} style={кнопкаПодвала}>
               <Paperclip size={18} />
               Прикрепить к отчёту
             </button>
