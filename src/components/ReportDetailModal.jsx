@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronLeft, X, Undo2, MoreHorizontal, Download } from "lucide-react";
+import {
+  ChevronLeft,
+  X,
+  Undo2,
+  MoreHorizontal,
+  Download,
+  Trash2,
+} from "lucide-react";
 
 import { C, FONT, theme } from "../lib/theme";
 import { shortOrg, fmtDate, fmtDateTime, money } from "../lib/format";
@@ -60,7 +67,7 @@ const FOOTER_NOTE = {
 // в список ради кнопки, которая должна быть под рукой там, где смотрят.
 // «Одобрить/Отклонить» остаются ТОЛЬКО здесь (решение по деньгам требует
 // увидеть состав), а безопасные действия автора продублированы.
-function footerFor({ status, role, onStatus, onDelete }) {
+function footerFor({ status, role, onStatus }) {
   // onStatus не передан — отчёт открыт из карточки чека, это справка
   // «куда делся мой чек», а не рабочее место. Кнопок нет вовсе.
   if (!onStatus) {
@@ -70,12 +77,19 @@ function footerFor({ status, role, onStatus, onDelete }) {
     if (role == null) return null;
     return { note: canApprove(role) ? "elsewhere" : "noRights" };
   }
-  if (status === "Черновик") return { send: true, remove: !!onDelete };
-  if (status === "Отклонён") return { fix: true, remove: !!onDelete };
+  // ⚠️ НИЗ = ДВИЖЕНИЕ ДОКУМЕНТА, УДАЛЕНИЯ ВНИЗУ НЕТ (канон карточки документа,
+  // docs/RULES-FRONTEND.md, решение владельца 22.09.2026). Удаление уехало
+  // в «⋯» — оно редкое и необратимое, а низ занят тем, куда документ идёт
+  // дальше. Поле `remove` здесь больше не появляется ни при одном статусе.
+  if (status === "Черновик") return { send: true };
+  if (status === "Отклонён") return { fix: true };
   if (status === "На проверке") {
     if (role == null) return { withdraw: true }; // отзыв правом не гейтится
+    // ⚠️ У ПРОВЕРЯЮЩЕГО ВНИЗУ ДВЕ КНОПКИ, А НЕ ТРИ (В5, 22.09.2026): вишнёвая
+    // «Одобрить» — вперёд, белая «Отклонить» — обратный ход. «Отозвать» —
+    // действие АВТОРА, а не проверяющего, и у проверяющего уходит в «⋯».
     return canApprove(role)
-      ? { approve: true, withdraw: true }
+      ? { approve: true, reject: true }
       : { withdraw: true, note: "noRights" };
   }
   // «Одобрен» — принят к учёту. С 22.09.2026 (1C-29 ②а) у него одно действие:
@@ -125,6 +139,24 @@ const BTN = {
     background: theme.surface,
     color: theme.slateFg,
   },
+};
+
+// Пункт меню «⋯». Красный по умолчанию: и отмена отправки, и удаление —
+// опасные. Обычный цвет пункт получает подменой `color` на месте.
+const ПУНКТ_МЕНЮ = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  boxSizing: "border-box",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  padding: "11px 12px",
+  borderRadius: 8,
+  font: `400 15px/1 ${FONT}`,
+  color: theme.errorFg,
+  textAlign: "left",
 };
 
 export default function ReportDetailModal({
@@ -403,7 +435,7 @@ export default function ReportDetailModal({
     if (aliveRef.current) setBusyId(null);
   }
 
-  const footer = footerFor({ status: rep.status, role, onStatus, onDelete });
+  const footer = footerFor({ status: rep.status, role, onStatus });
 
   // Состояние отправки спрашиваем ТОЛЬКО там, где есть футер «1С»: одобренный
   // отчёт, роль с правом, открыт из «Отчётов» (onStatus передан). Сотруднику
@@ -413,6 +445,27 @@ export default function ReportDetailModal({
   // Что разрешил сервер — одним местом: и для кнопки, и для «⋯».
   const можноОтправить1С = нужно1С && !!сост1С && !!сост1С.можно_отправить;
   const можноОтменить1С = нужно1С && !!сост1С && !!сост1С.можно_отменить;
+  // ⚠️ «⋯» — У ВСЕХ СТАТУСОВ (канон карточки документа, 22.09.2026): удаление
+  // живёт здесь. Пустое меню не рисуется — на месте кнопки остаётся невидимая
+  // заглушка, иначе заголовок съезжает.
+  //
+  // ⚠️ ЗЕРКАЛО ПРАВИЛА БЭКЕНДА, А НЕ ЗАЩИТА. Права держит ручка удаления
+  // (`СОТРУДНИК_УДАЛЯЕТ` в app/routers/reports.py, REP-EXPDEL ①): сотрудник
+  // сносит свой черновик и свой отклонённый, остальное — бухгалтер и админ.
+  // Здесь то же самое ровно затем, чтобы не звать человека на действие,
+  // которое сервер заведомо отклонит: мёртвая кнопка хуже отсутствующей.
+  const живаяОтправка = нужно1С && !!сост1С && !!сост1С.живая;
+  const можноУдалить =
+    !!onDelete &&
+    !!onStatus &&
+    !живаяОтправка &&
+    (role != null && canApprove(role)
+      ? true
+      : rep.status === "Черновик" || rep.status === "Отклонён");
+  // «Отозвать» у проверяющего — редкое действие и обратный ход, ему место
+  // в меню, а не в низу (В5). У автора без прав оно остаётся внизу белой.
+  const можноОтозвать = !!(footer && footer.approve);
+  const естьМеню = можноУдалить || можноОтменить1С || можноОтозвать;
   // У одобренного низ есть, ТОЛЬКО когда можно отправить: во всех остальных
   // состояниях статус уже в бейдже (решение владельца 22.09.2026, 1C-29 ③).
   const естьНиз = !!footer && (!footer.одинЭс || можноОтправить1С);
@@ -570,7 +623,7 @@ export default function ReportDetailModal({
                 style={{ ...iconBtn, visibility: "hidden" }}
               />
             )}
-            {можноОтменить1С ? (
+            {естьМеню ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -591,7 +644,7 @@ export default function ReportDetailModal({
               />
             )}
           </div>
-          {menuOpen && можноОтменить1С && (
+          {menuOpen && естьМеню && (
             <>
               {/* Подложка ловит тап мимо меню. Слой ниже самого меню на один
                   уровень — правило слоёв: число берётся по РОЛИ, а не на глаз. */}
@@ -615,34 +668,50 @@ export default function ReportDetailModal({
                   overflow: "hidden",
                 }}
               >
-                {/* Отмена отправки — редкое и опасное, поэтому в меню; цвет —
-                    как у «Удалить чек» в меню карточки чека. */}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setСпроситьОтмену(true);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    width: "100%",
-                    boxSizing: "border-box",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "11px 12px",
-                    borderRadius: 8,
-                    font: `400 15px/1 ${FONT}`,
-                    color: theme.errorFg,
-                    textAlign: "left",
-                  }}
-                >
-                  <Undo2 size={18} />
-                  Отменить отправку в 1С
-                </button>
+                {/* Порядок: сперва обратимое, опасное — вниз. Отмена отправки
+                    и удаление красным, отзыв обычным цветом. */}
+                {можноОтозвать && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onStatus(rep.id, "Черновик");
+                    }}
+                    style={{ ...ПУНКТ_МЕНЮ, color: theme.fg1 }}
+                  >
+                    <Undo2 size={18} />
+                    Отозвать с проверки
+                  </button>
+                )}
+                {можноОтменить1С && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setСпроситьОтмену(true);
+                    }}
+                    style={ПУНКТ_МЕНЮ}
+                  >
+                    <Undo2 size={18} />
+                    Отменить отправку в 1С
+                  </button>
+                )}
+                {можноУдалить && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(rep);
+                    }}
+                    style={ПУНКТ_МЕНЮ}
+                  >
+                    <Trash2 size={18} />
+                    Удалить отчёт
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -1327,19 +1396,19 @@ export default function ReportDetailModal({
                 </button>
               </div>
             )}
+            {/* ⚠️ НИЗ ПО КАНОНУ КАРТОЧКИ ДОКУМЕНТА (решение владельца
+                22.09.2026, В5): ОДНА ВИШНЁВАЯ — движение вперёд, белая рядом —
+                только обратный ход. До этого захода «На проверке» показывал три
+                цветные кнопки: зелёную «Одобрить», красную «Отклонить»,
+                янтарную «Отозвать» — каждая своим цветом, и человеку
+                приходилось читать цвет как значение. Удаления внизу нет ни
+                при одном статусе: оно в «⋯». */}
             {(footer.approve ||
+              footer.reject ||
               footer.withdraw ||
               footer.send ||
               footer.fix) && (
               <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
-                {footer.send && (
-                  <button
-                    onClick={() => onStatus(rep.id, "На проверке")}
-                    style={BTN.primary}
-                  >
-                    На проверку →
-                  </button>
-                )}
                 {footer.fix && (
                   <button
                     onClick={() => onStatus(rep.id, "Черновик")}
@@ -1348,42 +1417,39 @@ export default function ReportDetailModal({
                     Исправить
                   </button>
                 )}
-                {footer.approve && (
+                {footer.reject && (
                   <button
                     onClick={() => onStatus(rep.id, "Отклонён")}
-                    style={BTN.danger}
+                    style={BTN.neutral}
                   >
                     Отклонить
-                  </button>
-                )}
-                {footer.approve && (
-                  <button
-                    onClick={() => onStatus(rep.id, "Одобрен")}
-                    style={BTN.success}
-                  >
-                    ✓ Одобрить
                   </button>
                 )}
                 {footer.withdraw && (
                   <button
                     onClick={() => onStatus(rep.id, "Черновик")}
-                    style={BTN.warning}
+                    style={BTN.neutral}
                   >
                     Отозвать
                   </button>
                 )}
-                {footer.remove && (
-                  <button onClick={() => onDelete(rep)} style={BTN.dangerGhost}>
-                    Удалить
+                {footer.send && (
+                  <button
+                    onClick={() => onStatus(rep.id, "На проверке")}
+                    style={BTN.primary}
+                  >
+                    На проверку →
+                  </button>
+                )}
+                {footer.approve && (
+                  <button
+                    onClick={() => onStatus(rep.id, "Одобрен")}
+                    style={BTN.primary}
+                  >
+                    ✓ Одобрить
                   </button>
                 )}
               </div>
-            )}
-            {/* remove без других кнопок не бывает, но если появится — не потеряем */}
-            {footer.remove && !(footer.send || footer.fix) && (
-              <button onClick={() => onDelete(rep)} style={BTN.dangerGhost}>
-                Удалить
-              </button>
             )}
             {FOOTER_NOTE[footer.note] && (
               <div

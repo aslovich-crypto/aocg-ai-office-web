@@ -23,6 +23,7 @@ import { BADGE, canApprove } from "../lib/reports";
 import { РЕЖИМЫ_ПЕРИОДА, вПериоде } from "../lib/period";
 import ReportDetailModal from "../components/ReportDetailModal";
 import SwipeRow from "../components/SwipeRow";
+import ConfirmDeleteReportSheet from "../components/ConfirmDeleteReportSheet";
 
 // Экран «Отчёты» — вёрстка по макету templates/reports/Отчёты.html (ЧП2, INT).
 // Логика (статусы, PATCH, создание) — из кода, вёрстка — из макета.
@@ -175,10 +176,9 @@ function RejectReasonSheet({ onConfirm, onCancel }) {
 export default function OtchetyPage({
   сигналНовогоОтчёта, // плитка «Создать отчёт» с «Главной» (одноразовый)
   onReportSignalConsumed, // употребили — обнулить, иначе шторка-призрак
-  // Отмена удаления живёт в ОБОЛОЧКЕ (App.jsx), а не здесь: тост и таймер
-  // обязаны пережить переход между вкладками нижнего меню, а этот экран
-  // при переходе размонтируется.
-  scheduleUndo,
+  // ⚠️ `scheduleUndo` УБРАН 22.09.2026 (REP-EXPDEL ②, В4): удаление отчёта
+  // больше не откладывается тостом «Отменить» — спрашиваем шторкой ДО.
+  // Оболочка отмену по-прежнему умеет, ей пользуются чеки.
   scrollRef,
   receipts,
   users, // для фильтра по автору: сопоставляем имя из фильтра с user_id отчёта
@@ -371,6 +371,10 @@ export default function OtchetyPage({
 
   // Отчёт, для которого спрашиваем причину. null — шторка закрыта.
   const [отклоняем, setОтклоняем] = useState(null);
+  // Отчёт, про который спрашиваем «удалить?» (REP-EXPDEL ②, В4), и признак
+  // «запрос в пути»: без него двойной тап шлёт два DELETE.
+  const [спроситьУдаление, setСпроситьУдаление] = useState(null);
+  const [удаляется, setУдаляется] = useState(false);
 
   async function changeStatus(id, status, reason) {
     try {
@@ -413,48 +417,56 @@ export default function OtchetyPage({
   // возвращает 200 С ТЕЛОМ — обновлённый отчёт; не перепутать.)
   // Сами чеки не удаляются: уходит только связь (ON DELETE CASCADE на
   // report_items.report_id), чеки возвращаются в свободный пул.
+  // Возвращает true, если сервер отчёт удалил. Строку из списка убирает
+  // вызывающий — и только по этому ответу: см. подтвердитьУдаление.
   async function deleteReportNow(rep) {
     try {
       const res = await authFetch(`/api/reports/${rep.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
-        // 409 замороженного статуса придёт с готовым текстом бэка.
-        // Строку возвращаем на место: она была убрана заранее, «оптимистично».
+        // Тексты отказов приходят с бэкенда готовыми и показываются ДОСЛОВНО:
+        // 403 «отчёт в статусе … удаляет бухгалтер или администратор»,
+        // 409 «Отчёт отправлен в 1С. Сначала отмените отправку, потом удаляйте».
         await failToast(res);
-        setReports((prev) =>
-          prev.some((r) => r.id === rep.id) ? prev : [rep, ...prev],
-        );
-        return;
+        return false;
       }
       // Чеки отчёта освободились: у них сменился in_report/report_title,
       // иначе карточка чека продолжила бы показывать пометку «В отчёте».
       if (reloadReceipts) reloadReceipts();
+      return true;
     } catch {
       failToast();
-      setReports((prev) =>
-        prev.some((r) => r.id === rep.id) ? prev : [rep, ...prev],
-      );
+      return false;
     }
   }
 
-  // Удаление свайпом: строка исчезает сразу, запрос уходит отложенно, пока
-  // висит тост с «Отменить». Подтверждения нет намеренно — смахнуть и тапнуть
-  // это уже два осознанных действия, а страховкой служит отмена (решение
-  // 05.08). Таймер и тост живут в ОБОЛОЧКЕ, поэтому переживают переход между
-  // вкладками нижнего меню; при закрытии страницы таймер умирает вместе с ней
-  // и отчёт остаётся — это принято осознанно, см. комментарий у scheduleUndo.
-  function removeWithUndo(rep) {
+  // ⚠️ УДАЛЕНИЕ СПРАШИВАЕТ ДО, А НЕ ДАЁТ ОТМЕНИТЬ ПОСЛЕ (REP-EXPDEL ②, решение
+  // владельца 22.09.2026, В4). Прежняя редакция убирала строку сразу и вешала
+  // тост «Отменить» на несколько секунд; подтверждения не было намеренно —
+  // «смахнуть и тапнуть это уже два осознанных действия» (решение 05.08).
+  // Довод держался на том, что удаляли ТОЛЬКО черновик. С этого захода
+  // удаляются и одобренные, и уже уехавшие в 1С: страховкой секундная плашка
+  // быть перестала. Спрашиваем одинаково из списка и из карточки — шторка
+  // одна на оба места, `ConfirmDeleteReportSheet`.
+  function askDelete(rep) {
+    setСпроситьУдаление(rep);
+  }
+
+  async function подтвердитьУдаление() {
+    const rep = спроситьУдаление;
+    if (!rep || удаляется) return;
+    setУдаляется(true);
+    const ок = await deleteReportNow(rep);
+    setУдаляется(false);
+    setСпроситьУдаление(null);
+    // ⚠️ СТРОКА УБИРАЕТСЯ ТОЛЬКО ПО ОТВЕТУ СЕРВЕРА. Убрать её заранее значило бы
+    // показать удалённым отчёт, который сервер отказался удалять (403 чужому
+    // статусу, 409 при живой отправке в 1С) — и объяснение отказа уехало бы
+    // в тост под уже исчезнувшей строкой.
+    if (!ок) return;
     setReports((prev) => prev.filter((r) => r.id !== rep.id));
     setOpenRep((prev) => (prev && prev.id === rep.id ? null : prev));
-    scheduleUndo?.({
-      message: `Отчёт «${rep.title}» удалён`,
-      commit: () => deleteReportNow(rep),
-      cancel: () =>
-        setReports((prev) =>
-          prev.some((r) => r.id === rep.id) ? prev : [rep, ...prev],
-        ),
-    });
   }
 
   // ── ФИЛЬТРЫ ────────────────────────────────────────────────────────────────
@@ -762,7 +774,7 @@ export default function OtchetyPage({
                         label: "Удалить",
                         Icon: Trash2,
                         bg: "#B91C1C", // sa-del канона
-                        onPress: () => removeWithUndo(rep),
+                        onPress: () => askDelete(rep),
                       },
                     ]
                   : rep.status === "Отклонён"
@@ -779,7 +791,7 @@ export default function OtchetyPage({
                           label: "Удалить",
                           Icon: Trash2,
                           bg: "#B91C1C",
-                          onPress: () => removeWithUndo(rep),
+                          onPress: () => askDelete(rep),
                         },
                       ]
                     : [];
@@ -974,7 +986,7 @@ export default function OtchetyPage({
             // запрос уходит отложенно, пока висит тост с «Отменить».
             // Подтверждения нет ни там, ни здесь — иначе одно действие вело бы
             // себя по-разному в двух местах.
-            removeWithUndo(rep);
+            askDelete(rep);
           }}
         />
       )}
@@ -989,6 +1001,20 @@ export default function OtchetyPage({
             if (updated)
               setOpenRep((prev) => (prev ? { ...prev, ...updated } : prev));
           }}
+        />
+      )}
+
+      {/* ⚠️ ОДНА ШТОРКА НА ОБА МЕСТА (REP-EXPDEL ②, В4): её открывает и свайп
+          в списке, и пункт «Удалить отчёт» в «⋯» карточки — карточка зовёт
+          тот же onDelete. Лежит она здесь, потому что здесь же живёт запрос
+          и список, который надо поправить по ответу. */}
+      {спроситьУдаление && (
+        <ConfirmDeleteReportSheet
+          отчёт={спроситьУдаление}
+          занято={удаляется}
+          про1С={спроситьУдаление.status === "Одобрен"}
+          onKeep={() => !удаляется && setСпроситьУдаление(null)}
+          onConfirm={подтвердитьУдаление}
         />
       )}
 

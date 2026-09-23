@@ -20,6 +20,7 @@ export default defineConfig([
     "scripts/probe-live/__dist",
     "scripts/probe-skvoz/__dist",
     "scripts/probe-v1s/__dist",
+    "scripts/probe-del/__dist",
     "scripts/probe-token/__dist",
     "scripts/probe-summa/__dist",
     "scripts/probe-geroy/__dist",

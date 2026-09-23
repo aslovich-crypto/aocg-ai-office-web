@@ -16,6 +16,8 @@
     "scroll": "node scripts/check-scroll-reset.mjs",
     "skvoz": "node scripts/check-skvoznoy.mjs",
     "v1s": "node scripts/check-v1s.mjs",
+    "vdel": "node scripts/check-del.mjs",
+    "vdel-mut": "node scripts/del-mutations.mjs",
     "v1s-mut": "node scripts/v1s-mutations.mjs",
     "token": "node scripts/check-token-expiry.mjs",
     "author": "node scripts/check-author.mjs",
