@@ -2179,6 +2179,10 @@ function FilterIcon({ active, onClick }) {
   );
 }
 
+// ⚠️ РОЛЬ `status` ДОБАВЛЕНА 23.09.2026 (REP-SWIPE1C). Тост — сообщение
+// о состоянии, и объявлено оно должно быть состоянием: без роли его не
+// озвучивает экранный диктор и не находит ни один прибор. Нашлось пробой:
+// шаг «отказ дословно» отвечал «тоста нет» при видимом тосте.
 function Toast({ toast }) {
   if (!toast) return null;
   const palette = {
@@ -2188,6 +2192,8 @@ function Toast({ toast }) {
   }[toast.type] || { bg: "#F0FDF4", fg: "#15803D", bd: "#BBF7D0" };
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         position: "fixed",
         // ⚠️ НИЖЕ ШАПКИ, А НЕ ПОВЕРХ НЕЁ (замер владельца по снимку 05.09.2026,

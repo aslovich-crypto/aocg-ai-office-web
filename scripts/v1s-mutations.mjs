@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 const КОРЕНЬ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ФАЙЛЫ = {
   карточка: path.join(КОРЕНЬ, "src/components/ReportDetailModal.jsx"),
+  список: path.join(КОРЕНЬ, "src/pages/OtchetyPage.jsx"),
   тексты: path.join(КОРЕНЬ, "src/lib/export1c.js"),
   прил: path.join(КОРЕНЬ, "src/App.jsx"),
   стенд: path.join(КОРЕНЬ, "scripts/lib/skvoznoy-stend.mjs"),
@@ -121,6 +122,21 @@ const МУТАНТЫ = [
     было: "              {нужно1С && <Status1C состояние={сост1С} />}",
     стало: "              {null}",
     ждём: /✗ ①б 1С после одобрения/,
+  },
+  // ── REP-SWIPE1C (23.09.2026): отправка свайпом из списка
+  {
+    имя: "М12 свайп «В 1С» показывается и у уже отправленного",
+    файл: "список",
+    было: "                      !rep.in_1c && role != null && canApprove(role)",
+    стало: "                      role != null && canApprove(role)",
+    ждём: /✗ ⑪ у отправленного действия нет/,
+  },
+  {
+    имя: "М13 свайп отправляет без подтверждения",
+    файл: "список",
+    было: "                            onPress: () => setСпроситьОтправку(rep),",
+    стало: "                            onPress: () => отправитьВ1С(rep.id),",
+    ждём: /✗ ⑩б шторка с названием/,
   },
 ];
 

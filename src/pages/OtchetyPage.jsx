@@ -24,6 +24,8 @@ import { РЕЖИМЫ_ПЕРИОДА, вПериоде } from "../lib/period";
 import ReportDetailModal from "../components/ReportDetailModal";
 import SwipeRow from "../components/SwipeRow";
 import ConfirmDeleteReportSheet from "../components/ConfirmDeleteReportSheet";
+import ConfirmSend1CSheet from "../components/ConfirmSend1CSheet";
+import { отправитьВ1С } from "../lib/export1c";
 
 // Экран «Отчёты» — вёрстка по макету templates/reports/Отчёты.html (ЧП2, INT).
 // Логика (статусы, PATCH, создание) — из кода, вёрстка — из макета.
@@ -375,6 +377,9 @@ export default function OtchetyPage({
   // «запрос в пути»: без него двойной тап шлёт два DELETE.
   const [спроситьУдаление, setСпроситьУдаление] = useState(null);
   const [удаляется, setУдаляется] = useState(false);
+  // Отчёт, про который спрашиваем «отправить в 1С?» (REP-SWIPE1C, 23.09.2026).
+  const [спроситьОтправку, setСпроситьОтправку] = useState(null);
+  const [отправляется, setОтправляется] = useState(false);
 
   async function changeStatus(id, status, reason) {
     try {
@@ -451,6 +456,28 @@ export default function OtchetyPage({
   // одна на оба места, `ConfirmDeleteReportSheet`.
   function askDelete(rep) {
     setСпроситьУдаление(rep);
+  }
+
+  // ⚠️ ОТПРАВКА СВАЙПОМ СПРАШИВАЕТ ВСЕГДА (REP-SWIPE1C, В4 того же склада).
+  // У кнопки в карточке вопроса нет: до неё надо открыть отчёт. Свайп же
+  // задевается случайно, а отправка пишет документ в чужую бухгалтерию.
+  async function подтвердитьОтправку() {
+    const rep = спроситьОтправку;
+    if (!rep || отправляется) return;
+    setОтправляется(true);
+    const о = await отправитьВ1С(rep.id);
+    setОтправляется(false);
+    setСпроситьОтправку(null);
+    if (!о.ок) {
+      // Текст отказа приходит с бэкенда готовым и показывается ДОСЛОВНО:
+      // «Обмен с 1С не настроен…», «уже отправляется», «нет соответствия».
+      setToast({ type: "error", message: о.текст || "Сервер не ответил" });
+      return;
+    }
+    // ⚠️ СОСТОЯНИЕ ПЕРЕЧИТЫВАЕТСЯ, А НЕ ДОСТРАИВАЕТСЯ ПО ПАМЯТИ (класс T156):
+    // после отправки у строки меняется признак `in_1c`, и знать его наверняка
+    // может только сервер — исход бывает и частичным.
+    loadReports();
   }
 
   async function подтвердитьУдаление() {
@@ -777,24 +804,48 @@ export default function OtchetyPage({
                         onPress: () => askDelete(rep),
                       },
                     ]
-                  : rep.status === "Отклонён"
-                    ? [
-                        {
-                          key: "fix",
-                          label: "Исправить",
-                          Icon: Pencil,
-                          bg: "#475569", // sa-fix канона (slate-fg)
-                          onPress: () => changeStatus(rep.id, "Черновик"),
-                        },
-                        {
-                          key: "del",
-                          label: "Удалить",
-                          Icon: Trash2,
-                          bg: "#B91C1C",
-                          onPress: () => askDelete(rep),
-                        },
-                      ]
-                    : [];
+                  : rep.status === "Одобрен"
+                    ? // ⚠️ «В 1С» СВАЙПОМ — ТОЛЬКО ТАМ, ГДЕ ОТПРАВКА ЕЩЁ
+                      // ВОЗМОЖНА (REP-SWIPE1C, 23.09.2026). Признак `in_1c`
+                      // приходит В СПИСКЕ одним запросом на всю страницу:
+                      // ручка состояния отвечает про ОДИН отчёт, и
+                      // спрашивать её построчно значило бы слать столько
+                      // запросов, сколько строк на экране. У уже
+                      // отправленного свайпа НЕТ вовсе — отмена живёт
+                      // в карточке, рядом с номером документа, который
+                      // человеку и надо увидеть. Право то же, что у кнопки
+                      // в карточке: бухгалтер и администратор; сотруднику
+                      // сервер ответит 403, а мёртвая кнопка хуже
+                      // отсутствующей.
+                      !rep.in_1c && role != null && canApprove(role)
+                      ? [
+                          {
+                            key: "to1c",
+                            label: "В 1С",
+                            Icon: Send,
+                            bg: "#15803D", // sa-send канона, как «Отправить»
+                            onPress: () => setСпроситьОтправку(rep),
+                          },
+                        ]
+                      : []
+                    : rep.status === "Отклонён"
+                      ? [
+                          {
+                            key: "fix",
+                            label: "Исправить",
+                            Icon: Pencil,
+                            bg: "#475569", // sa-fix канона (slate-fg)
+                            onPress: () => changeStatus(rep.id, "Черновик"),
+                          },
+                          {
+                            key: "del",
+                            label: "Удалить",
+                            Icon: Trash2,
+                            bg: "#B91C1C",
+                            onPress: () => askDelete(rep),
+                          },
+                        ]
+                      : [];
             return (
               <SwipeRow
                 key={rep.id}
@@ -1008,6 +1059,15 @@ export default function OtchetyPage({
           в списке, и пункт «Удалить отчёт» в «⋯» карточки — карточка зовёт
           тот же onDelete. Лежит она здесь, потому что здесь же живёт запрос
           и список, который надо поправить по ответу. */}
+      {спроситьОтправку && (
+        <ConfirmSend1CSheet
+          отчёт={спроситьОтправку}
+          занято={отправляется}
+          onKeep={() => !отправляется && setСпроситьОтправку(null)}
+          onConfirm={подтвердитьОтправку}
+        />
+      )}
+
       {спроситьУдаление && (
         <ConfirmDeleteReportSheet
           отчёт={спроситьУдаление}

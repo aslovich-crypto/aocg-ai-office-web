@@ -1409,10 +1409,16 @@ export default function ReportDetailModal({
               footer.send ||
               footer.fix) && (
               <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                {/* ⚠️ «ИСПРАВИТЬ» ВИШНЁВАЯ — ПРАВКА ПО ПРИЁМКЕ 23.09.2026.
+                    У отклонённого отчёта это и есть движение вперёд: вернуть
+                    в черновик, починить и отправить снова. Белой она читалась
+                    как второстепенная, и главного действия у экрана не было
+                    видно вовсе. Канон карточки документа: одна вишнёвая —
+                    следующее состояние. */}
                 {footer.fix && (
                   <button
                     onClick={() => onStatus(rep.id, "Черновик")}
-                    style={BTN.neutral}
+                    style={BTN.primary}
                   >
                     Исправить
                   </button>

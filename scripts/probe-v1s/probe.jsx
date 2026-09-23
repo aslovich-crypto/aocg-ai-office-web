@@ -72,6 +72,25 @@ function токеныИзАдреса() {
   return true;
 }
 
+// Замер без оценки: что ручка списка говорит про 1С у нашего отчёта.
+async function спроситьСписок() {
+  try {
+    const о = await настоящий(`${API}/api/reports/`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+    });
+    const тело = await о.json();
+    const наш = тело.find((р) => р.title === "Отчёт для 1С");
+    window.__in1c = наш
+      ? `in_1c=${наш.in_1c} поля=${Object.keys(наш).length}`
+      : "отчёта нет";
+  } catch (е) {
+    window.__in1c = `ошибка: ${е}`;
+  }
+}
+
 (токеныИзАдреса() ? Promise.resolve(true) : войти()).then((готово) => {
+  спроситьСписок();
   if (готово) createRoot(document.getElementById("root")).render(<App />);
 });
