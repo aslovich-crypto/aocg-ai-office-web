@@ -17,6 +17,10 @@ import { шторкаОтмена } from "../lib/cardUi";
 export default function AskSheet({
   заголовок,
   занято,
+  // ⚠️ `нельзя` — кнопка действия погашена, но шторка жива (REP-RENAME).
+  // Отличается от `занято`: там запрос в пути и гасится ВСЁ, здесь человек
+  // ещё не дал того, без чего действие бессмысленно.
+  нельзя,
   onKeep,
   onConfirm,
   стильДействия,
@@ -74,10 +78,11 @@ export default function AskSheet({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={занято}
+            disabled={занято || нельзя}
             style={{
               ...стильДействия,
-              cursor: занято ? "default" : "pointer",
+              opacity: нельзя ? 0.45 : 1,
+              cursor: занято || нельзя ? "default" : "pointer",
             }}
           >
             {занято ? подписьЗанято : подписьДействия}
